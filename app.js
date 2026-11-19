@@ -156,7 +156,7 @@ function portionLimit() {
 
 // ---------- UI ----------
 const UI = { tab: 'today', day: today(), food: 'log', week: monday(today()), search: '' };
-const TITLES = { train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
+const TITLES = { goals: 'Goals', train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
 const VIEWS = {}, BIND = {};
 const FOOD_TABS = ['log', 'plan', 'cards', 'pantry', 'shop'];
 const FOOD_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', pantry: 'Pantry', shop: 'Shop' };
@@ -595,6 +595,193 @@ function exEdit(e) {
   }, isNew ? 'Add' : 'Save');
   const del = $('#exDel', body); if (del) del.onclick = ev => { ev.preventDefault(); t.ex = t.ex.filter(x => x !== e); for (const s of t.sessions) s.ex = s.ex.filter(x => x !== e.id); save(); closeDlg(); render(); };
 }
+
+// ---------- GOALS ----------
+// S.goals = { list:[goal], board:[{id,img,cap,goal,done}] }
+// goal = { id, icon, title, s, m, a, r, due, track:'weight'|'smoke'|'manual'|'check', start, target, unit, log:[{d,v}], checks:[names], ticks:{'YYYY-MM':[i]}, done, sort }
+// No points: progress is the reward (flags on the bar, streaks, how far you've come, photos).
+const G = () => { const g = S.goals ||= {}; g.list ||= []; g.board ||= []; return g; };
+const TRACKS = { weight: 'Weight (reads Body)', smoke: 'Smoke-free days (reads Body)', manual: 'A number I log', check: 'Monthly checklist' };
+const ym = d => d.slice(0, 7);
+function goalNow(g) {
+  if (g.track === 'weight') { const ds = Object.keys(B().weights).sort(), last = ds[ds.length - 1]; return last ? r1(avgW(last) || B().weights[last]) : null; }
+  if (g.track === 'smoke') return B().smoke ? daysBetween(B().smoke.since, today()) : null;
+  if (g.track === 'check') { const n = (g.checks || []).length; if (!n) return null; const t = g.ticks || {}, m = Object.keys(t).sort().pop(); return m ? Math.round(t[m].length / n * 100) : 0; }
+  const l = (g.log || []).slice().sort((a, b) => a.d.localeCompare(b.d)); return l.length ? l[l.length - 1].v : null;
+}
+function goalStart(g) {
+  if (g.track === 'weight') return g.start ?? (B().start || {}).weight ?? goalNow(g);
+  return g.start ?? 0;
+}
+const goalTarget = g => g.track === 'check' ? 100 : g.target;
+function goalPct(g) {
+  const a = goalStart(g), b = goalTarget(g), c = goalNow(g);
+  if (c == null || a == null || b == null || a === b) return 0;
+  return Math.max(0, Math.min(1, (c - a) / (b - a)));
+}
+// flags: every 2 kg for weight, otherwise at 25 / 50 / 75 %
+function goalFlags(g) {
+  const a = goalStart(g), b = goalTarget(g); if (a == null || b == null || a === b) return [];
+  if (g.track === 'weight') { const out = [], dir = b < a ? -1 : 1; for (let k = 2; k < Math.abs(b - a); k += 2) out.push(k); return out.map(k => ({ v: r1(a + dir * k), p: k / Math.abs(b - a), label: `${dir < 0 ? '−' : '+'}${k} kg (${r1(a + dir * k)})` })); }
+  return [.25, .5, .75].map(p => { const v = r1(a + (b - a) * p); return { v, p, label: g.track === 'check' || g.unit === '%' ? v + '%' : v + (g.unit ? ' ' + g.unit : '') }; });
+}
+// weeks in a row with something logged (manual / checklist goals)
+function goalStreak(g) {
+  const ds = g.track === 'check' ? [] : (g.log || []).map(x => x.d); if (!ds.length) return 0;
+  const wk = new Set(ds.map(monday)); let w = monday(today()), n = 0;
+  if (!wk.has(w)) w = addDays(w, -7);
+  while (wk.has(w)) { n++; w = addDays(w, -7); }
+  return n;
+}
+function goalLine(g) {
+  const c = goalNow(g), a = goalStart(g), b = goalTarget(g), u = g.unit ? (g.unit === '%' ? '' : ' ') + g.unit : '';
+  if (c == null) return g.track === 'weight' ? 'Log a weight on Body to start.' : g.track === 'smoke' ? 'Starts when you set a smoke-free date on Body.' : 'Nothing logged yet.';
+  const bits = [];
+  if (g.track === 'weight') {
+    const lost = r1(a - c), left = r1(c - b);
+    bits.push(`<b>${c} kg</b> (7-day avg)`, lost > 0 ? `−${lost} kg so far` : 'Starting line', left > 0 ? `${left} to go` : 'Target reached 🎉');
+    if (g.due && left > 0) { const wks = Math.max(1, daysBetween(today(), g.due) / 7); bits.push(`~${r1(left / wks)} kg/week needed`); }
+  } else if (g.track === 'smoke') bits.push(`<b>${c} days</b> smoke-free`, `best ${Math.max(B().smoke.best || 0, c)}`);
+  else if (g.track === 'check') bits.push(`<b>${c}%</b> this month's test`);
+  else bits.push(`<b>${c}${u}</b> now`, `started at ${a}${u}`, `target ${b}${u}`);
+  return bits.join(' · ');
+}
+const dueTxt = d => { if (!d) return ''; const n = daysBetween(today(), d); return n < 0 ? 'past the deadline' : n < 60 ? n + ' days left' : Math.round(n / 7) + ' weeks left'; };
+function goalBar(g) {
+  const p = goalPct(g), fl = goalFlags(g);
+  return `<div class="gbar"><i style="width:${(p * 100).toFixed(1)}%"></i>${fl.map(f => `<span class="flag ${p >= f.p - 1e-9 ? 'hit' : ''}" style="left:${(f.p * 100).toFixed(1)}%" title="${esc(f.label)}">⚑</span>`).join('')}</div>`;
+}
+function goalCard(g) {
+  const fl = goalFlags(g), p = goalPct(g), hit = fl.filter(f => p >= f.p - 1e-9).length, next = fl.find(f => p < f.p - 1e-9), st = goalStreak(g);
+  const photo = G().board.find(x => x.goal === g.id && x.done);
+  const smart = [['Specific', g.s], ['Measurable', g.m], ['Achievable', g.a], ['Relevant', g.r]].filter(x => x[1]);
+  const month = ym(today()), ticks = ((g.ticks || {})[month]) || [];
+  return `<div class="card goal ${g.done ? 'won' : ''}" data-g="${g.id}">
+    <div class="row"><div class="gicon">${esc(g.icon || '☆')}</div><div class="grow"><div class="h">${esc(g.title)}</div>
+      <div class="muted small">${g.done ? '🏆 Achieved ' + fmtDay(g.done) : [dueTxt(g.due), g.due ? 'by ' + fmtDay(g.due) : ''].filter(Boolean).join(' · ')}</div></div>
+      <button class="icon" data-gedit="${g.id}" title="Edit">✎</button></div>
+    ${photo ? `<div class="polaroid small-p"><img src="${photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
+    ${goalBar(g)}
+    <div class="small">${goalLine(g)}</div>
+    ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · 🔥 ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small">🔥 ${st} weeks in a row</div>` : ''}
+    ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">${new Date().toLocaleDateString('en-GB', { month: 'long' })} test, tap what you can do:</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
+    ${smart.length ? `<details><summary class="muted small">SMART</summary>${smart.map(([k, t]) => `<div class="small"><b>${k}:</b> ${esc(t)}</div>`).join('')}</details>` : ''}
+    ${g.done ? '' : `<div class="row gap">${g.track === 'manual' ? `<button class="mini" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
+  </div>`;
+}
+function farCard() {
+  const b = B(), st = b.start || {}, bits = [];
+  const ds = Object.keys(b.weights).sort(), last = ds[ds.length - 1];
+  if (st.weight && last) { const lost = r1(st.weight - (avgW(last) || b.weights[last])); if (lost > 0) bits.push(['⚖', `−${lost} kg`]); }
+  const ms = Object.keys(b.meas).sort(), lm = b.meas[ms[ms.length - 1]] || {};
+  if (st.waist && lm.waist && st.waist > lm.waist) bits.push(['〰', `−${r1(st.waist - lm.waist)} cm waist`]);
+  if (st.hips && lm.hips && st.hips > lm.hips) bits.push(['〰', `−${r1(st.hips - lm.hips)} cm hips`]);
+  if (b.smoke) { const n = daysBetween(b.smoke.since, today()); if (n > 0) bits.push(['🚭', `${n} days smoke-free`]); }
+  const tl = S.train && S.train.logs ? S.train.logs.length : 0; if (tl) bits.push(['◇', `${tl} session${tl > 1 ? 's' : ''} trained`]);
+  const won = G().list.filter(g => g.done).length; if (won) bits.push(['🏆', `${won} goal${won > 1 ? 's' : ''} achieved`]);
+  if (!bits.length) return '';
+  return `<div class="card compact far"><div class="muted small">How far you've come${st.date ? ' since ' + fmtDay(st.date) : ''}</div><div class="row wrap gap">${bits.map(([i, t]) => `<span class="chip">${i} ${t}</span>`).join('')}</div></div>`;
+}
+function boardView() {
+  const bd = G().board;
+  return `<div class="row" style="margin:18px 2px 8px"><h2 class="grow">Vision board</h2><label class="btn mini">＋ Photo<input type="file" id="vbAdd" accept="image/*" multiple hidden></label></div>
+    ${bd.length ? `<div class="board">${bd.map((x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:${(i * 7 % 9 - 4) * .6}deg"><img src="${x.img}" alt="">${x.done ? '<span class="won-tag">🏆</span>' : ''}<div class="cap">${esc(x.cap || '')}</div></div>`).join('')}</div>`
+      : `<div class="card muted small">Add photos that pull you toward your goals: the body, the fight, the places, the life. When you achieve a goal, its photo lands here too.</div>`}`;
+}
+VIEWS.goals = () => {
+  const L = G().list, open = L.filter(g => !g.done).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done);
+  return `${farCard()}
+    ${open.map(goalCard).join('') || '<div class="card muted">No goals yet. Tap ＋ Goal, or paste the goals Claude sent you in Settings → 📋 Paste data.</div>'}
+    <div class="row"><button class="mini" id="gAdd">＋ Goal</button></div>
+    ${won.length ? `<details class="card"><summary>🏆 Achieved (${won.length})</summary>${won.map(goalCard).join('')}</details>` : ''}
+    ${boardView()}`;
+};
+BIND.goals = v => {
+  $('#gAdd', v).onclick = () => goalEdit();
+  $$('[data-gedit]', v).forEach(x => x.onclick = () => goalEdit(x.dataset.gedit));
+  $$('[data-glog]', v).forEach(x => x.onclick = () => goalLog(x.dataset.glog));
+  $$('[data-gwin]', v).forEach(x => x.onclick = () => goalWin(x.dataset.gwin));
+  $$('[data-gtick]', v).forEach(x => x.onclick = () => {
+    const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
+    t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); save(); render(); });
+  $$('[data-vb]', v).forEach(x => x.onclick = () => photoEdit(x.dataset.vb));
+  $('#vbAdd', v).onchange = async e => { for (const f of e.target.files) await addPhoto(f, {}); render(); };
+};
+const gById = id => G().list.find(g => g.id === id);
+function goalEdit(id) {
+  const g = id ? gById(id) : { icon: '☆', track: 'manual' }, ck = (g.checks || []).join('\n');
+  const body = dialog(`<h2>${id ? 'Edit goal' : 'New goal'}</h2>
+    <div class="row"><div style="width:4.5em"><label>Icon</label><input name="icon" value="${esc(g.icon || '')}"></div><div class="grow"><label>Goal</label><input name="title" value="${esc(g.title || '')}" placeholder="e.g. Pass the driving theory exam"></div></div>
+    <label>Specific: what exactly?</label><textarea name="s" rows="2">${esc(g.s || '')}</textarea>
+    <label>Measurable: how will you know?</label><textarea name="m" rows="2">${esc(g.m || '')}</textarea>
+    <label>Achievable: why it's realistic</label><textarea name="a" rows="2">${esc(g.a || '')}</textarea>
+    <label>Relevant: why it matters to you</label><textarea name="r" rows="2">${esc(g.r || '')}</textarea>
+    <label>Time-bound: deadline</label><input type="date" name="due" value="${g.due || ''}">
+    <label>Track progress by</label><select name="track">${Object.entries(TRACKS).map(([k, t]) => `<option value="${k}" ${g.track === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <div class="grid3" id="nums"><div><label>Start</label><input name="start" inputmode="decimal" value="${g.start ?? ''}" placeholder="${g.track === 'weight' ? 'from Body' : '0'}"></div><div><label>Target</label><input name="target" inputmode="decimal" value="${g.target ?? ''}"></div><div><label>Unit</label><input name="unit" value="${esc(g.unit || '')}" placeholder="kg, %, min"></div></div>
+    <div id="cks"><label>Checklist (one per line; each one ticked = its share of 100%)</label><textarea name="checks" rows="4">${esc(ck)}</textarea></div>
+    ${id ? `<div class="row gap">${g.done ? '<button class="mini" id="gReopen">Not achieved yet</button>' : ''}<div class="grow"></div><button class="mini del" id="gDel">Delete goal</button></div>` : ''}`, f => {
+    if (!f.title.value.trim()) { toast('Give it a name'); return false; }
+    Object.assign(g, { icon: f.icon.value.trim() || '☆', title: f.title.value.trim(), s: f.s.value.trim(), m: f.m.value.trim(), a: f.a.value.trim(), r: f.r.value.trim(), due: f.due.value || undefined, track: f.track.value,
+      start: f.start.value.trim() === '' ? undefined : num(f.start.value), target: f.target.value.trim() === '' ? undefined : num(f.target.value), unit: f.unit.value.trim() || undefined,
+      checks: f.checks.value.split('\n').map(x => x.trim()).filter(Boolean) });
+    if (g.track === 'smoke' && g.unit == null) g.unit = 'days';
+    if (!id) { g.id = uid(); g.log = []; G().list.push(g); }
+  });
+  const sync = () => { const t = body.track.value; $('#cks', body).hidden = t !== 'check'; $('#nums', body).hidden = t === 'check'; };
+  body.track.onchange = sync; sync();
+  const del = $('#gDel', body); if (del) del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.list = G().list.filter(x => x.id !== id); S.goals.board = G().board.filter(x => x.goal !== id || !x.done); save(); closeDlg(); render(); toast('Goal deleted'); };
+  const ro = $('#gReopen', body); if (ro) ro.onclick = e => { e.preventDefault(); g.done = undefined; save(); closeDlg(); render(); };
+}
+function goalLog(id) {
+  const g = gById(id), hist = (g.log || []).slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 8);
+  const body = dialog(`<h2>${esc(g.icon || '')} ${esc(g.title)}</h2>
+    <div class="row"><div class="grow"><label>Value${g.unit ? ' (' + esc(g.unit) + ')' : ''}</label><input name="v" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div>
+    ${hist.length ? `<h3>Recent</h3>${hist.map(x => `<div class="row small"><span class="grow">${fmtDay(x.d)}</span><b>${x.v}${g.unit ? ' ' + esc(g.unit) : ''}</b><button class="mini ghost" data-lx="${x.d}">✕</button></div>`).join('')}` : ''}`, f => {
+    if (f.v.value.trim() === '') return false;
+    g.log = (g.log || []).filter(x => x.d !== f.d.value); g.log.push({ d: f.d.value || today(), v: num(f.v.value) }); toast('Logged ✓');
+  }, 'Log');
+  $$('[data-lx]', body).forEach(x => x.onclick = e => { e.preventDefault(); g.log = g.log.filter(y => y.d !== x.dataset.lx); save(); x.parentElement.remove(); render(); });
+}
+function goalWin(id) {
+  const g = gById(id);
+  const body = dialog(`<h2>🏆 ${esc(g.title)}</h2><p class="muted small">You did it. Add a photo of the moment for your board (optional).</p>
+    <label>Achieved on</label><input type="date" name="d" value="${today()}">
+    <label class="btn mini" style="margin-top:10px">📷 Add photo<input type="file" name="ph" accept="image/*" hidden></label> <span class="muted small" id="phn"></span>
+    <label>Caption</label><input name="cap" value="${esc(g.title)}">`, async f => {
+    g.done = f.d.value || today();
+    const file = f.ph.files[0]; if (file) { await addPhoto(file, { goal: g.id, done: true, cap: f.cap.value.trim() }); render(); }
+    toast('Achieved 🏆');
+  }, 'Achieved');
+  body.ph.onchange = () => { $('#phn', body).textContent = body.ph.files[0] ? '✓ ' + body.ph.files[0].name : ''; };
+}
+// photos are shrunk (max 720 px, JPEG) so many fit on the phone; they're in the backup too
+function shrink(file, max = 720) {
+  return new Promise((ok, bad) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', .72)); };
+    img.onerror = bad; img.src = url;
+  });
+}
+async function addPhoto(file, extra) {
+  try { const img = await shrink(file), x = Object.assign({ id: uid(), img, cap: '' }, extra); G().board.push(x);
+    try { save(); } catch { G().board.pop(); save(); toast('Phone storage is full. Remove a photo first.'); } }
+  catch { toast('Couldn\'t read that photo'); }
+}
+function photoEdit(pid) {
+  const x = G().board.find(y => y.id === pid);
+  const body = dialog(`<div class="polaroid big-p"><img src="${x.img}" alt=""></div>
+    <label>Caption</label><input name="cap" value="${esc(x.cap || '')}">
+    <label>Goal</label><select name="goal"><option value="">None</option>${G().list.map(g => `<option value="${g.id}" ${x.goal === g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}</select>
+    <div class="row gap"><button class="mini" data-mv="-1">‹ Move</button><button class="mini" data-mv="1">Move ›</button><div class="grow"></div><button class="mini del" id="phDel">Remove photo</button></div>`, f => {
+    x.cap = f.cap.value.trim(); x.goal = f.goal.value || undefined;
+  });
+  $$('[data-mv]', body).forEach(b => b.onclick = e => { e.preventDefault(); const bd = G().board, i = bd.indexOf(x), j = i + +b.dataset.mv; if (j < 0 || j >= bd.length) return; bd.splice(i, 1); bd.splice(j, 0, x); save(); render(); toast('Moved'); });
+  const del = $('#phDel', body); del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.board = G().board.filter(y => y !== x); save(); closeDlg(); render(); };
+}
+// private goals import (Settings → Paste data): adds goals by id, never overwrites ones already in the app
+function mergeGoals(list) { const L = G().list; let n = 0; for (const g of list || []) if (!L.some(x => x.id === g.id)) { L.push(Object.assign({ log: [] }, g)); n++; } return n; }
 
 // ---------- CAT ----------
 // "Did you feed the cat?": ticking it takes 1 wet food out of the pantry; warns at 3 or fewer.
@@ -1338,9 +1525,11 @@ function openSettings() {
   $('#exp', body).onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `organiser-backup-${today()}.json`; a.click(); };
   $('#paste', body).onclick = e => { e.preventDefault();
     const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude sent you.</p><textarea name="t" rows="8"></textarea>`, f => {
-      try { const d = JSON.parse(f.t.value.trim()); if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
+      try { const d = JSON.parse(f.t.value.trim());
+        if (d.kind === 'organiser-goals' && d.goals) { const n = mergeGoals(d.goals); toast(n ? `${n} goals added ✓` : 'Those goals are already in'); go('goals'); return; }
+        if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
     }, 'Import'); };
-  $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { mergeBody(d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
+  $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { mergeBody(d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (d.kind === 'organiser-goals' && d.goals) { mergeGoals(d.goals); save(); closeDlg(); go('goals'); toast('Goals imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
 }
 
 // ---------- start ----------

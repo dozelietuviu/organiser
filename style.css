@@ -143,3 +143,21 @@ textarea { min-height: 3em; }
 .vitrow { align-items: center; margin-top: 6px; }
 .setrow input { width: 4.6em; text-align: center; padding: 7px 4px; }
 .setrow.sdone input { border-color: var(--accent); }
+/* Goals */
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gicon { font-size: 1.5rem; width: 1.6em; text-align: center; }
+.goal.won { border-color: var(--accent2); }
+.gbar { position: relative; height: 10px; background: var(--bg2); border-radius: 6px; margin: 16px 0 8px; }
+.gbar > i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #2aa9b8, var(--accent)); }
+.gbar .flag { position: absolute; top: -15px; transform: translateX(-30%); font-size: .8rem; color: var(--line); line-height: 1; }
+.gbar .flag.hit { color: var(--accent2); }
+.goal details, details.card summary { margin-top: 6px; }
+details > summary { cursor: pointer; }
+.board { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; padding: 4px; }
+.polaroid { position: relative; background: #efe6d3; padding: 8px 8px 0; border-radius: 3px; transform: rotate(var(--r, 0deg)); box-shadow: 0 6px 16px rgba(0,0,0,.45); }
+.polaroid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; filter: sepia(.18) saturate(.9) contrast(1.03); }
+.polaroid .cap { font-family: "Iowan Old Style", Georgia, serif; font-style: italic; color: #3b2f22; text-align: center; padding: 6px 2px 10px; min-height: 1.6em; font-size: .9rem; }
+.polaroid .won-tag { position: absolute; top: 2px; right: 4px; font-size: 1.1rem; }
+.polaroid.small-p { width: 46%; margin: 10px auto 2px; transform: rotate(-2deg); }
+.polaroid.big-p { margin: 4px auto 10px; max-width: 80%; padding-bottom: 8px; }
+.polaroid.big-p img { aspect-ratio: auto; }
