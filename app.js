@@ -1097,7 +1097,7 @@ function openSettings() {
     <label>Link (shared "anyone with the link"). You get a note when he changes it.</label><input name="sheetUrl" value="${esc(s.sheetUrl)}" placeholder="https://docs.google.com/spreadsheets/d/…">
     <button class="mini" id="split">Apply his macro split to my kcal now</button>
     <h3>Backup</h3><p class="muted small">Your data lives on this phone only. Download a backup now and then.</p>
-    <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label></div>
+    <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
     <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}.</p>`, b => {
     for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'water', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k];
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }
@@ -1105,6 +1105,10 @@ function openSettings() {
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
     try { const t = await checkSheet(); if (!t || !t.p) throw 0; applySplit(t); S.settings.sheetSeen = JSON.stringify(t); save(); closeDlg(); render(); toast(`P ${s.p} · C ${s.c} · F ${s.f} ✓`); } catch { toast('Couldn\'t read the Sheet. Is it shared by link?'); } };
   $('#exp', body).onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `organiser-backup-${today()}.json`; a.click(); };
+  $('#paste', body).onclick = e => { e.preventDefault();
+    const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude sent you.</p><textarea name="t" rows="8"></textarea>`, f => {
+      try { const d = JSON.parse(f.t.value.trim()); if (d.kind !== 'organiser-body' || !d.body) throw 0; S.body = Object.assign({}, S.body || {}, d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
+    }, 'Import'); };
   $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { S.body = Object.assign({}, S.body || {}, d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
 }
 
