@@ -114,3 +114,4 @@ dialog::backdrop { background: rgba(0, 8, 14, .7); }
 video.scan { width: 100%; border-radius: 10px; background: #000; max-height: 50vh; object-fit: cover; }
 .item { margin: 6px 0; }
 .chip.on .muted { color: #0b4a42; }
+.qty { min-width: 4.6em; text-align: center; font-size: .9rem; }

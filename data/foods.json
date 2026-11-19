@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-19d",
+ "updated": "2026-11-19e",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -18,7 +18,9 @@
    "price": 1.69,
    "pantry": true,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "egg",
+   "suG": 60
   },
   {
    "key": "egg-white",
@@ -30,7 +32,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "carton",
+   "suG": 500
   },
   {
    "key": "chicken-breast",
@@ -44,7 +48,9 @@
    "shop": "Lidl",
    "packG": 1000,
    "price": 6.95,
-   "pantry": true
+   "pantry": true,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "chicken-thigh",
@@ -56,7 +62,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "beef-mince",
@@ -68,7 +76,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "salmon",
@@ -80,7 +90,9 @@
    "fib": 0,
    "place": "Freezer",
    "shop": "Lidl",
-   "packG": 250
+   "packG": 250,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "tuna",
@@ -95,7 +107,9 @@
    "unit": "can",
    "unitG": 120,
    "packG": 120,
-   "pantry": false
+   "pantry": false,
+   "su": "can",
+   "suG": 120
   },
   {
    "key": "tofu",
@@ -107,7 +121,9 @@
    "fib": 2.3,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 200
+   "packG": 200,
+   "su": "block",
+   "suG": 200
   },
   {
    "key": "varske",
@@ -119,7 +135,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 180
+   "packG": 180,
+   "su": "tub",
+   "suG": 180
   },
   {
    "key": "greek-yog",
@@ -131,7 +149,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "tub",
+   "suG": 500
   },
   {
    "key": "coconut-yog",
@@ -143,7 +163,9 @@
    "fib": 1,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 1000
+   "packG": 1000,
+   "su": "jar",
+   "suG": 1000
   },
   {
    "key": "milk",
@@ -157,7 +179,9 @@
    "shop": "Lidl",
    "unit": "glass",
    "unitG": 250,
-   "packG": 1000
+   "packG": 1000,
+   "su": "L",
+   "suG": 1000
   },
   {
    "key": "parmesan",
@@ -169,7 +193,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 100
+   "packG": 100,
+   "su": "block",
+   "suG": 100
   },
   {
    "key": "buckwheat-dry",
@@ -183,7 +209,9 @@
    "shop": "Lidl",
    "packG": 800,
    "price": 1.59,
-   "pantry": true
+   "pantry": true,
+   "su": "bag",
+   "suG": 800
   },
   {
    "key": "buckwheat",
@@ -198,7 +226,9 @@
    "buyAs": {
     "key": "buckwheat-dry",
     "ratio": 0.38
-   }
+   },
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "rice-dry",
@@ -210,7 +240,9 @@
    "fib": 1.3,
    "place": "Cupboard",
    "shop": "Lidl",
-   "packG": 1000
+   "packG": 1000,
+   "su": "bag",
+   "suG": 1000
   },
   {
    "key": "rice",
@@ -225,7 +257,9 @@
    "buyAs": {
     "key": "rice-dry",
     "ratio": 0.36
-   }
+   },
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "oats",
@@ -237,7 +271,9 @@
    "fib": 10.6,
    "place": "Cupboard",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "bag",
+   "suG": 500
   },
   {
    "key": "rye-bread",
@@ -251,7 +287,9 @@
    "shop": "Lidl",
    "unit": "slice",
    "unitG": 35,
-   "packG": 400
+   "packG": 400,
+   "su": "loaf",
+   "suG": 400
   },
   {
    "key": "potato",
@@ -267,7 +305,9 @@
    "price": 0.99,
    "pantry": true,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "kg",
+   "suG": 1000
   },
   {
    "key": "sweet-potato",
@@ -280,7 +320,9 @@
    "place": "Cupboard",
    "shop": "Lidl",
    "packG": 1000,
-   "price": 1.49
+   "price": 1.49,
+   "su": "kg",
+   "suG": 1000
   },
   {
    "key": "peas",
@@ -292,7 +334,9 @@
    "fib": 5.1,
    "place": "Freezer",
    "shop": "Lidl",
-   "packG": 450
+   "packG": 450,
+   "su": "bag",
+   "suG": 450
   },
   {
    "key": "lentils-dry",
@@ -304,7 +348,9 @@
    "fib": 11,
    "place": "Cupboard",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "bag",
+   "suG": 500
   },
   {
    "key": "broccoli",
@@ -317,7 +363,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "packG": 500,
-   "price": 1.69
+   "price": 1.69,
+   "su": "head",
+   "suG": 400
   },
   {
    "key": "spinach",
@@ -329,7 +377,9 @@
    "fib": 2.2,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 200
+   "packG": 200,
+   "su": "bag",
+   "suG": 200
   },
   {
    "key": "napa",
@@ -342,7 +392,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "packG": 1000,
-   "price": 1.85
+   "price": 1.85,
+   "su": "head",
+   "suG": 1000
   },
   {
    "key": "pepper",
@@ -354,7 +406,9 @@
    "fib": 2.1,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "pepper",
+   "suG": 150
   },
   {
    "key": "onion",
@@ -370,7 +424,9 @@
    "price": 0.28,
    "pantry": true,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "onion",
+   "suG": 150
   },
   {
    "key": "garlic",
@@ -384,7 +440,9 @@
    "shop": "Lidl",
    "unit": "clove",
    "unitG": 5,
-   "packG": 100
+   "packG": 100,
+   "su": "bulb",
+   "suG": 50
   },
   {
    "key": "ginger",
@@ -396,7 +454,9 @@
    "fib": 2,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 100
+   "packG": 100,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "banana",
@@ -413,7 +473,9 @@
    "packG": 1000,
    "regular": true,
    "cat": "Food",
-   "pantry": true
+   "pantry": true,
+   "su": "banana",
+   "suG": 120
   },
   {
    "key": "raspberries",
@@ -425,7 +487,9 @@
    "fib": 6.5,
    "place": "Freezer",
    "shop": "Lidl",
-   "packG": 500
+   "packG": 500,
+   "su": "bag",
+   "suG": 500
   },
   {
    "key": "avocado",
@@ -437,7 +501,9 @@
    "fib": 6.7,
    "place": "Fridge",
    "shop": "Lidl",
-   "packG": 400
+   "packG": 400,
+   "su": "avocado",
+   "suG": 200
   },
   {
    "key": "nut-mix",
@@ -451,7 +517,9 @@
    "shop": "Lidl",
    "unit": "serving",
    "unitG": 20,
-   "packG": 1000
+   "packG": 1000,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "chia",
@@ -465,7 +533,9 @@
    "shop": "Lidl",
    "unit": "tbsp",
    "unitG": 12,
-   "packG": 200
+   "packG": 200,
+   "su": "bag",
+   "suG": 200
   },
   {
    "key": "peanut-butter",
@@ -479,7 +549,9 @@
    "shop": "Lidl",
    "unit": "tbsp",
    "unitG": 16,
-   "packG": 350
+   "packG": 350,
+   "su": "jar",
+   "suG": 350
   },
   {
    "key": "olive-oil",
@@ -493,7 +565,9 @@
    "shop": "Lidl",
    "unit": "tbsp",
    "unitG": 13.5,
-   "packG": 500
+   "packG": 500,
+   "su": "bottle",
+   "suG": 500
   },
   {
    "key": "honey",
@@ -507,7 +581,9 @@
    "shop": "Lidl",
    "unit": "tsp",
    "unitG": 7,
-   "packG": 400
+   "packG": 400,
+   "su": "jar",
+   "suG": 400
   },
   {
    "key": "soy-sauce",
@@ -521,7 +597,9 @@
    "shop": "Lidl",
    "unit": "tbsp",
    "unitG": 16,
-   "packG": 150
+   "packG": 150,
+   "su": "bottle",
+   "suG": 150
   },
   {
    "key": "gochujang",
@@ -535,7 +613,9 @@
    "shop": "Lidl",
    "unit": "tbsp",
    "unitG": 18,
-   "packG": 200
+   "packG": 200,
+   "su": "tub",
+   "suG": 200
   },
   {
    "key": "shake",
@@ -549,7 +629,9 @@
    "shop": "Lidl",
    "unit": "scoop",
    "unitG": 30,
-   "packG": 1000
+   "packG": 1000,
+   "su": "tub",
+   "suG": 1000
   },
   {
    "key": "milk-32",
@@ -567,7 +649,9 @@
    "unit": "glass",
    "unitG": 250,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "L",
+   "suG": 1000
   },
   {
    "key": "varske-grain",
@@ -583,7 +667,9 @@
    "packG": 180,
    "pantry": true,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "tub",
+   "suG": 180
   },
   {
    "key": "varske-grain-cherry",
@@ -596,7 +682,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 0.85,
-   "packG": 180
+   "packG": 180,
+   "su": "tub",
+   "suG": 180
   },
   {
    "key": "greek-10",
@@ -612,7 +700,9 @@
    "packG": 150,
    "pantry": true,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "pot",
+   "suG": 150
   },
   {
    "key": "sour-cream-30",
@@ -627,7 +717,9 @@
    "price": 1.49,
    "packG": 200,
    "unit": "tbsp",
-   "unitG": 15
+   "unitG": 15,
+   "su": "tub",
+   "suG": 200
   },
   {
    "key": "mince-mix",
@@ -641,7 +733,9 @@
    "shop": "Lidl",
    "price": 3.59,
    "packG": 500,
-   "pantry": true
+   "pantry": true,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "chicken-quarters",
@@ -654,7 +748,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 2.29,
-   "packG": 1000
+   "packG": 1000,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "chicken-drumsticks",
@@ -667,7 +763,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 2.39,
-   "packG": 1000
+   "packG": 1000,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "chicken-wings",
@@ -679,7 +777,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "price": 1.89
+   "price": 1.89,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "pork-neck-skewer",
@@ -691,7 +791,9 @@
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "price": 4.99
+   "price": 4.99,
+   "su": "g",
+   "suG": 1
   },
   {
    "key": "chicken-cooked-sliced",
@@ -709,7 +811,9 @@
    "unit": "slice",
    "unitG": 20,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "pack",
+   "suG": 100
   },
   {
    "key": "ham-cooked",
@@ -724,7 +828,9 @@
    "price": 1.75,
    "packG": 100,
    "unit": "slice",
-   "unitG": 20
+   "unitG": 20,
+   "su": "pack",
+   "suG": 100
   },
   {
    "key": "chicken-sausage",
@@ -737,7 +843,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 1.59,
-   "packG": 300
+   "packG": 300,
+   "su": "pack",
+   "suG": 300
   },
   {
    "key": "bacon-cubes",
@@ -750,7 +858,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 2.29,
-   "packG": 200
+   "packG": 200,
+   "su": "pack",
+   "suG": 200
   },
   {
    "key": "tuna-oil",
@@ -766,7 +876,9 @@
    "packG": 120,
    "pantry": true,
    "unit": "can",
-   "unitG": 120
+   "unitG": 120,
+   "su": "can",
+   "suG": 120
   },
   {
    "key": "tomatoes-can",
@@ -782,7 +894,9 @@
    "packG": 400,
    "pantry": true,
    "unit": "can",
-   "unitG": 400
+   "unitG": 400,
+   "su": "can",
+   "suG": 400
   },
   {
    "key": "corn-can",
@@ -795,7 +909,9 @@
    "place": "Cupboard",
    "shop": "Lidl",
    "price": 0.75,
-   "packG": 285
+   "packG": 285,
+   "su": "can",
+   "suG": 285
   },
   {
    "key": "peas-can",
@@ -808,7 +924,9 @@
    "place": "Cupboard",
    "shop": "Lidl",
    "price": 1.49,
-   "packG": 400
+   "packG": 400,
+   "su": "can",
+   "suG": 400
   },
   {
    "key": "pickles",
@@ -821,7 +939,9 @@
    "place": "Cupboard",
    "shop": "Lidl",
    "price": 1.55,
-   "packG": 670
+   "packG": 670,
+   "su": "jar",
+   "suG": 670
   },
   {
    "key": "beetroot-cooked",
@@ -835,7 +955,9 @@
    "shop": "Lidl",
    "price": 0.55,
    "packG": 500,
-   "pantry": true
+   "pantry": true,
+   "su": "pack",
+   "suG": 500
   },
   {
    "key": "carrot",
@@ -851,7 +973,9 @@
    "packG": 1000,
    "pantry": true,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "carrot",
+   "suG": 80
   },
   {
    "key": "spring-onion",
@@ -864,7 +988,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 1.19,
-   "packG": 100
+   "packG": 100,
+   "su": "bunch",
+   "suG": 100
   },
   {
    "key": "mushrooms",
@@ -877,7 +1003,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 1.49,
-   "packG": 400
+   "packG": 400,
+   "su": "box",
+   "suG": 400
   },
   {
    "key": "cherry-tomatoes",
@@ -890,7 +1018,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 2.95,
-   "packG": 500
+   "packG": 500,
+   "su": "box",
+   "suG": 500
   },
   {
    "key": "cucumber",
@@ -903,7 +1033,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 0.99,
-   "packG": 400
+   "packG": 400,
+   "su": "cucumber",
+   "suG": 400
   },
   {
    "key": "rocket",
@@ -919,7 +1051,9 @@
    "packG": 100,
    "regular": true,
    "cat": "Food",
-   "pantry": true
+   "pantry": true,
+   "su": "bag",
+   "suG": 100
   },
   {
    "key": "dill",
@@ -932,7 +1066,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 0.89,
-   "packG": 50
+   "packG": 50,
+   "su": "bunch",
+   "suG": 50
   },
   {
    "key": "garlic-puree",
@@ -948,7 +1084,9 @@
    "packG": 200,
    "pantry": true,
    "unit": "tsp",
-   "unitG": 5
+   "unitG": 5,
+   "su": "jar",
+   "suG": 200
   },
   {
    "key": "sesame-sauce",
@@ -963,7 +1101,9 @@
    "price": 1.79,
    "packG": 400,
    "unit": "tbsp",
-   "unitG": 15
+   "unitG": 15,
+   "su": "jar",
+   "suG": 400
   },
   {
    "key": "hard-cheese",
@@ -976,7 +1116,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 2.49,
-   "packG": 200
+   "packG": 200,
+   "su": "block",
+   "suG": 200
   },
   {
    "key": "gouda",
@@ -994,7 +1136,9 @@
    "unit": "slice",
    "unitG": 20,
    "regular": true,
-   "cat": "Food"
+   "cat": "Food",
+   "su": "block",
+   "suG": 300
   },
   {
    "key": "mozzarella-light",
@@ -1007,7 +1151,9 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 0.89,
-   "packG": 125
+   "packG": 125,
+   "su": "ball",
+   "suG": 125
   },
   {
    "key": "pasta-egg",
@@ -1021,7 +1167,9 @@
    "shop": "Lidl",
    "price": 2.69,
    "packG": 500,
-   "pantry": true
+   "pantry": true,
+   "su": "bag",
+   "suG": 500
   },
   {
    "key": "dumplings",
@@ -1034,7 +1182,9 @@
    "place": "Freezer",
    "shop": "Lidl",
    "price": 2.75,
-   "packG": 900
+   "packG": 900,
+   "su": "bag",
+   "suG": 900
   },
   {
    "key": "cepelinai",
@@ -1047,7 +1197,9 @@
    "place": "Freezer",
    "shop": "Lidl",
    "price": 2.59,
-   "packG": 800
+   "packG": 800,
+   "su": "pack",
+   "suG": 800
   },
   {
    "key": "sandwich-bread",
@@ -1065,7 +1217,9 @@
    "unitG": 25,
    "regular": true,
    "cat": "Food",
-   "pantry": true
+   "pantry": true,
+   "su": "loaf",
+   "suG": 500
   },
   {
    "key": "baguette-frozen",
@@ -1077,7 +1231,9 @@
    "fib": 2.5,
    "place": "Freezer",
    "shop": "Lidl",
-   "price": 1.39
+   "price": 1.39,
+   "su": "baguette",
+   "suG": 250
   },
   {
    "key": "mayo",
@@ -1093,7 +1249,9 @@
    "packG": 400,
    "pantry": true,
    "unit": "tbsp",
-   "unitG": 15
+   "unitG": 15,
+   "su": "jar",
+   "suG": 400
   },
   {
    "key": "dijon",
@@ -1109,7 +1267,9 @@
    "packG": 200,
    "pantry": true,
    "unit": "tsp",
-   "unitG": 5
+   "unitG": 5,
+   "su": "jar",
+   "suG": 200
   },
   {
    "key": "bbq-sauce",
@@ -1124,7 +1284,9 @@
    "price": 1.79,
    "packG": 500,
    "unit": "tbsp",
-   "unitG": 15
+   "unitG": 15,
+   "su": "bottle",
+   "suG": 500
   },
   {
    "key": "orange-juice",
@@ -1142,7 +1304,9 @@
    "unitG": 250,
    "regular": true,
    "cat": "Drinks",
-   "pantry": true
+   "pantry": true,
+   "su": "L",
+   "suG": 1000
   },
   {
    "key": "kefir-yog",
@@ -1158,7 +1322,9 @@
    "packG": 400,
    "regular": true,
    "cat": "Jonas snacks",
-   "pantry": true
+   "pantry": true,
+   "su": "tub",
+   "suG": 400
   },
   {
    "key": "drink-yog",
@@ -1174,7 +1340,9 @@
    "packG": 330,
    "regular": true,
    "cat": "Jonas snacks",
-   "pantry": true
+   "pantry": true,
+   "su": "bottle",
+   "suG": 330
   },
   {
    "key": "bifido-yog",
@@ -1192,7 +1360,9 @@
    "unitG": 125,
    "regular": true,
    "cat": "Jonas snacks",
-   "pantry": true
+   "pantry": true,
+   "su": "pot",
+   "suG": 125
   },
   {
    "key": "rice-pudding",
@@ -1210,7 +1380,9 @@
    "unitG": 200,
    "regular": true,
    "cat": "Jonas snacks",
-   "pantry": true
+   "pantry": true,
+   "su": "pot",
+   "suG": 200
   },
   {
    "key": "surelis",
@@ -1228,7 +1400,9 @@
    "unitG": 40,
    "regular": true,
    "cat": "Jonas snacks",
-   "pantry": true
+   "pantry": true,
+   "su": "pc",
+   "suG": 40
   },
   {
    "key": "coffee-beans",
@@ -1244,7 +1418,9 @@
    "packG": 1000,
    "pantry": true,
    "regular": true,
-   "cat": "Drinks"
+   "cat": "Drinks",
+   "su": "bag",
+   "suG": 1000
   },
   {
    "key": "cream-dessert",
@@ -1263,7 +1439,9 @@
    "price": 0.79,
    "packG": 100,
    "unit": "pot",
-   "unitG": 100
+   "unitG": 100,
+   "su": "pot",
+   "suG": 100
   },
   {
    "key": "tuc",
@@ -1280,7 +1458,9 @@
    "f": 22,
    "fib": 2.5,
    "price": 0.99,
-   "packG": 100
+   "packG": 100,
+   "su": "pack",
+   "suG": 100
   },
   {
    "key": "crisps",
@@ -1297,7 +1477,9 @@
    "f": 33,
    "fib": 4,
    "price": 0.99,
-   "packG": 130
+   "packG": 130,
+   "su": "bag",
+   "suG": 130
   },
   {
    "key": "choc-bar",
@@ -1316,7 +1498,9 @@
    "price": 0.35,
    "packG": 30,
    "unit": "bar",
-   "unitG": 30
+   "unitG": 30,
+   "su": "bar",
+   "suG": 30
   },
   {
    "key": "dark-choc",
@@ -1335,7 +1519,9 @@
    "price": 0.55,
    "packG": 100,
    "unit": "square",
-   "unitG": 10
+   "unitG": 10,
+   "su": "bar",
+   "suG": 100
   },
   {
    "key": "cereal-rings",
@@ -1352,7 +1538,9 @@
    "f": 3,
    "fib": 6,
    "price": 1.79,
-   "packG": 375
+   "packG": 375,
+   "su": "box",
+   "suG": 375
   },
   {
    "key": "ice-cream",
@@ -1371,7 +1559,9 @@
    "price": 3.29,
    "packG": 900,
    "unit": "scoop",
-   "unitG": 60
+   "unitG": 60,
+   "su": "tub",
+   "suG": 900
   },
   {
    "key": "sparkling-water",
@@ -1387,7 +1577,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 1.68
+   "price": 1.68,
+   "su": "bottle",
+   "suG": 1
   },
   {
    "key": "cola",
@@ -1403,7 +1595,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 2.29
+   "price": 2.29,
+   "su": "bottle",
+   "suG": 1
   },
   {
    "key": "gira",
@@ -1419,7 +1613,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 0.85
+   "price": 0.85,
+   "su": "bottle",
+   "suG": 1
   },
   {
    "key": "energy-drink",
@@ -1435,7 +1631,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 0.89
+   "price": 0.89,
+   "su": "can",
+   "suG": 1
   },
   {
    "key": "cat-wet",
@@ -1451,7 +1649,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 7.89
+   "price": 7.89,
+   "su": "pack",
+   "suG": 1
   },
   {
    "key": "cat-litter",
@@ -1466,7 +1666,9 @@
    "p": 0,
    "c": 0,
    "f": 0,
-   "fib": 0
+   "fib": 0,
+   "su": "bag",
+   "suG": 1
   },
   {
    "key": "toilet-paper",
@@ -1481,7 +1683,9 @@
    "p": 0,
    "c": 0,
    "f": 0,
-   "fib": 0
+   "fib": 0,
+   "su": "roll",
+   "suG": 1
   },
   {
    "key": "kitchen-roll",
@@ -1496,7 +1700,9 @@
    "p": 0,
    "c": 0,
    "f": 0,
-   "fib": 0
+   "fib": 0,
+   "su": "roll",
+   "suG": 1
   },
   {
    "key": "bin-bags",
@@ -1512,7 +1718,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 1.19
+   "price": 1.19,
+   "su": "roll",
+   "suG": 1
   },
   {
    "key": "wipes",
@@ -1528,7 +1736,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 2.99
+   "price": 2.99,
+   "su": "pack",
+   "suG": 1
   },
   {
    "key": "laundry-gel",
@@ -1544,7 +1754,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 16.99
+   "price": 16.99,
+   "su": "bottle",
+   "suG": 1
   },
   {
    "key": "dish-soap",
@@ -1559,7 +1771,9 @@
    "p": 0,
    "c": 0,
    "f": 0,
-   "fib": 0
+   "fib": 0,
+   "su": "bottle",
+   "suG": 1
   },
   {
    "key": "dishwasher-tabs",
@@ -1574,7 +1788,9 @@
    "p": 0,
    "c": 0,
    "f": 0,
-   "fib": 0
+   "fib": 0,
+   "su": "box",
+   "suG": 1
   },
   {
    "key": "cotton-pads",
@@ -1590,7 +1806,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 0.99
+   "price": 0.99,
+   "su": "pack",
+   "suG": 1
   },
   {
    "key": "toothbrush",
@@ -1606,7 +1824,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 2.49
+   "price": 2.49,
+   "su": "brush",
+   "suG": 1
   },
   {
    "key": "conditioner",
@@ -1622,7 +1842,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 1.99
+   "price": 1.99,
+   "su": "bottle",
+   "suG": 1
   },
   {
    "key": "paper-bag",
@@ -1638,7 +1860,9 @@
    "c": 0,
    "f": 0,
    "fib": 0,
-   "price": 0.2
+   "price": 0.2,
+   "su": "bag",
+   "suG": 1
   }
  ]
 }
