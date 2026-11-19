@@ -268,6 +268,8 @@ const plannedCard = (d, slot) => myCards(d, slot)[0] || null;
 // ---------- BODY ----------
 // S.body = { weights:{day:kg}, meas:{day:{waist,hips}}, start, periods:[{start,end}], sym:{day:{dis,mood}}, vit:{day:{id:true}}, vitSlots, smoke:{since,best,slips}, coffee:{day:n}, alcohol:{day:n} }
 const DIS = [['clear', 'Clear', '#cfe8ef'], ['white', 'White / creamy', '#f3ecd9'], ['paleyellow', 'Pale yellow', '#f2e39b'], ['yellowgreen', 'Yellow-green', '#b9c96a'], ['pink', 'Pink', '#f2a7b8'], ['brown', 'Red / brown', '#8a3b2e'], ['grey', 'Grey', '#8b939a']];
+const MOODS = [['muggle', '🧙 Muggle', ''], ['glow', '✨ GLOWING', '#e6c48a'], ['low', '☁︎ Low mood', '#7fb3ff'], ['stab', '🔪 Stab a bitch', '#ff7a66']];
+const moodOf = s => s && (s.mood === true ? 'low' : s.mood || '');
 const B = () => { const b = S.body ||= {}; for (const [k, v] of Object.entries({ weights: {}, meas: {}, periods: [], sym: {}, vit: {}, vitSlots: [], coffee: {}, alcohol: {} })) b[k] ||= v; return b; };
 // starting Body data (health history) is NOT in the public repo: it comes in as a private file via Settings → Restore
 const daysBetween = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 864e5);
@@ -301,12 +303,12 @@ function heatmap() {
   const end = addDays(monday(today()), 6), start = addDays(end, -83), sym = B().sym, ps = B().periods.map(p => p.start);
   let cells = '';
   for (let i = 0; i < 84; i++) {
-    const d = addDays(start, i), s = sym[d] || {}, dis = DIS.find(x => x[0] === s.dis);
+    const d = addDays(start, i), s = sym[d] || {}, dis = DIS.find(x => x[0] === s.dis), mo = MOODS.find(x => x[0] === moodOf(s));
     const bg = isPeriodDay(d) ? '#c9566a' : dis ? dis[2] : '';
-    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${s.mood ? 'mood' : ''}" style="${bg ? 'background:' + bg : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${s.mood ? ' · low mood' : ''}"></i>`;
+    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${mo && mo[2] ? 'mood' : ''}" style="${bg ? 'background:' + bg + ';' : ''}${mo && mo[2] ? '--mc:' + mo[2] : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${mo ? ' · ' + mo[1] : ''}"></i>`;
   }
   return `<div class="hmgrid">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<b>${x}</b>`).join('')}${cells}</div>
-    <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span><span><i class="hm mood"></i> low mood</span><span>colour = discharge</span></div>`;
+    <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span>${MOODS.filter(m => m[2]).map(m => `<span><i class="hm mood" style="--mc:${m[2]}"></i> ${m[1].replace(/^\S+ /, '')}</span>`).join('')}<span>colour = discharge</span></div>`;
 }
 const vitDue = (it, d) => !it.every || daysBetween(it.from || d, d) % it.every === 0;
 VIEWS.body = () => {
@@ -332,7 +334,7 @@ VIEWS.body = () => {
     ${cycleTip(ci) ? `<div class="note info sm">${cycleTip(ci)}</div>` : ''}
     <div class="row gap">${ci && ci.onPeriod && !ci.last.end ? `<button class="grow" id="pEnd">Period ended today</button>` : `<button class="grow" id="pStart">Period started today</button>`}<button class="mini ghost" id="pList">History</button></div>
     <h3>Today</h3><div class="chips">${DIS.map(([k, l, c]) => `<button class="chip sm ${s.dis === k ? 'on' : ''}" data-dis="${k}"><i class="dot" style="background:${c}"></i>${l}</button>`).join('')}</div>
-    <div class="chips"><button class="chip sm ${s.mood ? 'on' : ''}" id="mood">☁︎ Low mood</button></div>
+    <label>Mood</label><div class="chips">${MOODS.map(([k, l]) => `<button class="chip sm ${moodOf(s) === k ? 'on' : ''}" data-mood="${k}">${l}</button>`).join('')}</div>
     <h3>Last 12 weeks</h3>${heatmap()}
   </div>
   <div class="card"><div class="row"><h2 class="grow">Vitamins</h2><button class="mini ghost" id="vEdit">Edit list</button></div>
@@ -359,7 +361,7 @@ BIND.body = v => {
     $$('[data-pdel]', body).forEach(x => x.onclick = e => { e.preventDefault(); b.periods = b.periods.filter(p => p.start !== x.dataset.pdel); save(); x.closest('li').remove(); render(); });
   };
   $$('[data-dis]', v).forEach(x => x.onclick = () => { const s = b.sym[d] ||= {}; s.dis = s.dis === x.dataset.dis ? undefined : x.dataset.dis; save(); render(); });
-  $('#mood', v).onclick = () => { const s = b.sym[d] ||= {}; s.mood = !s.mood; save(); render(); };
+  $$('[data-mood]', v).forEach(x => x.onclick = () => { const s = b.sym[d] ||= {}; s.mood = moodOf(s) === x.dataset.mood ? '' : x.dataset.mood; save(); render(); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = b.vit[d] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $('#vEdit', v).onclick = vitEdit;
   $('#slip', v).onclick = () => { if (!b.smoke) b.smoke = { since: today(), best: 0, slips: [] }; else { b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, today())); b.smoke.slips.push(today()); b.smoke.since = today(); toast('Reset. Day 1 starts now 💪'); } save(); render(); };
