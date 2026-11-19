@@ -128,3 +128,13 @@ video.scan { width: 100%; border-radius: 10px; background: #000; max-height: 50v
 .chip.low { border-color: #ffa392; color: #ffa392; }
 .chip.out { border-color: #ff7a66; background: rgba(255,122,102,.16); color: #ff7a66; font-weight: 600; }
 .chip.low .muted, .chip.out .muted { color: inherit; opacity: .75; }
+.spark { width: 100%; height: 64px; margin: 6px 0 2px; }
+.hmgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; max-width: 190px; }
+.hmgrid b { font-size: .65rem; color: var(--muted); text-align: center; font-weight: normal; }
+.hm { display: block; aspect-ratio: 1; border-radius: 4px; background: #143247; position: relative; }
+.hm.fut { opacity: .35; } .hm.now { outline: 1.5px solid var(--accent); }
+.hm.mood::after { content: ''; position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--info); }
+.hmkey { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; align-items: center; } .hmkey span { display: flex; gap: 4px; align-items: center; } .hmkey .hm { width: 12px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(255,255,255,.25); }
+.vslot { margin: 8px 0; } .warnc { color: #ffa392; }
+textarea { min-height: 3em; }

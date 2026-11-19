@@ -152,7 +152,7 @@ function portionLimit() {
 
 // ---------- UI ----------
 const UI = { tab: 'today', day: today(), food: 'log', week: monday(today()), search: '' };
-const TITLES = { today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
+const TITLES = { body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
 const VIEWS = {}, BIND = {};
 const FOOD_TABS = ['log', 'plan', 'cards', 'pantry', 'shop'];
 const FOOD_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', pantry: 'Pantry', shop: 'Shop' };
@@ -220,6 +220,8 @@ function warnings(day) {
     const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
     out.push(['warn', `${week.length} unplanned in the last 7 days (${r0(sumM(week).kcal)} kcal).${top && top[1] >= 2 ? ` Mostly "${WHY.find(w => w[0] === top[0])[1]}": ${WHY_TIP[top[0]]}` : ''}`]);
   } else if (un.length) { const w = un[un.length - 1].why; if (w && WHY_TIP[w]) out.push(['info', WHY_TIP[w]]); }
+  // cycle: appetite pattern (from the Body tab)
+  const ct = S.body && cycleTip(cycleInfo(day)); if (ct) out.push(['info', ct]);
   // freezer: things to take out tonight for tomorrow
   const fz = freezerFor(addDays(day, 1));
   if (fz.length && h >= 16) out.push(['info', `Take out of the freezer tonight: ${fz.map(esc).join(', ')}.`]);
@@ -258,6 +260,120 @@ function nextMeal() {
   return null;
 }
 const plannedCard = (d, slot) => myCards(d, slot)[0] || null;
+
+// ---------- BODY ----------
+// S.body = { weights:{day:kg}, meas:{day:{waist,hips}}, start, periods:[{start,end}], sym:{day:{dis,mood}}, vit:{day:{id:true}}, vitSlots, smoke:{since,best,slips}, coffee:{day:n}, alcohol:{day:n} }
+const DIS = [['clear', 'Clear', '#cfe8ef'], ['white', 'White / creamy', '#f3ecd9'], ['paleyellow', 'Pale yellow', '#f2e39b'], ['yellowgreen', 'Yellow-green', '#b9c96a'], ['pink', 'Pink', '#f2a7b8'], ['brown', 'Red / brown', '#8a3b2e'], ['grey', 'Grey', '#8b939a']];
+const B = () => { const b = S.body ||= {}; for (const [k, v] of Object.entries({ weights: {}, meas: {}, periods: [], sym: {}, vit: {}, vitSlots: [], coffee: {}, alcohol: {} })) b[k] ||= v; return b; };
+// starting Body data (health history) is NOT in the public repo: it comes in as a private file via Settings → Restore
+const daysBetween = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 864e5);
+// cycle: day number, average length (last 6 normal cycles), next start, phase
+function cycleInfo(d = today()) {
+  const ps = B().periods.filter(p => p.start <= d).sort((a, b) => a.start.localeCompare(b.start)); if (!ps.length) return null;
+  const lens = ps.slice(1).map((p, i) => daysBetween(ps[i].start, p.start)).filter(n => n >= 21 && n <= 45).slice(-6);
+  const avg = lens.length ? Math.round(lens.reduce((a, x) => a + x, 0) / lens.length) : 32;
+  const last = ps[ps.length - 1], day = daysBetween(last.start, d) + 1, next = addDays(last.start, avg), toNext = daysBetween(d, next);
+  const onPeriod = last.end ? d <= last.end : day <= 6;
+  const phase = onPeriod ? 'Period' : toNext <= 7 ? 'PMS week' : day <= 13 ? 'Follicular' : Math.abs(toNext - 14) <= 1 ? 'Ovulation' : 'Luteal';
+  return { day, avg, next, toNext, phase, last, onPeriod };
+}
+// appetite pattern ESTERA described: hungry the week before, little appetite the week after it starts
+function cycleTip(ci) {
+  if (!ci) return '';
+  if (ci.phase === 'PMS week') return 'PMS week: hunger goes up. Make portions bigger on protein and fibre, and plan a treat so it isn\'t unplanned.';
+  if (ci.day <= 7) return 'Period week: appetite is usually low. Shakes, soups and yoghurt count. Small liquid meals beat skipping.';
+  return '';
+}
+const isPeriodDay = d => B().periods.some(p => d >= p.start && d <= (p.end || addDays(p.start, 4)));
+const avgW = (to, n = 7) => { const v = Array.from({ length: n }, (_, i) => B().weights[addDays(to, -i)]).filter(x => x); return v.length ? v.reduce((a, x) => a + x, 0) / v.length : null; };
+function weightSpark() {
+  const pts = Object.entries(B().weights).filter(([d]) => d >= addDays(today(), -59)).sort();
+  if (pts.length < 2) return '';
+  const ws = pts.map(p => p[1]), lo = Math.min(...ws) - .3, hi = Math.max(...ws) + .3, W = 300, H = 60, x0 = addDays(today(), -59);
+  const xy = pts.map(([d, w]) => `${(daysBetween(x0, d) / 59 * W).toFixed(1)},${(H - (w - lo) / (hi - lo) * H).toFixed(1)}`);
+  return `<svg viewBox="0 0 ${W} ${H + 4}" class="spark" preserveAspectRatio="none"><polyline points="${xy.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>${xy.map(p => `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="2.5" fill="var(--accent)"/>`).join('')}</svg>`;
+}
+function heatmap() {
+  const end = addDays(monday(today()), 6), start = addDays(end, -83), sym = B().sym, ps = B().periods.map(p => p.start);
+  let cells = '';
+  for (let i = 0; i < 84; i++) {
+    const d = addDays(start, i), s = sym[d] || {}, dis = DIS.find(x => x[0] === s.dis);
+    const bg = isPeriodDay(d) ? '#c9566a' : dis ? dis[2] : '';
+    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${s.mood ? 'mood' : ''}" style="${bg ? 'background:' + bg : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${s.mood ? ' · low mood' : ''}"></i>`;
+  }
+  return `<div class="hmgrid">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<b>${x}</b>`).join('')}${cells}</div>
+    <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span><span><i class="hm mood"></i> low mood</span><span>colour = discharge</span></div>`;
+}
+const vitDue = (it, d) => !it.every || daysBetween(it.from || d, d) % it.every === 0;
+VIEWS.body = () => {
+  const b = B(), d = UI.day, w = b.weights[d], m = b.meas[d] || {}, ci = cycleInfo(d), s = b.sym[d] || {}, st = b.start || {};
+  const a7 = avgW(d), aPrev = avgW(addDays(d, -7)), lastM = Object.entries(b.meas).filter(([x]) => x <= d).sort().pop();
+  const fri = parseDay(d).getDay() === 5, vt = b.vit[d] || {};
+  const smk = b.smoke, sf = smk ? daysBetween(smk.since, today()) : null;
+  const cof = (b.coffee || {})[d] || 0, alc = (b.alcohol || {})[d] || 0;
+  const alcWeek = Array.from({ length: 7 }, (_, i) => (b.alcohol || {})[addDays(d, -i)] || 0).reduce((x, y) => x + y, 0);
+  return `${dayBar()}
+  <div class="card"><div class="row"><h2 class="grow">Weight</h2><span class="muted small">judged by the weekly average</span></div>
+    <div class="row gap"><input id="bw" class="grow" inputmode="decimal" placeholder="kg today" value="${w ?? ''}"><button class="primary mini" id="bwSave">Save</button></div>
+    <div class="row gap"><div class="grow"><div class="muted small">7-day average</div><div class="big">${a7 ? r1(a7) : '—'}<span class="muted small"> kg</span></div></div>
+      <div class="grow right"><div class="muted small">vs last week</div><div>${a7 && aPrev ? `${a7 <= aPrev ? '▼' : '▲'} ${r1(Math.abs(a7 - aPrev))} kg` : '—'}</div>
+      ${st.weight && a7 ? `<div class="muted small ${a7 < st.weight ? 'good' : ''}">${r1(st.weight - a7)} kg down since ${fmtDay(st.date)}</div>` : ''}</div></div>
+    ${weightSpark()}
+    <h3>Waist & hips ${fri ? '· it\'s Friday' : '<span class="muted small">· Fridays</span>'}</h3>
+    <div class="row gap"><input id="bwa" inputmode="decimal" placeholder="waist cm" value="${m.waist ?? ''}"><input id="bhi" inputmode="decimal" placeholder="hips cm" value="${m.hips ?? ''}"><button class="mini" id="bmSave">Save</button></div>
+    ${lastM && st.waist ? `<p class="muted small">Last: waist ${lastM[1].waist} cm (${r1(lastM[1].waist - st.waist) <= 0 ? '' : '+'}${r1(lastM[1].waist - st.waist)}), hips ${lastM[1].hips} cm (${r1(lastM[1].hips - st.hips) <= 0 ? '' : '+'}${r1(lastM[1].hips - st.hips)}) since the start.</p>` : ''}
+  </div>
+  <div class="card"><div class="row"><h2 class="grow">Cycle</h2>${ci ? `<span class="chip sm">${ci.phase}</span>` : ''}</div>
+    ${ci ? `<div class="row gap"><div class="grow"><div class="muted small">Cycle day</div><div class="big">${ci.day}</div></div><div class="grow right"><div class="muted small">Next period around</div><div>${fmtDay(ci.next)}</div><div class="muted small">${ci.toNext > 0 ? `in ${ci.toNext} days` : ci.toNext === 0 ? 'today' : `${-ci.toNext} days late`} · avg ${ci.avg} days</div></div></div>` : '<p class="muted small">Tap below when your period starts.</p>'}
+    ${cycleTip(ci) ? `<div class="note info sm">${cycleTip(ci)}</div>` : ''}
+    <div class="row gap">${ci && ci.onPeriod && !ci.last.end ? `<button class="grow" id="pEnd">Period ended today</button>` : `<button class="grow" id="pStart">Period started today</button>`}<button class="mini ghost" id="pList">History</button></div>
+    <h3>Today</h3><div class="chips">${DIS.map(([k, l, c]) => `<button class="chip sm ${s.dis === k ? 'on' : ''}" data-dis="${k}"><i class="dot" style="background:${c}"></i>${l}</button>`).join('')}</div>
+    <div class="chips"><button class="chip sm ${s.mood ? 'on' : ''}" id="mood">☁︎ Low mood</button></div>
+    <h3>Last 12 weeks</h3>${heatmap()}
+  </div>
+  <div class="card"><div class="row"><h2 class="grow">Vitamins</h2><button class="mini ghost" id="vEdit">Edit list</button></div>
+    ${b.vitSlots.map(sl => { const its = sl.items.filter(it => vitDue(it, d)); if (!its.length) return '';
+      return `<div class="vslot"><span class="slot">${esc(sl.title)}</span> <span class="muted small">${esc(sl.time || '')}</span><div class="chips">${its.map(it => `<button class="chip sm ${vt[it.id] ? 'on' : ''}" data-vit="${it.id}" title="${esc(it.hint || '')}">${vt[it.id] ? '✓ ' : ''}${esc(it.name)}</button>`).join('')}</div></div>`; }).join('') || '<p class="muted small">No vitamins yet. Tap Edit list.</p>'}
+    ${b.vitSlots.some(sl => sl.items.some(it => !vitDue(it, d))) ? `<p class="muted small">Not today: ${b.vitSlots.flatMap(sl => sl.items.filter(it => !vitDue(it, d)).map(it => esc(it.name))).join(', ')}.</p>` : ''}
+  </div>
+  <div class="card"><h2>Habits</h2>
+    <div class="row pslot"><div class="grow">🚭 Smoke-free<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>
+    <div class="row pslot"><div class="grow">☕ Coffee<div class="muted small ${cof > 1 ? 'warnc' : ''}">1 a day, before 12:00${cof > 1 ? ' · that\'s ' + cof + ' today' : ''}</div></div><button class="mini" data-hab="coffee|-1">−</button><span class="qty">${cof}</span><button class="mini" data-hab="coffee|1">+</button></div>
+    <div class="row pslot"><div class="grow">🍷 Alcohol<div class="muted small">birthdays & weddings only · ${alcWeek} this week</div></div><button class="mini" data-hab="alcohol|-1">−</button><span class="qty">${alc}</span><button class="mini" data-hab="alcohol|1">+</button></div>
+  </div>`;
+};
+BIND.body = v => {
+  bindDayBar(v); const b = B(), d = UI.day;
+  $('#bwSave', v).onclick = () => { const x = num($('#bw', v).value); if (x) { b.weights[d] = x; b.start ||= { date: d, weight: x }; } else delete b.weights[d]; save(); toast('Saved ✓'); render(); };
+  $('#bmSave', v).onclick = () => { const wa = num($('#bwa', v).value), hi = num($('#bhi', v).value); if (wa || hi) { b.meas[d] = { waist: wa, hips: hi }; if (b.start && !b.start.waist) Object.assign(b.start, { waist: wa, hips: hi }); } else delete b.meas[d]; save(); toast('Saved ✓'); render(); };
+  const ps = $('#pStart', v); if (ps) ps.onclick = () => { b.periods = b.periods.filter(p => p.start !== d); b.periods.push({ start: d }); save(); toast('Logged. Be gentle with yourself 🌊'); render(); };
+  const pe = $('#pEnd', v); if (pe) pe.onclick = () => { const p = cycleInfo(d).last; p.end = d; save(); toast('Period end logged'); render(); };
+  $('#pList', v).onclick = () => {
+    const list = b.periods.slice().sort((x, y) => y.start.localeCompare(x.start));
+    const body = dialog(`<h2>Period history</h2><ul class="list">${list.map(p => `<li><div class="grow">${fmtDay(p.start)} – ${p.end ? fmtDay(p.end) : '…'}</div><button class="mini del" data-pdel="${p.start}">✕</button></li>`).join('')}</ul>
+      <label>Add a past period</label><div class="row gap"><input type="date" name="s"><input type="date" name="e"></div>`, f => { if (f.s.value) { b.periods = b.periods.filter(p => p.start !== f.s.value); b.periods.push({ start: f.s.value, end: f.e.value || undefined }); } }, 'Add');
+    $$('[data-pdel]', body).forEach(x => x.onclick = e => { e.preventDefault(); b.periods = b.periods.filter(p => p.start !== x.dataset.pdel); save(); x.closest('li').remove(); render(); });
+  };
+  $$('[data-dis]', v).forEach(x => x.onclick = () => { const s = b.sym[d] ||= {}; s.dis = s.dis === x.dataset.dis ? undefined : x.dataset.dis; save(); render(); });
+  $('#mood', v).onclick = () => { const s = b.sym[d] ||= {}; s.mood = !s.mood; save(); render(); };
+  $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = b.vit[d] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
+  $('#vEdit', v).onclick = vitEdit;
+  $('#slip', v).onclick = () => { if (!b.smoke) b.smoke = { since: today(), best: 0, slips: [] }; else { b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, today())); b.smoke.slips.push(today()); b.smoke.since = today(); toast('Reset. Day 1 starts now 💪'); } save(); render(); };
+  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
+};
+// edit vitamins: one line per item, "Name | hint | every N days"
+function vitEdit() {
+  const b = B(); const line = it => [it.name, it.hint || '', it.every ? 'every ' + it.every : ''].filter((x, i) => x || i === 0).join(' | ');
+  const body = dialog(`<h2>Vitamins</h2><p class="muted small">One per line. Optional: <i>Name | tip | every 2</i> (every 2nd day).</p>
+    ${b.vitSlots.map((sl, i) => `<label>${esc(sl.title)} ${esc(sl.time || '')}</label><textarea name="v${i}" rows="${Math.max(2, sl.items.length + 1)}">${esc(sl.items.map(line).join('\n'))}</textarea>`).join('')}`, f => {
+    b.vitSlots.forEach((sl, i) => {
+      sl.items = f['v' + i].value.split('\n').map(x => x.trim()).filter(Boolean).map(x => {
+        const [name, hint, ev] = x.split('|').map(y => (y || '').trim()), old = sl.items.find(it => it.name === name), every = parseInt((ev || '').replace(/\D/g, '')) || 0;
+        return { id: old ? old.id : uid(), name, hint, every: every || undefined, from: every ? (old && old.from) || today() : undefined };
+      });
+    });
+  });
+}
 
 // ---------- CAT ----------
 // "Did you feed the cat?": ticking it takes 1 wet food out of the pantry; warns at 3 or fewer.
@@ -989,7 +1105,7 @@ function openSettings() {
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
     try { const t = await checkSheet(); if (!t || !t.p) throw 0; applySplit(t); S.settings.sheetSeen = JSON.stringify(t); save(); closeDlg(); render(); toast(`P ${s.p} · C ${s.c} · F ${s.f} ✓`); } catch { toast('Couldn\'t read the Sheet. Is it shared by link?'); } };
   $('#exp', body).onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `organiser-backup-${today()}.json`; a.click(); };
-  $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
+  $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { S.body = Object.assign({}, S.body || {}, d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
 }
 
 // ---------- start ----------
