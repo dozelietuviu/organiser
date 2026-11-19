@@ -90,6 +90,9 @@ async function syncFoodData() {
         if (keepMacros && ['name', 'kcal', 'p', 'c', 'f', 'fib', 'unit', 'unitG'].includes(k)) continue;
         f[k] = v;
       }
+      // regular buys from receipts go into the pantry once (then you manage them)
+      S.pantryAdded ||= {};
+      if (src.pantry && !S.pantryAdded[src.key]) { S.pantryAdded[src.key] = 1; if (!S.pantry[f.id]) S.pantry[f.id] = { place: f.place || 'Cupboard', qty: null, have: true }; }
     }
     S.dataUpdated = j.updated; save();
     if (firstRun) seedCards();
