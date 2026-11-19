@@ -398,6 +398,15 @@ BIND.body = v => {
   $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
 };
 // edit vitamins: one line per item, "Name | hint | every N days"
+// import keeps what you've already tapped in the app and adds the history around it
+function mergeBody(x) {
+  const b = B();
+  for (const k of ['weights', 'meas', 'sym', 'coffee', 'alcohol', 'fairy', 'vit']) if (x[k]) b[k] = Object.assign({}, x[k], b[k] || {});
+  for (const p of x.periods || []) if (!b.periods.some(q => q.start === p.start)) b.periods.push(p);
+  if (x.vitSlots && !b.vitSlots.some(sl => sl.items.length)) b.vitSlots = x.vitSlots;
+  if (x.smoke && (!b.smoke || b.smoke.since >= today() && !b.smoke.slips.length)) b.smoke = x.smoke;
+  if (x.start && !b.start) b.start = x.start;
+}
 function vitEdit() {
   const b = B();
   if (!b.vitSlots.length) b.vitSlots = [['wake', 'On waking', '07:00'], ['bfast', 'Breakfast', '10:00'], ['lunch', 'Lunch', '14:00'], ['eve', 'Dinner', '21:00'], ['bed', 'Before bed', '22:30']].map(([id, title, time]) => ({ id, title, time, items: [] })); const line = it => [it.name, it.hint || '', it.every ? 'every ' + it.every : ''].filter((x, i) => x || i === 0).join(' | ');
@@ -1144,9 +1153,9 @@ function openSettings() {
   $('#exp', body).onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `organiser-backup-${today()}.json`; a.click(); };
   $('#paste', body).onclick = e => { e.preventDefault();
     const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude sent you.</p><textarea name="t" rows="8"></textarea>`, f => {
-      try { const d = JSON.parse(f.t.value.trim()); if (d.kind !== 'organiser-body' || !d.body) throw 0; S.body = Object.assign({}, S.body || {}, d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
+      try { const d = JSON.parse(f.t.value.trim()); if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
     }, 'Import'); };
-  $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { S.body = Object.assign({}, S.body || {}, d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
+  $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { mergeBody(d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
 }
 
 // ---------- start ----------
