@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-19c",
+ "updated": "2026-11-19d",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -16,7 +16,9 @@
    "unitG": 50,
    "packG": 600,
    "price": 1.69,
-   "pantry": true
+   "pantry": true,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "egg-white",
@@ -263,7 +265,9 @@
    "shop": "Lidl",
    "packG": 1000,
    "price": 0.99,
-   "pantry": true
+   "pantry": true,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "sweet-potato",
@@ -364,7 +368,9 @@
    "shop": "Lidl",
    "packG": 1000,
    "price": 0.28,
-   "pantry": true
+   "pantry": true,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "garlic",
@@ -404,7 +410,10 @@
    "shop": "Lidl",
    "unit": "banana",
    "unitG": 120,
-   "packG": 1000
+   "packG": 1000,
+   "regular": true,
+   "cat": "Food",
+   "pantry": true
   },
   {
    "key": "raspberries",
@@ -556,7 +565,9 @@
    "packG": 1000,
    "pantry": true,
    "unit": "glass",
-   "unitG": 250
+   "unitG": 250,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "varske-grain",
@@ -570,7 +581,9 @@
    "shop": "Lidl",
    "price": 0.85,
    "packG": 180,
-   "pantry": true
+   "pantry": true,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "varske-grain-cherry",
@@ -597,7 +610,9 @@
    "shop": "Lidl",
    "price": 0.75,
    "packG": 150,
-   "pantry": true
+   "pantry": true,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "sour-cream-30",
@@ -692,7 +707,9 @@
    "packG": 100,
    "pantry": true,
    "unit": "slice",
-   "unitG": 20
+   "unitG": 20,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "ham-cooked",
@@ -832,7 +849,9 @@
    "shop": "Lidl",
    "price": 0.69,
    "packG": 1000,
-   "pantry": true
+   "pantry": true,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "spring-onion",
@@ -897,7 +916,10 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 1.29,
-   "packG": 100
+   "packG": 100,
+   "regular": true,
+   "cat": "Food",
+   "pantry": true
   },
   {
    "key": "dill",
@@ -970,7 +992,9 @@
    "packG": 300,
    "pantry": true,
    "unit": "slice",
-   "unitG": 20
+   "unitG": 20,
+   "regular": true,
+   "cat": "Food"
   },
   {
    "key": "mozzarella-light",
@@ -1038,7 +1062,10 @@
    "price": 0.79,
    "packG": 500,
    "unit": "slice",
-   "unitG": 25
+   "unitG": 25,
+   "regular": true,
+   "cat": "Food",
+   "pantry": true
   },
   {
    "key": "baguette-frozen",
@@ -1112,7 +1139,10 @@
    "price": 2.39,
    "packG": 1000,
    "unit": "glass",
-   "unitG": 250
+   "unitG": 250,
+   "regular": true,
+   "cat": "Drinks",
+   "pantry": true
   },
   {
    "key": "kefir-yog",
@@ -1125,7 +1155,10 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 0.89,
-   "packG": 400
+   "packG": 400,
+   "regular": true,
+   "cat": "Jonas snacks",
+   "pantry": true
   },
   {
    "key": "drink-yog",
@@ -1138,7 +1171,10 @@
    "place": "Fridge",
    "shop": "Lidl",
    "price": 0.69,
-   "packG": 330
+   "packG": 330,
+   "regular": true,
+   "cat": "Jonas snacks",
+   "pantry": true
   },
   {
    "key": "bifido-yog",
@@ -1153,7 +1189,10 @@
    "price": 0.33,
    "packG": 125,
    "unit": "pot",
-   "unitG": 125
+   "unitG": 125,
+   "regular": true,
+   "cat": "Jonas snacks",
+   "pantry": true
   },
   {
    "key": "rice-pudding",
@@ -1168,7 +1207,10 @@
    "price": 0.99,
    "packG": 200,
    "unit": "pot",
-   "unitG": 200
+   "unitG": 200,
+   "regular": true,
+   "cat": "Jonas snacks",
+   "pantry": true
   },
   {
    "key": "surelis",
@@ -1183,7 +1225,10 @@
    "price": 0.29,
    "packG": 40,
    "unit": "pc",
-   "unitG": 40
+   "unitG": 40,
+   "regular": true,
+   "cat": "Jonas snacks",
+   "pantry": true
   },
   {
    "key": "coffee-beans",
@@ -1197,248 +1242,403 @@
    "shop": "Lidl",
    "price": 14.99,
    "packG": 1000,
-   "pantry": true
-  }
- ],
- "regulars": [
-  {
-   "key": "cat-wet",
-   "name": "Wet cat food (Drėgnas kačių pašaras)",
-   "cat": "Cat",
-   "price": 7.89
+   "pantry": true,
+   "regular": true,
+   "cat": "Drinks"
   },
   {
-   "key": "cat-litter",
-   "name": "Cat litter",
-   "cat": "Cat"
+   "key": "cream-dessert",
+   "name": "Sour-cream dessert pot",
+   "cat": "Jonas snacks",
+   "place": "Fridge",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 180,
+   "p": 3,
+   "c": 18,
+   "f": 10,
+   "fib": 0,
+   "price": 0.79,
+   "packG": 100,
+   "unit": "pot",
+   "unitG": 100
   },
   {
-   "key": "toilet-paper",
-   "name": "Toilet paper",
-   "cat": "Household"
+   "key": "tuc",
+   "name": "TUC crackers",
+   "cat": "Jonas snacks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 480,
+   "p": 8,
+   "c": 63,
+   "f": 22,
+   "fib": 2.5,
+   "price": 0.99,
+   "packG": 100
   },
   {
-   "key": "kitchen-roll",
-   "name": "Kitchen roll",
-   "cat": "Household"
+   "key": "crisps",
+   "name": "Crisps",
+   "cat": "Jonas snacks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 530,
+   "p": 6,
+   "c": 52,
+   "f": 33,
+   "fib": 4,
+   "price": 0.99,
+   "packG": 130
   },
   {
-   "key": "bin-bags",
-   "name": "Bin bags 60 L (Užriš. šiukš. maišai)",
-   "cat": "Household",
-   "price": 1.19
+   "key": "choc-bar",
+   "name": "Cocoa biscuit bar",
+   "cat": "Jonas snacks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 480,
+   "p": 6,
+   "c": 60,
+   "f": 24,
+   "fib": 2,
+   "price": 0.35,
+   "packG": 30,
+   "unit": "bar",
+   "unitG": 30
   },
   {
-   "key": "paper-bag",
-   "name": "Paper shopping bag",
-   "cat": "Household",
-   "price": 0.2
+   "key": "dark-choc",
+   "name": "Dark chocolate",
+   "cat": "Jonas snacks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 550,
+   "p": 8,
+   "c": 40,
+   "f": 38,
+   "fib": 10,
+   "price": 0.55,
+   "packG": 100,
+   "unit": "square",
+   "unitG": 10
   },
   {
-   "key": "wipes",
-   "name": "Cleaning wipes (Valymo šluostės)",
-   "cat": "Household",
-   "price": 2.99
+   "key": "cereal-rings",
+   "name": "Honey cereal rings",
+   "cat": "Jonas snacks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 380,
+   "p": 8,
+   "c": 78,
+   "f": 3,
+   "fib": 6,
+   "price": 1.79,
+   "packG": 375
   },
   {
-   "key": "laundry-gel",
-   "name": "Laundry gel Universal",
-   "cat": "Household",
-   "price": 16.99
-  },
-  {
-   "key": "dish-soap",
-   "name": "Washing-up liquid",
-   "cat": "Household"
-  },
-  {
-   "key": "dishwasher-tabs",
-   "name": "Dishwasher tablets",
-   "cat": "Household"
-  },
-  {
-   "key": "cotton-pads",
-   "name": "Cotton pads (Vatos diskeliai)",
-   "cat": "Household",
-   "price": 0.99
-  },
-  {
-   "key": "toothbrush",
-   "name": "Toothbrush",
-   "cat": "Household",
-   "price": 2.49
-  },
-  {
-   "key": "conditioner",
-   "name": "Conditioner with honey",
-   "cat": "Household",
-   "price": 1.99
+   "key": "ice-cream",
+   "name": "Ice cream",
+   "cat": "Jonas snacks",
+   "place": "Freezer",
+   "shop": "Lidl",
+   "kind": "food",
+   "regular": true,
+   "pantry": true,
+   "kcal": 220,
+   "p": 3.5,
+   "c": 26,
+   "f": 11,
+   "fib": 0.5,
+   "price": 3.29,
+   "packG": 900,
+   "unit": "scoop",
+   "unitG": 60
   },
   {
    "key": "sparkling-water",
    "name": "Sparkling water, 6 bottles",
    "cat": "Drinks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
    "price": 1.68
   },
   {
    "key": "cola",
    "name": "Coca-Cola",
    "cat": "Drinks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
    "price": 2.29
   },
   {
    "key": "gira",
    "name": "Gira (kvass)",
    "cat": "Drinks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
    "price": 0.85
   },
   {
    "key": "energy-drink",
    "name": "Energy drink",
    "cat": "Drinks",
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
    "price": 0.89
   },
   {
-   "key": "juice-orange",
-   "name": "Orange juice",
-   "cat": "Drinks",
-   "price": 2.39
+   "key": "cat-wet",
+   "name": "Wet cat food",
+   "cat": "Cat",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 7.89
   },
   {
-   "key": "coffee",
-   "name": "Coffee beans 1 kg",
-   "cat": "Drinks",
-   "price": 14.99
+   "key": "cat-litter",
+   "name": "Cat litter",
+   "cat": "Cat",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0
   },
   {
-   "key": "surelis-r",
-   "name": "Sūreliai (glazed curd snacks)",
-   "cat": "Jonas snacks",
-   "price": 0.29
+   "key": "toilet-paper",
+   "name": "Toilet paper",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0
   },
   {
-   "key": "yog-small",
-   "name": "Small yoghurts (bifido / with sprinkles)",
-   "cat": "Jonas snacks",
-   "price": 0.33
+   "key": "kitchen-roll",
+   "name": "Kitchen roll",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0
   },
   {
-   "key": "drink-yog-r",
-   "name": "Drinking yoghurt",
-   "cat": "Jonas snacks",
-   "price": 0.69
+   "key": "bin-bags",
+   "name": "Bin bags 60 L",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 1.19
   },
   {
-   "key": "kefir-yog-r",
-   "name": "Kefir yoghurt with fruit",
-   "cat": "Jonas snacks",
-   "price": 0.89
-  },
-  {
-   "key": "rice-pudding-r",
-   "name": "Rice pudding",
-   "cat": "Jonas snacks",
-   "price": 0.99
-  },
-  {
-   "key": "cream-dessert",
-   "name": "Sour-cream dessert pots",
-   "cat": "Jonas snacks",
-   "price": 0.79
-  },
-  {
-   "key": "tuc",
-   "name": "TUC crackers",
-   "cat": "Jonas snacks",
-   "price": 0.99
-  },
-  {
-   "key": "crisps",
-   "name": "Crisps",
-   "cat": "Jonas snacks",
-   "price": 0.99
-  },
-  {
-   "key": "choc-bar",
-   "name": "Cocoa biscuit bars",
-   "cat": "Jonas snacks",
-   "price": 0.35
-  },
-  {
-   "key": "dark-choc",
-   "name": "Dark chocolate",
-   "cat": "Jonas snacks",
-   "price": 0.55
-  },
-  {
-   "key": "cereal-rings",
-   "name": "Honey cereal rings",
-   "cat": "Jonas snacks",
-   "price": 1.79
-  },
-  {
-   "key": "ice-cream",
-   "name": "Ice cream",
-   "cat": "Jonas snacks",
-   "price": 3.29
-  },
-  {
-   "key": "eggs-r",
-   "name": "Eggs",
-   "cat": "Food",
-   "price": 1.69
-  },
-  {
-   "key": "milk-r",
-   "name": "Milk 3.2%",
-   "cat": "Food",
-   "price": 0.95
-  },
-  {
-   "key": "bread-r",
-   "name": "Sliced bread",
-   "cat": "Food",
-   "price": 0.79
-  },
-  {
-   "key": "varske-r",
-   "name": "Cottage cheese grains",
-   "cat": "Food",
-   "price": 0.85
-  },
-  {
-   "key": "greek-r",
-   "name": "Greek yoghurt",
-   "cat": "Food",
-   "price": 0.75
-  },
-  {
-   "key": "cheese-r",
-   "name": "Gouda",
-   "cat": "Food",
+   "key": "wipes",
+   "name": "Cleaning wipes",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
    "price": 2.99
   },
   {
-   "key": "ham-r",
-   "name": "Sliced ham / chicken",
-   "cat": "Food",
-   "price": 0.89
+   "key": "laundry-gel",
+   "name": "Laundry gel",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 16.99
   },
   {
-   "key": "bananas-r",
-   "name": "Bananas",
-   "cat": "Food"
+   "key": "dish-soap",
+   "name": "Washing-up liquid",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0
   },
   {
-   "key": "fruit-r",
-   "name": "Fruit",
-   "cat": "Food"
+   "key": "dishwasher-tabs",
+   "name": "Dishwasher tablets",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0
   },
   {
-   "key": "salad-r",
-   "name": "Salad leaves",
-   "cat": "Food",
-   "price": 1.29
+   "key": "cotton-pads",
+   "name": "Cotton pads",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 0.99
+  },
+  {
+   "key": "toothbrush",
+   "name": "Toothbrush",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 2.49
+  },
+  {
+   "key": "conditioner",
+   "name": "Conditioner",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 1.99
+  },
+  {
+   "key": "paper-bag",
+   "name": "Paper shopping bag",
+   "cat": "Household",
+   "place": "Household",
+   "shop": "Lidl",
+   "kind": "item",
+   "regular": true,
+   "pantry": true,
+   "kcal": 0,
+   "p": 0,
+   "c": 0,
+   "f": 0,
+   "fib": 0,
+   "price": 0.2
   }
  ]
 }

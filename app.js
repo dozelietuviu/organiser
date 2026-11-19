@@ -37,7 +37,7 @@ const SLOTS = [
 const SLOT_IDS = SLOTS.map(s => s.id);
 const PLAN_SLOTS = ['Breakfast', 'Lunch', 'Dinner'];
 const CARD_TYPES = [...SLOT_IDS, 'Extra'];
-const PLACES = ['Fridge', 'Freezer', 'Cupboard', 'Spice rack'];
+const PLACES = ['Fridge', 'Freezer', 'Cupboard', 'Spice rack', 'Household'];
 const SHOPS = ['Lidl', 'IKI', 'Maxima', 'Other'];
 const FULL = [['finished', 'Finished'], ['left', 'Left some'], ['toofull', 'Too full'], ['hungry', 'Still hungry']];
 const slotAt = (h, m = 0) => { const t = h * 60 + m; let s = SLOTS[0].id; for (const x of SLOTS) { const [a, b] = x.time.split(':').map(Number); if (t >= a * 60 + b - 60) s = x.id; } return s; };
@@ -275,7 +275,7 @@ VIEWS.log = () => {
 function searchLocal(q) {
   q = q.trim().toLowerCase(); if (!q) return '';
   const words = q.split(/\s+/), hit = s => words.every(w => s.toLowerCase().includes(w));
-  const foods = S.foods.filter(f => hit(f.name + ' ' + (f.brand || ''))).slice(0, 20), cards = S.cards.filter(c => hit(c.name)).slice(0, 8);
+  const foods = S.foods.filter(f => f.kind !== 'item' && hit(f.name + ' ' + (f.brand || ''))).slice(0, 20), cards = S.cards.filter(c => hit(c.name)).slice(0, 8);
   if (!foods.length && !cards.length) return `<p class="muted small">No match. Try Search shops, or + New food.</p>`;
   return `<ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)}<div class="muted small">${c.slot} card · ${r0(cardTotals(c).kcal)} kcal</div></div><span>›</span></li>`).join('')}${foods.map(f => `<li data-food="${f.id}"><div class="grow">${f.kind === 'recipe' ? '🥣 ' : ''}${esc(f.name)}<div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g</div></div><span>›</span></li>`).join('')}</ul>`;
 }
@@ -451,7 +451,7 @@ function foodsList() {
   $('#nf', body).onclick = e => { e.preventDefault(); closeDlg(); foodDialog({}); };
   $$('[data-f]', body).forEach(li => li.onclick = () => { closeDlg(); foodDialog(foodById(li.dataset.f)); });
 }
-const foodOptions = (sel, ex) => S.foods.filter(f => f.id !== ex).sort((a, b) => a.name.localeCompare(b.name)).map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+const foodOptions = (sel, ex) => S.foods.filter(f => f.id !== ex && f.kind !== 'item').sort((a, b) => a.name.localeCompare(b.name)).map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
 const itemRow = (it, ex) => `<div class="row item"><select class="grow" name="fid"><option value="">Choose food…</option>${foodOptions(it.foodId, ex)}</select><input name="g" inputmode="decimal" class="gin" value="${it.g || ''}" placeholder="g"><button class="mini del rm">✕</button></div>`;
 const itemsEditor = (items, ex) => `<div id="items">${items.map(it => itemRow(it, ex)).join('')}</div><button class="mini" id="addItem">+ Ingredient</button>`;
 function bindItems(body, ex, onChange) {
@@ -657,10 +657,12 @@ function shoppingNeeds() {
   return out;
 }
 const REG_CATS = ['Food', 'Jonas snacks', 'Drinks', 'Cat', 'Household'];
-const allRegulars = () => [...(S.regulars || []), ...(S.myRegulars || [])];
+const allRegulars = () => S.foods.filter(f => f.regular).map(f => ({ key: f.key || f.id, id: f.id, name: f.name, cat: f.cat || 'Food', price: f.price || 0 }));
+// regulars unticked (run out) in the pantry and not already on the list
+const restock = () => S.foods.filter(f => f.regular && S.pantry[f.id] && !pantryHas(f.id) && !(S.extras || []).some(x => x.key === (f.key || f.id)));
 const regCats = () => { const m = {}; for (const r of allRegulars()) (m[r.cat] ||= []).push(r); return [...REG_CATS, ...Object.keys(m).filter(c => !REG_CATS.includes(c))].filter(c => m[c]).map(c => [c, m[c]]); };
 VIEWS.shop = () => {
-  const items = shoppingNeeds(), extras = S.extras || [], xTotal = extras.reduce((a, x) => a + (x.price || 0) * x.qty, 0);
+  const items = shoppingNeeds(), extras = S.extras || [], rs = restock(), xTotal = extras.reduce((a, x) => a + (x.price || 0) * x.qty, 0) + rs.reduce((a, f) => a + (f.price || 0), 0);
   const byShop = SHOPS.map(s => [s, items.filter(x => (x.f.shop || 'Lidl') === s)]).filter(([, l]) => l.length);
   const total = items.reduce((a, x) => a + (x.cost || 0), 0) + xTotal, missing = items.filter(x => !x.cost).length;
   const ticked = S.bought[UI.week] || {};
@@ -669,6 +671,7 @@ VIEWS.shop = () => {
   ${byShop.length ? byShop.map(([s, l]) => { const st = l.reduce((a, x) => a + (x.cost || 0), 0);
     return `<div class="card"><div class="row"><h2 class="grow">${s}</h2><span class="muted">${st ? '≈ ' + eur(st) : ''}</span></div><ul class="list">${l.map(x => `<li class="${ticked[x.f.id] ? 'done' : ''}"><input type="checkbox" data-buy="${x.f.id}" ${ticked[x.f.id] ? 'checked' : ''}><div class="grow">${esc(x.f.name)}<div class="muted small">${x.packs ? `${x.packs} × ${x.f.packG} g` : amountText(x.f, x.g)}${x.cost ? ' · ≈ ' + eur(x.cost) : ''}</div></div></li>`).join('')}</ul></div>`; }).join('')
     : '<div class="card"><p class="muted">Nothing to buy. Plan some meals first, or your pantry already covers them.</p></div>'}
+  ${rs.length ? `<div class="card"><div class="row"><h2 class="grow">Ran out</h2><span class="muted small">from your pantry</span></div><ul class="list">${rs.map(f => `<li><input type="checkbox" data-rs="${f.id}"><div class="grow">${esc(f.name)}<div class="muted small">${esc(f.place || '')}${f.price ? ' · ≈ ' + eur(f.price) : ''}</div></div></li>`).join('')}</ul><p class="muted small">Tick when bought and it goes back in the pantry.</p></div>` : ''}
   <div class="card"><div class="row"><h2 class="grow">Also buy</h2><span class="muted">${xTotal ? '≈ ' + eur(xTotal) : ''}</span></div>
     ${extras.length ? `<ul class="list">${extras.map(x => `<li><input type="checkbox" data-xgot="${x.id}"><div class="grow">${esc(x.name)}${x.qty > 1 ? ` <b>×${x.qty}</b>` : ''}<div class="muted small">${esc(x.cat)}${x.price ? ' · ≈ ' + eur(x.price * x.qty) : ''}</div></div><button class="mini" data-xq="${x.id}">+1</button></li>`).join('')}</ul><p class="muted small">Tick it when it's in the basket and it disappears.</p>` : '<p class="muted small">Tap regulars below, or type anything (light bulbs…).</p>'}
     <div class="row"><input id="xt" class="grow" placeholder="Misc: e.g. light bulbs"><button class="mini" id="xa">Add</button></div></div>
@@ -687,8 +690,11 @@ BIND.shop = v => {
   $$('[data-reg]', v).forEach(b => b.onclick = () => { const r = allRegulars().find(x => x.key === b.dataset.reg); if (r) addX(r.name, { key: r.key, cat: r.cat, price: r.price || 0 }); });
   $$('[data-xq]', v).forEach(b => b.onclick = () => { const x = S.extras.find(y => y.id === b.dataset.xq); x.qty++; save(); render(); });
   $$('[data-xgot]', v).forEach(c => c.onchange = () => { S.extras = S.extras.filter(x => x.id !== c.dataset.xgot); save(); toast('Got it ✓'); render(); });
-  $('#myReg', v).onclick = () => dialog(`<h2>Add a regular</h2><label>Name</label><input name="n" placeholder="e.g. Oat milk"><label>Group</label><select name="c">${REG_CATS.map(c => `<option>${c}</option>`).join('')}</select><label>Price € (optional)</label><input name="p" inputmode="decimal">`, b => {
-    if (!b.n.value.trim()) return false; (S.myRegulars ||= []).push({ key: 'my-' + uid(), name: b.n.value.trim(), cat: b.c.value, price: num(b.p.value) || 0 }); }, 'Add');
+  $$('[data-rs]', v).forEach(c => c.onchange = () => { const p = S.pantry[c.dataset.rs]; p.have = true; if (p.qty === 0) { const f = foodById(c.dataset.rs); p.qty = f.packG || f.unitG || null; } save(); toast('Back in the pantry ✓'); render(); });
+  $('#myReg', v).onclick = () => dialog(`<h2>Add a regular</h2><label>Name</label><input name="n" placeholder="e.g. Oat milk"><div class="row"><div class="grow"><label>Group</label><select name="c">${REG_CATS.map(c => `<option>${c}</option>`).join('')}</select></div><div class="grow"><label>Kept in</label><select name="pl">${PLACES.map(c => `<option>${c}</option>`).join('')}</select></div></div><label>Price € (optional)</label><input name="p" inputmode="decimal"><p class="muted small">It goes in your pantry too. Untick it there when it runs out and it lands on this list.</p>`, b => {
+    if (!b.n.value.trim()) return false;
+    const f = { id: uid(), key: 'my-' + uid(), kind: ['Food', 'Jonas snacks'].includes(b.c.value) ? 'food' : 'item', name: b.n.value.trim(), cat: b.c.value, place: b.pl.value, price: num(b.p.value) || 0, regular: true, shop: 'Lidl', kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
+    S.foods.push(f); S.pantry[f.id] = { place: f.place, qty: null, have: true }; }, 'Add');
   const pa = $('#putAway', v);
   if (pa) pa.onclick = () => {
     const t = S.bought[UI.week] || {}, items = shoppingNeeds();
