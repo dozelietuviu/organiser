@@ -226,6 +226,7 @@ function warnings(day) {
   } else if (un.length) { const w = un[un.length - 1].why; if (w && WHY_TIP[w]) out.push(['info', WHY_TIP[w]]); }
   // cycle: appetite pattern (from the Body tab)
   const ct = S.body && cycleTip(cycleInfo(day)); if (ct) out.push(['info', ct]);
+  if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`]);
   // freezer: things to take out tonight for tomorrow
   const fz = freezerFor(addDays(day, 1));
   if (fz.length && h >= 16) out.push(['info', `Take out of the freezer tonight: ${fz.map(esc).join(', ')}.`]);
@@ -290,6 +291,31 @@ function cycleTip(ci) {
   if (ci.day <= 7) return 'Period week: appetite is usually low. Shakes, soups and yoghurt count. Small liquid meals beat skipping.';
   return '';
 }
+// mood forecast: works on "days before the next period" (the luteal phase is steady even when cycles vary 30-37 days).
+// Learns from your own logs once a mood shows up at the same point in 2+ cycles; until then uses the usual pattern.
+const MOOD_MSG = {
+  stab: ['Time to disappear into the forest 🌲', 'Try not to commit a felony today 🔪', 'Protect your peace. And everyone else\'s.', 'Snacks ready, people at arm\'s length 🐍', 'Today you are the storm. Warn the villagers.'],
+  glow: ['Let\'s go find a sugar daddy ✨', 'Time to go on a date 💋', 'Hair, skin, mood: main character day ✨', 'Take the selfie. Book the thing. Say yes.', 'Siren mode on 🧜‍♀️'],
+};
+function moodForecast(d = today()) {
+  const ci = cycleInfo(d); if (!ci || ci.onPeriod) return null;
+  const starts = B().periods.map(p => p.start).sort(), dbp = ci.toNext, out = [];
+  for (const k of ['stab', 'glow']) {
+    const hits = new Set();
+    for (const [day, sy] of Object.entries(B().sym)) {
+      if (moodOf(sy) !== k) continue;
+      const nx = starts.find(x => x > day); if (!nx) continue;
+      if (Math.abs(daysBetween(day, nx) - dbp) <= 1) hits.add(nx);
+    }
+    const learned = hits.size >= 2;
+    const usual = k === 'stab' ? dbp >= 0 && dbp <= 5 : Math.abs(dbp - 14) <= 1;
+    if (learned || usual) {
+      const msgs = MOOD_MSG[k], h = [...d].reduce((a, c) => a + c.charCodeAt(0), 0);
+      out.push({ k, msg: msgs[h % msgs.length], why: learned ? `you felt this at the same point in ${hits.size} past cycles` : k === 'stab' ? 'PMS days' : 'around ovulation' });
+    }
+  }
+  return out;
+}
 const isPeriodDay = d => B().periods.some(p => d >= p.start && d <= (p.end || addDays(p.start, 4)));
 const avgW = (to, n = 7) => { const v = Array.from({ length: n }, (_, i) => B().weights[addDays(to, -i)]).filter(x => x); return v.length ? v.reduce((a, x) => a + x, 0) / v.length : null; };
 function weightSpark() {
@@ -332,6 +358,8 @@ VIEWS.body = () => {
   <div class="card"><div class="row"><h2 class="grow">Cycle</h2>${ci ? `<span class="chip sm">${ci.phase}</span>` : ''}</div>
     ${ci ? `<div class="row gap"><div class="grow"><div class="muted small">Cycle day</div><div class="big">${ci.day}</div></div><div class="grow right"><div class="muted small">Next period around</div><div>${fmtDay(ci.next)}</div><div class="muted small">${ci.toNext > 0 ? `in ${ci.toNext} days` : ci.toNext === 0 ? 'today' : `${-ci.toNext} days late`} · avg ${ci.avg} days</div></div></div>` : '<p class="muted small">Tap below when your period starts.</p>'}
     ${cycleTip(ci) ? `<div class="note info sm">${cycleTip(ci)}</div>` : ''}
+    ${(moodForecast(d) || []).map(m => `<div class="note ${m.k === 'stab' ? 'warn' : 'info'} sm">${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">· ${m.why}</span></div>`).join('')}
+    ${ci && !ci.onPeriod ? `<p class="muted small">${(() => { const st = addDays(ci.next, -5), gl = addDays(ci.next, -14); return `${gl >= d ? `✨ Glow days around ${fmtDay(gl)}. ` : ''}${st >= d ? `🔪 Stab-a-bitch risk from ${fmtDay(st)}.` : ''}`; })()}</p>` : ''}
     <div class="row gap">${ci && ci.onPeriod && !ci.last.end ? `<button class="grow" id="pEnd">Period ended today</button>` : `<button class="grow" id="pStart">Period started today</button>`}<button class="mini ghost" id="pList">History</button></div>
     <h3>Today</h3><div class="chips">${DIS.map(([k, l, c]) => `<button class="chip sm ${s.dis === k ? 'on' : ''}" data-dis="${k}"><i class="dot" style="background:${c}"></i>${l}</button>`).join('')}</div>
     <label>Mood</label><div class="chips">${MOODS.map(([k, l]) => `<button class="chip sm ${moodOf(s) === k ? 'on' : ''}" data-mood="${k}">${l}</button>`).join('')}</div>
