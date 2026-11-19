@@ -85,6 +85,10 @@ const firstRun = !S;
 S = Object.assign(blank(), S || {});
 S.settings = Object.assign(blank().settings, S.settings);
 const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+// another open copy of the app (second tab, or the home-screen app + a browser tab) may have saved newer data:
+// always pick that up before showing or changing anything, so an old copy can't overwrite it
+function reloadS() { try { const x = JSON.parse(localStorage.getItem(KEY) || 'null'); if (x) { S = Object.assign(blank(), x); S.settings = Object.assign(blank().settings, S.settings); } } catch {} }
+addEventListener('storage', e => { if (e.key === KEY) { reloadS(); if (!$('#dlg').open) render(); } });
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 
 const foodById = id => S.foods.find(f => f.id === id);
@@ -1118,6 +1122,6 @@ render();
 syncFoodData();
 if (S.settings.sheetUrl) sheetWatch();
 let lastDay = today();
-document.addEventListener('visibilitychange', () => { if (document.hidden) return; if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) return; reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); });
 setInterval(() => { if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); }, 5 * 60e3);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
