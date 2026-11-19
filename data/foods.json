@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-19f",
+ "updated": "2026-11-19g",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -728,7 +728,7 @@
    "packG": 180,
    "su": "tub",
    "suG": 180,
-   "sname": "Cottage cheese grains"
+   "sname": "Cottage cheese grains, cherry"
   },
   {
    "key": "greek-10",
@@ -1391,23 +1391,25 @@
    "sname": "Orange juice"
   },
   {
-   "key": "kefir-yog",
-   "name": "Kefir yoghurt with fruit",
-   "kcal": 75,
+   "key": "snack-yog",
+   "name": "Snack yoghurts",
+   "sname": "Snack yoghurts",
+   "kcal": 85,
    "p": 3,
-   "c": 11,
-   "f": 2,
+   "c": 12,
+   "f": 2.5,
    "fib": 0,
    "place": "Fridge",
    "shop": "Lidl",
-   "price": 0.89,
-   "packG": 400,
+   "price": 0.33,
+   "packG": 125,
+   "unit": "pot",
+   "unitG": 125,
    "regular": true,
    "cat": "Jonas snacks",
    "pantry": true,
-   "su": "tub",
-   "suG": 400,
-   "sname": "Yoghurt snacks"
+   "su": "pot",
+   "suG": 125
   },
   {
    "key": "drink-yog",
@@ -1426,28 +1428,7 @@
    "pantry": true,
    "su": "bottle",
    "suG": 330,
-   "sname": "Yoghurt snacks"
-  },
-  {
-   "key": "bifido-yog",
-   "name": "Bifido yoghurt, fruit",
-   "kcal": 90,
-   "p": 3,
-   "c": 13,
-   "f": 3,
-   "fib": 0,
-   "place": "Fridge",
-   "shop": "Lidl",
-   "price": 0.33,
-   "packG": 125,
-   "unit": "pot",
-   "unitG": 125,
-   "regular": true,
-   "cat": "Jonas snacks",
-   "pantry": true,
-   "su": "pot",
-   "suG": 125,
-   "sname": "Yoghurt snacks"
+   "sname": "Drinking yoghurt"
   },
   {
    "key": "rice-pudding",
@@ -1976,5 +1957,9 @@
    "suG": 1,
    "sname": "Paper bags"
   }
+ ],
+ "removed": [
+  "kefir-yog",
+  "bifido-yog"
  ]
 }

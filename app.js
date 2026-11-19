@@ -87,13 +87,15 @@ async function syncFoodData() {
       if (!f) { f = { id: uid(), kind: 'food' }; S.foods.push(f); }
       const keepMacros = f.edited;
       for (const [k, v] of Object.entries(src)) {
-        if (keepMacros && ['name', 'kcal', 'p', 'c', 'f', 'fib', 'unit', 'unitG'].includes(k)) continue;
+        if (keepMacros && ['name', 'sname', 'kcal', 'p', 'c', 'f', 'fib', 'unit', 'unitG', 'su', 'suG'].includes(k)) continue;
         f[k] = v;
       }
       // regular buys from receipts go into the pantry once (then you manage them)
       S.pantryAdded ||= {};
       if (src.pantry && !S.pantryAdded[src.key]) { S.pantryAdded[src.key] = 1; if (!S.pantry[f.id]) S.pantry[f.id] = { place: f.place || 'Cupboard', qty: defaultQty(f), have: true }; }
     }
+    // foods I've retired (merged into another): hide them and take them out of the pantry
+      for (const k of j.removed || []) { const o = S.foods.find(x => x.key === k); if (o) { o.hidden = true; o.regular = false; delete S.pantry[o.id]; } }
     S.regulars = j.regulars || [];
     S.dataUpdated = j.updated; save();
     if (firstRun) seedCards();
@@ -275,7 +277,7 @@ VIEWS.log = () => {
 function searchLocal(q) {
   q = q.trim().toLowerCase(); if (!q) return '';
   const words = q.split(/\s+/), hit = s => words.every(w => s.toLowerCase().includes(w));
-  const foods = S.foods.filter(f => f.kind !== 'item' && hit(f.name + ' ' + (f.brand || ''))).slice(0, 20), cards = S.cards.filter(c => hit(c.name)).slice(0, 8);
+  const foods = S.foods.filter(f => f.kind !== 'item' && !f.hidden && hit(f.name + ' ' + (f.brand || ''))).slice(0, 20), cards = S.cards.filter(c => hit(c.name)).slice(0, 8);
   if (!foods.length && !cards.length) return `<p class="muted small">No match. Try Search shops, or + New food.</p>`;
   return `<ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)}<div class="muted small">${c.slot} card · ${r0(cardTotals(c).kcal)} kcal</div></div><span>›</span></li>`).join('')}${foods.map(f => `<li data-food="${f.id}"><div class="grow">${f.kind === 'recipe' ? '🥣 ' : ''}${esc(f.name)}<div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g</div></div><span>›</span></li>`).join('')}</ul>`;
 }
@@ -451,7 +453,7 @@ function foodsList() {
   $('#nf', body).onclick = e => { e.preventDefault(); closeDlg(); foodDialog({}); };
   $$('[data-f]', body).forEach(li => li.onclick = () => { closeDlg(); foodDialog(foodById(li.dataset.f)); });
 }
-const foodOptions = (sel, ex) => S.foods.filter(f => f.id !== ex && f.kind !== 'item').sort((a, b) => a.name.localeCompare(b.name)).map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+const foodOptions = (sel, ex) => S.foods.filter(f => f.id !== ex && f.kind !== 'item' && (!f.hidden || f.id === sel)).sort((a, b) => a.name.localeCompare(b.name)).map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
 const itemRow = (it, ex) => `<div class="row item"><select class="grow" name="fid"><option value="">Choose food…</option>${foodOptions(it.foodId, ex)}</select><input name="g" inputmode="decimal" class="gin" value="${it.g || ''}" placeholder="g"><button class="mini del rm">✕</button></div>`;
 const itemsEditor = (items, ex) => `<div id="items">${items.map(it => itemRow(it, ex)).join('')}</div><button class="mini" id="addItem">+ Ingredient</button>`;
 function bindItems(body, ex, onChange) {
@@ -538,11 +540,11 @@ function haveText(c) {
 }
 VIEWS.pantry = () => {
   fixPantryAmounts();
-  const ids = Object.keys(S.pantry).filter(id => foodById(id));
+  const ids = Object.keys(S.pantry).filter(id => foodById(id) && !foodById(id).hidden);
   return `<div class="card"><div class="row"><p class="muted small grow">Use − and + as things get used. At zero it moves to Shop → Ran out. Cooking a card takes its ingredients off.</p><button class="primary mini" id="addP">+ Add</button></div></div>
   ${PLACES.map(pl => { const list = ids.filter(id => (S.pantry[id].place || foodById(id).place) === pl).map(foodById).sort((a, b) => a.name.localeCompare(b.name));
     return `<div class="card"><h2>${pl === 'Freezer' ? '❄︎ ' : ''}${pl}</h2>${list.length ? `<ul class="list">${list.map(f => { const p = S.pantry[f.id], has = pantryHas(f.id);
-      return `<li class="${has ? '' : 'out'}"><div class="grow" data-pe="${f.id}">${esc(f.name)}</div><button class="mini" data-q="${f.id}|-1">−</button><span class="qty">${has ? stockText(f, p.qty) : 'out'}</span><button class="mini" data-q="${f.id}|1">+</button></li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
+      return `<li class="${has ? '' : 'out'}"><div class="grow" data-pe="${f.id}">${esc(sn(f))}</div><button class="mini" data-q="${f.id}|-1">−</button><span class="qty">${has ? stockText(f, p.qty) : 'out'}</span><button class="mini" data-q="${f.id}|1">+</button></li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
 };
 BIND.pantry = v => {
   $('#addP', v).onclick = () => pantryAdd();
@@ -552,18 +554,20 @@ BIND.pantry = v => {
 function pantryEdit(f, isAdd) {
   const p = S.pantry[f.id] || { place: f.place || 'Cupboard', qty: defaultQty(f), have: true };
   const { su, g } = suOf(f);
-  const body = dialog(`<h2>${esc(f.name)}</h2>
+  const body = dialog(`<label>Name</label><input name="nm" value="${esc(sn(f))}">
     <label>Kept in</label><select name="place">${PLACES.map(s => `<option ${s === p.place ? 'selected' : ''}>${s}</option>`).join('')}</select>
     <div class="row"><div class="grow"><label>How much you have</label><input name="amt" inputmode="decimal" value="${r1((p.qty ?? defaultQty(f)) / g)}"></div>
       <div class="grow"><label>Counted in</label><input name="su" value="${esc(su)}" placeholder="g, loaf, L, bag, pc"></div>
       <div class="grow"><label>g per ${esc(su)}</label><input name="sug" inputmode="decimal" value="${g}"></div></div>
     <p class="muted small">Meat: keep it in g. Bread: "loaf" and its weight. Household items: g per unit = 1.</p>
-    ${isAdd ? '' : '<p><button class="del mini" id="rmP">Remove from pantry</button></p>'}`, b => {
+    ${isAdd ? '' : '<p class="row wrap gap"><button class="mini" id="macP">Edit macros</button><button class="del mini" id="rmP">Remove from pantry</button></p>'}`, b => {
+    const nm = b.nm.value.trim(); if (nm && nm !== sn(f)) { f.name = f.sname = nm; f.edited = true; }
     const nsu = b.su.value.trim() || 'g', ng = nsu === 'g' ? 1 : (num(b.sug.value) || 1);
     if (nsu !== su || ng !== g) { f.su = nsu; f.suG = ng; f.edited = true; }
     const qty = num(b.amt.value) * ng;
     S.pantry[f.id] = { place: b.place.value, qty, have: qty > 0 };
   }, isAdd ? 'Add' : 'Save');
+  const mp = $('#macP', body); if (mp) mp.onclick = e => { e.preventDefault(); foodDialog(f, false, () => render()); };
   const rm = $('#rmP', body); if (rm) rm.onclick = e => { e.preventDefault(); delete S.pantry[f.id]; save(); closeDlg(); render(); };
 }
 function pantryAdd() {
