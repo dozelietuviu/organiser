@@ -669,9 +669,12 @@ function shoppingNeeds() {
   return out;
 }
 const REG_CATS = ['Food', 'Jonas snacks', 'Drinks', 'Cat', 'Household'];
-const allRegulars = () => S.foods.filter(f => f.regular).map(f => ({ key: f.key || f.id, id: f.id, name: f.name, cat: f.cat || 'Food', price: f.price || 0 }));
+// shopping name: generic, no brand (e.g. "Yoghurt snacks"); foods sharing one are a single line/chip
+const sn = f => f.sname || f.name;
+const xName = x => { const f = x.key && S.foods.find(y => (y.key || y.id) === x.key); return f ? sn(f) : x.name; };
+const allRegulars = () => { const seen = new Set(); return S.foods.filter(f => f.regular && !seen.has(sn(f)) && seen.add(sn(f))).map(f => ({ key: f.key || f.id, id: f.id, name: sn(f), cat: f.cat || 'Food', price: f.price || 0 })); };
 // regulars unticked (run out) in the pantry and not already on the list
-const restock = () => S.foods.filter(f => f.regular && S.pantry[f.id] && !pantryHas(f.id) && !(S.extras || []).some(x => x.key === (f.key || f.id)));
+const restock = () => { const seen = new Set(); return S.foods.filter(f => f.regular && S.pantry[f.id] && !pantryHas(f.id) && !(S.extras || []).some(x => xName(x) === sn(f)) && !seen.has(sn(f)) && seen.add(sn(f))); };
 const regCats = () => { const m = {}; for (const r of allRegulars()) (m[r.cat] ||= []).push(r); return [...REG_CATS, ...Object.keys(m).filter(c => !REG_CATS.includes(c))].filter(c => m[c]).map(c => [c, m[c]]); };
 VIEWS.shop = () => {
   const items = shoppingNeeds(), extras = S.extras || [], rs = restock(), xTotal = extras.reduce((a, x) => a + (x.price || 0) * x.qty, 0) + rs.reduce((a, f) => a + (f.price || 0), 0);
@@ -681,14 +684,14 @@ VIEWS.shop = () => {
   return `<div class="row daybar"><button class="mini" data-wk="-7">‹</button><div class="grow center">Week of ${fmtDay(UI.week)}</div><button class="mini" data-wk="7">›</button></div>
   <p class="muted small">From the meals you've planned (your portions + Jonas's), minus what's in the pantry.</p>
   ${byShop.length ? byShop.map(([s, l]) => { const st = l.reduce((a, x) => a + (x.cost || 0), 0);
-    return `<div class="card"><div class="row"><h2 class="grow">${s}</h2><span class="muted">${st ? '≈ ' + eur(st) : ''}</span></div><ul class="list">${l.map(x => `<li class="${ticked[x.f.id] ? 'done' : ''}"><input type="checkbox" data-buy="${x.f.id}" ${ticked[x.f.id] ? 'checked' : ''}><div class="grow">${esc(x.f.name)}<div class="muted small">${x.packs ? `${x.packs} × ${x.f.packG} g` : amountText(x.f, x.g)}${x.cost ? ' · ≈ ' + eur(x.cost) : ''}</div></div></li>`).join('')}</ul></div>`; }).join('')
+    return `<div class="card"><div class="row"><h2 class="grow">${s}</h2><span class="muted">${st ? '≈ ' + eur(st) : ''}</span></div><ul class="list">${l.map(x => `<li class="${ticked[x.f.id] ? 'done' : ''}"><input type="checkbox" data-buy="${x.f.id}" ${ticked[x.f.id] ? 'checked' : ''}><div class="grow">${esc(sn(x.f))}<div class="muted small">${x.packs ? `${x.packs} × ${x.f.packG} g` : amountText(x.f, x.g)}${x.cost ? ' · ≈ ' + eur(x.cost) : ''}</div></div></li>`).join('')}</ul></div>`; }).join('')
     : '<div class="card"><p class="muted">Nothing to buy. Plan some meals first, or your pantry already covers them.</p></div>'}
-  ${rs.length ? `<div class="card"><div class="row"><h2 class="grow">Ran out</h2><span class="muted small">from your pantry</span></div><ul class="list">${rs.map(f => `<li><input type="checkbox" data-rs="${f.id}"><div class="grow">${esc(f.name)}<div class="muted small">${esc(f.place || '')}${f.price ? ' · ≈ ' + eur(f.price) : ''}</div></div></li>`).join('')}</ul><p class="muted small">Tick when bought and it goes back in the pantry.</p></div>` : ''}
+  ${rs.length ? `<div class="card"><div class="row"><h2 class="grow">Ran out</h2><span class="muted small">from your pantry</span></div><ul class="list">${rs.map(f => `<li><input type="checkbox" data-rs="${f.id}"><div class="grow">${esc(sn(f))}<div class="muted small">${esc(f.place || '')}${f.price ? ' · ≈ ' + eur(f.price) : ''}</div></div></li>`).join('')}</ul><p class="muted small">Tick when bought and it goes back in the pantry.</p></div>` : ''}
   <div class="card"><div class="row"><h2 class="grow">Also buy</h2><span class="muted">${xTotal ? '≈ ' + eur(xTotal) : ''}</span></div>
-    ${extras.length ? `<ul class="list">${extras.map(x => `<li><input type="checkbox" data-xgot="${x.id}"><div class="grow">${esc(x.name)}<div class="muted small">${esc(x.cat)}${x.price ? ' · ≈ ' + eur(x.price * x.qty) : ''}</div></div><button class="mini" data-xm="${x.id}">−</button><span class="qty">${x.qty}</span><button class="mini" data-xq="${x.id}">+</button><button class="icon del" data-xdel="${x.id}" aria-label="Remove">✕</button></li>`).join('')}</ul><p class="muted small">Tick it when it's in the basket and it disappears. − or ✕ fixes a wrong tap.</p>` : '<p class="muted small">Tap regulars below, or type anything (light bulbs…).</p>'}
+    ${extras.length ? `<ul class="list">${extras.map(x => `<li><input type="checkbox" data-xgot="${x.id}"><div class="grow">${esc(xName(x))}<div class="muted small">${esc(x.cat)}${x.price ? ' · ≈ ' + eur(x.price * x.qty) : ''}</div></div><button class="mini" data-xm="${x.id}">−</button><span class="qty">${x.qty}</span><button class="mini" data-xq="${x.id}">+</button><button class="icon del" data-xdel="${x.id}" aria-label="Remove">✕</button></li>`).join('')}</ul><p class="muted small">Tick it when it's in the basket and it disappears. − or ✕ fixes a wrong tap.</p>` : '<p class="muted small">Tap regulars below, or type anything (light bulbs…).</p>'}
     <div class="row"><input id="xt" class="grow" placeholder="Misc: e.g. light bulbs"><button class="mini" id="xa">Add</button></div></div>
   <div class="card"><div class="row"><h2 class="grow">Regulars</h2><button class="mini" id="myReg">+ My own</button></div>
-    ${regCats().map(([c, list]) => `<h3>${esc(c)}</h3><div class="chips">${list.map(r => `<button class="chip ${extras.some(x => x.key === r.key) ? 'on' : ''}" data-reg="${esc(r.key)}">${esc(r.name)}${r.price ? ` <span class="muted small">€${r.price.toFixed(2)}</span>` : ''}</button>`).join('')}</div>`).join('')}</div>
+    ${regCats().map(([c, list]) => `<h3>${esc(c)}</h3><div class="chips">${list.map(r => `<button class="chip ${extras.some(x => xName(x) === r.name) ? 'on' : ''}" data-reg="${esc(r.key)}">${esc(r.name)}${r.price ? ` <span class="muted small">€${r.price.toFixed(2)}</span>` : ''}</button>`).join('')}</div>`).join('')}</div>
   <div class="card total"><div class="row"><div class="grow"><div class="muted small">Estimated shop</div><div class="big">≈ ${eur(total)}</div></div>
     ${missing ? `<div class="muted small right">${missing} item${missing > 1 ? 's have' : ' has'} no price yet.<br>Send me your receipts monthly.</div>` : ''}</div>
     ${Object.values(ticked).some(Boolean) ? '<button class="primary" id="putAway">Put ticked items in the pantry</button>' : ''}</div>`;
@@ -696,7 +699,7 @@ VIEWS.shop = () => {
 BIND.shop = v => {
   $$('[data-wk]', v).forEach(b => b.onclick = () => { UI.week = addDays(UI.week, +b.dataset.wk); render(); });
   $$('[data-buy]', v).forEach(c => c.onchange = () => { const t = S.bought[UI.week] ||= {}; t[c.dataset.buy] = c.checked; save(); render(); });
-  const addX = (name, extra = {}) => { S.extras ||= []; const ex = extra.key && S.extras.find(x => x.key === extra.key); if (ex) { S.extras = S.extras.filter(x => x !== ex); toast('Taken off'); } else S.extras.push(Object.assign({ id: uid(), name, qty: 1, cat: 'Misc' }, extra)); save(); render(); };
+  const addX = (name, extra = {}) => { S.extras ||= []; const ex = extra.key && S.extras.find(x => xName(x) === name); if (ex) { S.extras = S.extras.filter(x => x !== ex); toast('Taken off'); } else S.extras.push(Object.assign({ id: uid(), name, qty: 1, cat: 'Misc' }, extra)); save(); render(); };
   $('#xa', v).onclick = () => { const t = $('#xt', v).value.trim(); if (t) addX(t); };
   $('#xt', v).onkeydown = e => { if (e.key === 'Enter') $('#xa', v).click(); };
   $$('[data-reg]', v).forEach(b => b.onclick = () => { const r = allRegulars().find(x => x.key === b.dataset.reg); if (r) addX(r.name, { key: r.key, cat: r.cat, price: r.price || 0 }); });
