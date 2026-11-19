@@ -343,6 +343,7 @@ VIEWS.body = () => {
   const fri = parseDay(d).getDay() === 5, vt = b.vit[d] || {};
   const smk = b.smoke, sf = smk ? daysBetween(smk.since, today()) : null;
   const cof = (b.coffee || {})[d] || 0, alc = (b.alcohol || {})[d] || 0;
+  const fairyMonth = Object.entries(b.fairy || {}).filter(([x]) => x.slice(0, 7) === d.slice(0, 7)).reduce((a, [, n]) => a + n, 0);
   const alcWeek = Array.from({ length: 7 }, (_, i) => (b.alcohol || {})[addDays(d, -i)] || 0).reduce((x, y) => x + y, 0);
   return `${dayBar()}
   <div class="card"><div class="row"><h2 class="grow">Weight</h2><span class="muted small">judged by the weekly average</span></div>
@@ -373,6 +374,7 @@ VIEWS.body = () => {
   <div class="card"><h2>Habits</h2>
     <div class="row pslot"><div class="grow">🚭 Smoke-free<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>
     <div class="row pslot"><div class="grow">☕ Coffee<div class="muted small ${cof > 1 ? 'warnc' : ''}">1 a day, before 12:00${cof > 1 ? ' · that\'s ' + cof + ' today' : ''}</div></div><button class="mini" data-hab="coffee|-1">−</button><span class="qty">${cof}</span><button class="mini" data-hab="coffee|1">+</button></div>
+    <div class="row pslot"><div class="grow">🧚 Fairy dust<div class="muted small">this month · ${new Date(parseDay(d)).toLocaleDateString('en-GB', { month: 'long' })}</div></div><button class="mini" data-hab="fairy|-1">−</button><span class="qty">×${fairyMonth}</span><button class="mini" data-hab="fairy|1">+</button></div>
     <div class="row pslot"><div class="grow">🍷 Alcohol<div class="muted small">birthdays & weddings only · ${alcWeek} this week</div></div><button class="mini" data-hab="alcohol|-1">−</button><span class="qty">${alc}</span><button class="mini" data-hab="alcohol|1">+</button></div>
   </div>`;
 };
