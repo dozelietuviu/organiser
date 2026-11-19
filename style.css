@@ -125,3 +125,6 @@ video.scan { width: 100%; border-radius: 10px; background: #000; max-height: 50v
 .lvl { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: #04221f; background: #ffa392; border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
 .list li.out .lvl { background: #ff7a66; }
 .alw { color: var(--accent2); font-size: .8rem; }
+.chip.low { border-color: #ffa392; color: #ffa392; }
+.chip.out { border-color: #ff7a66; background: rgba(255,122,102,.16); color: #ff7a66; font-weight: 600; }
+.chip.low .muted, .chip.out .muted { color: inherit; opacity: .75; }
