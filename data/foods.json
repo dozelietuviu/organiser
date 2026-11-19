@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-19g",
+ "updated": "2026-11-19h",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -193,7 +193,8 @@
    "packG": 1000,
    "su": "L",
    "suG": 1000,
-   "sname": "Milk"
+   "sname": "Milk",
+   "always": true
   },
   {
    "key": "parmesan",
@@ -693,7 +694,27 @@
    "cat": "Food",
    "su": "L",
    "suG": 1000,
-   "sname": "Milk"
+   "sname": "Milk",
+   "always": true
+  },
+  {
+   "key": "butter",
+   "name": "Butter 82%",
+   "sname": "Butter",
+   "kcal": 740,
+   "p": 0.6,
+   "c": 0.7,
+   "f": 82,
+   "fib": 0,
+   "place": "Fridge",
+   "shop": "Lidl",
+   "packG": 200,
+   "regular": true,
+   "cat": "Food",
+   "pantry": true,
+   "su": "block",
+   "suG": 200,
+   "always": true
   },
   {
    "key": "varske-grain",
@@ -1489,7 +1510,8 @@
    "cat": "Drinks",
    "su": "bag",
    "suG": 1000,
-   "sname": "Coffee beans"
+   "sname": "Coffee beans",
+   "always": true
   },
   {
    "key": "cream-dessert",
@@ -1732,7 +1754,8 @@
    "price": 7.89,
    "su": "pack",
    "suG": 1,
-   "sname": "Wet cat food"
+   "sname": "Wet cat food",
+   "always": true
   },
   {
    "key": "cat-litter",
@@ -1750,7 +1773,8 @@
    "fib": 0,
    "su": "bag",
    "suG": 1,
-   "sname": "Cat litter"
+   "sname": "Cat litter",
+   "always": true
   },
   {
    "key": "toilet-paper",
@@ -1768,7 +1792,8 @@
    "fib": 0,
    "su": "roll",
    "suG": 1,
-   "sname": "Toilet paper"
+   "sname": "Toilet paper",
+   "always": true
   },
   {
    "key": "kitchen-roll",
