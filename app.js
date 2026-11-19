@@ -94,6 +94,7 @@ async function syncFoodData() {
       S.pantryAdded ||= {};
       if (src.pantry && !S.pantryAdded[src.key]) { S.pantryAdded[src.key] = 1; if (!S.pantry[f.id]) S.pantry[f.id] = { place: f.place || 'Cupboard', qty: null, have: true }; }
     }
+    S.regulars = j.regulars || [];
     S.dataUpdated = j.updated; save();
     if (firstRun) seedCards();
     render();
@@ -655,18 +656,24 @@ function shoppingNeeds() {
   }
   return out;
 }
+const REG_CATS = ['Food', 'Jonas snacks', 'Drinks', 'Cat', 'Household'];
+const allRegulars = () => [...(S.regulars || []), ...(S.myRegulars || [])];
+const regCats = () => { const m = {}; for (const r of allRegulars()) (m[r.cat] ||= []).push(r); return [...REG_CATS, ...Object.keys(m).filter(c => !REG_CATS.includes(c))].filter(c => m[c]).map(c => [c, m[c]]); };
 VIEWS.shop = () => {
-  const items = shoppingNeeds(), extra = S.bought.extra || [];
+  const items = shoppingNeeds(), extras = S.extras || [], xTotal = extras.reduce((a, x) => a + (x.price || 0) * x.qty, 0);
   const byShop = SHOPS.map(s => [s, items.filter(x => (x.f.shop || 'Lidl') === s)]).filter(([, l]) => l.length);
-  const total = items.reduce((a, x) => a + (x.cost || 0), 0), missing = items.filter(x => !x.cost).length;
+  const total = items.reduce((a, x) => a + (x.cost || 0), 0) + xTotal, missing = items.filter(x => !x.cost).length;
   const ticked = S.bought[UI.week] || {};
   return `<div class="row daybar"><button class="mini" data-wk="-7">‹</button><div class="grow center">Week of ${fmtDay(UI.week)}</div><button class="mini" data-wk="7">›</button></div>
   <p class="muted small">From the meals you've planned (your portions + Jonas's), minus what's in the pantry.</p>
   ${byShop.length ? byShop.map(([s, l]) => { const st = l.reduce((a, x) => a + (x.cost || 0), 0);
     return `<div class="card"><div class="row"><h2 class="grow">${s}</h2><span class="muted">${st ? '≈ ' + eur(st) : ''}</span></div><ul class="list">${l.map(x => `<li class="${ticked[x.f.id] ? 'done' : ''}"><input type="checkbox" data-buy="${x.f.id}" ${ticked[x.f.id] ? 'checked' : ''}><div class="grow">${esc(x.f.name)}<div class="muted small">${x.packs ? `${x.packs} × ${x.f.packG} g` : amountText(x.f, x.g)}${x.cost ? ' · ≈ ' + eur(x.cost) : ''}</div></div></li>`).join('')}</ul></div>`; }).join('')
     : '<div class="card"><p class="muted">Nothing to buy. Plan some meals first, or your pantry already covers them.</p></div>'}
-  <div class="card"><h2>Also buy</h2><ul class="list">${extra.map((t, i) => `<li><div class="grow">${esc(t)}</div><button class="mini del" data-xd="${i}">✕</button></li>`).join('')}</ul>
-    <div class="row"><input id="xt" class="grow" placeholder="e.g. cat food, bin bags"><button class="mini" id="xa">Add</button></div></div>
+  <div class="card"><div class="row"><h2 class="grow">Also buy</h2><span class="muted">${xTotal ? '≈ ' + eur(xTotal) : ''}</span></div>
+    ${extras.length ? `<ul class="list">${extras.map(x => `<li><input type="checkbox" data-xgot="${x.id}"><div class="grow">${esc(x.name)}${x.qty > 1 ? ` <b>×${x.qty}</b>` : ''}<div class="muted small">${esc(x.cat)}${x.price ? ' · ≈ ' + eur(x.price * x.qty) : ''}</div></div><button class="mini" data-xq="${x.id}">+1</button></li>`).join('')}</ul><p class="muted small">Tick it when it's in the basket and it disappears.</p>` : '<p class="muted small">Tap regulars below, or type anything (light bulbs…).</p>'}
+    <div class="row"><input id="xt" class="grow" placeholder="Misc: e.g. light bulbs"><button class="mini" id="xa">Add</button></div></div>
+  <div class="card"><div class="row"><h2 class="grow">Regulars</h2><button class="mini" id="myReg">+ My own</button></div>
+    ${regCats().map(([c, list]) => `<h3>${esc(c)}</h3><div class="chips">${list.map(r => `<button class="chip ${extras.some(x => x.key === r.key) ? 'on' : ''}" data-reg="${esc(r.key)}">${esc(r.name)}${r.price ? ` <span class="muted small">€${r.price.toFixed(2)}</span>` : ''}</button>`).join('')}</div>`).join('')}</div>
   <div class="card total"><div class="row"><div class="grow"><div class="muted small">Estimated shop</div><div class="big">≈ ${eur(total)}</div></div>
     ${missing ? `<div class="muted small right">${missing} item${missing > 1 ? 's have' : ' has'} no price yet.<br>Send me your receipts monthly.</div>` : ''}</div>
     ${Object.values(ticked).some(Boolean) ? '<button class="primary" id="putAway">Put ticked items in the pantry</button>' : ''}</div>`;
@@ -674,8 +681,14 @@ VIEWS.shop = () => {
 BIND.shop = v => {
   $$('[data-wk]', v).forEach(b => b.onclick = () => { UI.week = addDays(UI.week, +b.dataset.wk); render(); });
   $$('[data-buy]', v).forEach(c => c.onchange = () => { const t = S.bought[UI.week] ||= {}; t[c.dataset.buy] = c.checked; save(); render(); });
-  $('#xa', v).onclick = () => { const t = $('#xt', v).value.trim(); if (!t) return; (S.bought.extra ||= []).push(t); save(); render(); };
-  $$('[data-xd]', v).forEach(b => b.onclick = () => { S.bought.extra.splice(+b.dataset.xd, 1); save(); render(); });
+  const addX = (name, extra = {}) => { S.extras ||= []; const ex = extra.key && S.extras.find(x => x.key === extra.key); if (ex) ex.qty++; else S.extras.push(Object.assign({ id: uid(), name, qty: 1, cat: 'Misc' }, extra)); save(); render(); };
+  $('#xa', v).onclick = () => { const t = $('#xt', v).value.trim(); if (t) addX(t); };
+  $('#xt', v).onkeydown = e => { if (e.key === 'Enter') $('#xa', v).click(); };
+  $$('[data-reg]', v).forEach(b => b.onclick = () => { const r = allRegulars().find(x => x.key === b.dataset.reg); if (r) addX(r.name, { key: r.key, cat: r.cat, price: r.price || 0 }); });
+  $$('[data-xq]', v).forEach(b => b.onclick = () => { const x = S.extras.find(y => y.id === b.dataset.xq); x.qty++; save(); render(); });
+  $$('[data-xgot]', v).forEach(c => c.onchange = () => { S.extras = S.extras.filter(x => x.id !== c.dataset.xgot); save(); toast('Got it ✓'); render(); });
+  $('#myReg', v).onclick = () => dialog(`<h2>Add a regular</h2><label>Name</label><input name="n" placeholder="e.g. Oat milk"><label>Group</label><select name="c">${REG_CATS.map(c => `<option>${c}</option>`).join('')}</select><label>Price € (optional)</label><input name="p" inputmode="decimal">`, b => {
+    if (!b.n.value.trim()) return false; (S.myRegulars ||= []).push({ key: 'my-' + uid(), name: b.n.value.trim(), cat: b.c.value, price: num(b.p.value) || 0 }); }, 'Add');
   const pa = $('#putAway', v);
   if (pa) pa.onclick = () => {
     const t = S.bought[UI.week] || {}, items = shoppingNeeds();
