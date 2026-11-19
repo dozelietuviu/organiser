@@ -399,7 +399,8 @@ BIND.body = v => {
 };
 // edit vitamins: one line per item, "Name | hint | every N days"
 function vitEdit() {
-  const b = B(); const line = it => [it.name, it.hint || '', it.every ? 'every ' + it.every : ''].filter((x, i) => x || i === 0).join(' | ');
+  const b = B();
+  if (!b.vitSlots.length) b.vitSlots = [['wake', 'On waking', '07:00'], ['bfast', 'Breakfast', '10:00'], ['lunch', 'Lunch', '14:00'], ['eve', 'Dinner', '21:00'], ['bed', 'Before bed', '22:30']].map(([id, title, time]) => ({ id, title, time, items: [] })); const line = it => [it.name, it.hint || '', it.every ? 'every ' + it.every : ''].filter((x, i) => x || i === 0).join(' | ');
   const body = dialog(`<h2>Vitamins</h2><p class="muted small">One per line. Optional: <i>Name | tip | every 2</i> (every 2nd day).</p>
     ${b.vitSlots.map((sl, i) => `<label>${esc(sl.title)} ${esc(sl.time || '')}</label><textarea name="v${i}" rows="${Math.max(2, sl.items.length + 1)}">${esc(sl.items.map(line).join('\n'))}</textarea>`).join('')}`, f => {
     b.vitSlots.forEach((sl, i) => {
