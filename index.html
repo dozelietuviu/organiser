@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1b2a22">
+<meta name="theme-color" content="#06121b">
 <title>Organiser</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
@@ -15,20 +15,17 @@
   <h1 id="title">Today</h1>
   <button class="icon" id="btnSettings" aria-label="Settings">⚙︎</button>
 </header>
-
+<div id="sheetNote" class="note info sheet" hidden></div>
 <main id="view"></main>
-
 <nav class="tabs">
-  <button data-tab="today" class="on"><span>☀︎</span>Today</button>
-  <button data-tab="food"><span>🍳</span>Food</button>
-  <button data-tab="train"><span>🥊</span>Train</button>
-  <button data-tab="progress"><span>📉</span>Progress</button>
-  <button data-tab="plan"><span>🗓</span>Plan</button>
+  <button data-tab="today" class="on"><span>◐</span>Today</button>
+  <button data-tab="food"><span>◒</span>Food</button>
+  <button disabled title="Coming in phase 2"><span>◇</span>Train</button>
+  <button disabled title="Coming in phase 2"><span>○</span>Body</button>
+  <button disabled title="Coming in phase 3"><span>☆</span>Goals</button>
 </nav>
-
 <dialog id="dlg"><form method="dialog" id="dlgBody"></form></dialog>
 <div id="toast" hidden></div>
-
 <script src="app.js"></script>
 </body>
 </html>
