@@ -38,6 +38,13 @@ const SLOT_IDS = SLOTS.map(s => s.id);
 const PLAN_SLOTS = ['Breakfast', 'Lunch', 'Dinner'];
 // unplanned eating: logged with a reason so patterns can be spotted (no guilt, just info)
 const UNPL = 'Unplanned';
+const SKIP = [['full', 'Still full'], ['nothungry', 'Not hungry'], ['busy', 'Busy / not a good time']];
+const skipOf = (d, slot) => ((S.day[d] || {}).skip || {})[slot];
+function skipDialog(slot) {
+  const body = dialog(`<h2>Skip ${slot.toLowerCase()}?</h2><p class="muted small">Why? It helps spot patterns.</p>
+    <div class="chips">${SKIP.map(([k, l]) => `<button class="chip" data-sk="${k}">${l}</button>`).join('')}</div>`, null);
+  $$('[data-sk]', body).forEach(b => b.onclick = e => { e.preventDefault(); const dd = S.day[UI.day] ||= {}; (dd.skip ||= {})[slot] = b.dataset.sk; save(); closeDlg(); render(); toast('Skipped'); });
+}
 const WHY = [['offered', 'Someone offered'], ['road', 'On the go'], ['badday', 'Bad day'], ['craving', 'Craving'], ['social', 'Social'], ['bored', 'Bored'], ['hungry', 'Too hungry']];
 const WHY_TIP = {
   offered: 'Saying "I just ate, thank you" or taking half is fine.',
@@ -199,6 +206,11 @@ function warnings(day) {
   const tot = sumM(S.log[day] || []);
   const passed = SLOTS.filter(x => { const [a, b] = x.time.split(':').map(Number); return h * 60 + new Date().getMinutes() >= a * 60 + b + 30; }).length;
   if (h >= 15 && tot.p < s.p * (passed / SLOTS.length) * 0.8) out.push(['warn', `Protein is behind: ${r0(tot.p)} of ${s.p} g. Pick a protein-rich meal next.`]);
+  // skipped meals: today, and a 'busy' pattern over 7 days
+  const sk = (S.day[day] || {}).skip || {}, skMain = Object.keys(sk).filter(x => PLAN_SLOTS.includes(x));
+  if (skMain.length >= 2) out.push(['warn', `${skMain.length} meals skipped today. Have a shake or a small protein snack so you don't end up too hungry later.`]);
+  const busy = Array.from({ length: 7 }, (_, i) => Object.values(((S.day[addDays(day, -i)] || {}).skip) || {})).flat().filter(r => r === 'busy').length;
+  if (busy >= 3) out.push(['info', `Skipped ${busy} meals this week for being busy. Keep a shake or a protein snack within reach for those days.`]);
   // unplanned eating: today's total, then patterns over the last 7 days
   const un = (S.log[day] || []).filter(e => e.slot === UNPL), unK = sumM(un).kcal;
   if (unK >= 250) out.push(['info', `${r0(unK)} kcal unplanned today. No need to skip meals: keep the next one protein-first and a bit lighter.`]);
@@ -239,7 +251,7 @@ const bindWater = v => $$('[data-w]', v).forEach(b => b.onclick = () => { const 
 function nextMeal() {
   const d = today(), cur = nowSlot(), idx = SLOT_IDS.indexOf(cur);
   for (const slot of SLOT_IDS.slice(idx)) {
-    if ((S.log[d] || []).some(e => e.slot === slot)) continue;
+    if ((S.log[d] || []).some(e => e.slot === slot) || skipOf(d, slot)) continue;
     const c = plannedCard(d, slot);
     return { slot, card: c };
   }
@@ -285,7 +297,7 @@ VIEWS.today = () => {
   <div class="card">${bars(tot)}</div>
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
-    ${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}</div></div>` : ''}
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}
   <div class="card">${waterRow(d)}</div>
   ${catCard(d)}
   <div class="card"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
@@ -300,6 +312,7 @@ function mealSummary(d) {
 BIND.today = v => {
   bindDayBar(v); bindWater(v); bindCat(v, UI.day);
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
+  $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-lognext]', v).forEach(b => b.onclick = () => { const slot = b.dataset.lognext; logCardDialog(plannedCard(today(), slot), slot); });
 };
 
@@ -318,7 +331,8 @@ VIEWS.log = () => {
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
     return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
       ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small">${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>`
-        : pcs.map(pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`).join('')}
+        : skipOf(d, s.id) ? `<div class="row gap"><span class="muted grow">Skipped · ${SKIP.find(x => x[0] === skipOf(d, s.id))[1]}</span><button class="mini ghost" data-unskip="${s.id}">Undo</button></div>`
+        : pcs.map(pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`).join('') + `<div class="right"><button class="mini ghost" data-skip="${s.id}">Skipped</button></div>`}
       ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
       ${lowP ? `<div class="note warn sm">Only ${r0(t.p)} g protein in this meal (aim for ${S.settings.minP} g+).</div>` : ''}
       ${list.length ? `<div class="chips">${FULL.map(([k, l]) => `<button class="chip sm ${(dd.full || {})[s.id] === k ? 'on' : ''}" data-full="${s.id}|${k}">${l}</button>`).join('')}</div>` : ''}
@@ -369,6 +383,8 @@ BIND.log = v => {
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
   $('#unplAdd', v).onclick = unplDialog;
+  $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
+  $$('[data-unskip]', v).forEach(b => b.onclick = () => { delete ((S.day[UI.day] || {}).skip || {})[b.dataset.unskip]; save(); render(); });
   $$('[data-why]', v).forEach(b => b.onclick = () => { const [id, k] = b.dataset.why.split('|'); const e = (S.log[UI.day] || []).find(x => x.id === id); if (e) { e.why = e.why === k ? '' : k; save(); render(); } });
   $$('[data-logcard]', v).forEach(b => b.onclick = () => logCardDialog(cardById(b.dataset.logcard), b.dataset.slot));
   $$('[data-full]', v).forEach(b => b.onclick = () => { const [slot, k] = b.dataset.full.split('|'); const dd = S.day[UI.day] ||= {}; dd.full ||= {}; dd.full[slot] = dd.full[slot] === k ? undefined : k; save(); render(); });
@@ -386,8 +402,13 @@ function pickForSlot(slot) {
   $('#sScan', body).onclick = e => { e.preventDefault(); scanDialog(slot); };
   $('#sOnline', body).onclick = e => { e.preventDefault(); onlineDialog(body.q.value, slot); };
 }
-function addLog(entry) { (S.log[UI.day] ||= []).push(Object.assign({ id: uid(), at: UI.day === today() ? Date.now() : parseDay(UI.day).getTime() + 12 * 36e5 }, entry)); }
-const slotSelect = sel => `<label>Meal</label><select name="slot">${[...SLOT_IDS, UNPL].map(s => `<option ${s === sel ? 'selected' : ''}>${s}</option>`).join('')}</select>`;
+function addLog(entry) {
+  // time eaten: from the dialog's "Ate at" box (so 'Last ate' and the gap warning are right when you log late)
+  const t = ($('#dlgBody').at || {}).value; let at = UI.day === today() ? Date.now() : parseDay(UI.day).getTime() + 12 * 36e5;
+  if (/^\d\d:\d\d$/.test(t || '')) { const [h, m] = t.split(':').map(Number); const x = parseDay(UI.day); x.setHours(h, m, 0, 0); at = x.getTime(); }
+  (S.log[UI.day] ||= []).push(Object.assign({ id: uid(), at }, entry));
+}
+const slotSelect = sel => `<label>Ate at</label><input name="at" type="time" value="${UI.day === today() ? new Date().toTimeString().slice(0, 5) : '12:00'}"><label>Meal</label><select name="slot">${[...SLOT_IDS, UNPL].map(s => `<option ${s === sel ? 'selected' : ''}>${s}</option>`).join('')}</select>`;
 function logFoodDialog(food, slot) {
   if (!food) return;
   const unit = food.unit && food.unitG;
