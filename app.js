@@ -357,7 +357,9 @@ function habitRows(d) {
     const c = habCfg(k), head = `<button class="linkish plain" data-hcfg="${k}">${c.icon} ${esc(c.name)}</button>`;
     if (c.paused) return `<div class="row pslot paused"><div class="grow">${head}<div class="muted small">⏸ paused</div></div></div>`;
     if (k === 'smoke') { const smk = b.smoke, sf = smk ? daysBetween(smk.since, today()) : 0;
-      return `<div class="row pslot"><div class="grow">${head}<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}${c.note ? ' · ' + esc(c.note) : ''}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>`; }
+      const n = (b.smoked || {})[d] || 0, wk = Array.from({ length: 7 }, (_, i) => (b.smoked || {})[addDays(d, -i)] || 0).reduce((x, y) => x + y, 0);
+      if (n) return `<div class="row pslot"><div class="grow">${head}<div class="muted small warnc">Slipped ${d === today() ? 'today' : 'this day'} · ${n} smoked${wk > n ? ` · ${wk} this week` : ''} · best ${smk.best || 0} days</div></div><button class="mini" data-smk="-1">−</button><span class="qty">${n}</span><button class="mini" data-smk="1">+</button></div>`;
+      return `<div class="row pslot"><div class="grow">${head}<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}${wk ? ` · ${wk} smoked this week` : ''}${c.note ? ' · ' + esc(c.note) : ''}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>`; }
     const today_n = (b[k] || {})[d] || 0, tot = habCount(k, d), over = c.limit && tot > c.limit;
     const per = c.per === 'day' ? 'today' : c.per === 'week' ? 'this week' : 'this month';
     const lim = c.limit ? `${c.limit} a ${c.per}` : '';
@@ -436,7 +438,16 @@ BIND.body = v => {
   $$('[data-mood]', v).forEach(x => x.onclick = () => { const s = b.sym[d] ||= {}; s.mood = moodOf(s) === x.dataset.mood ? '' : x.dataset.mood; save(); render(); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = b.vit[d] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $('#vEdit', v).onclick = vitEdit;
-  const sl = $('#slip', v); if (sl) sl.onclick = () => { if (!b.smoke) b.smoke = { since: today(), best: 0, slips: [] }; else { b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, today())); b.smoke.slips.push(today()); b.smoke.since = today(); toast('Reset. Day 1 starts now 💪'); } save(); render(); };
+  // slip: resets the streak and starts a count for that day; taking the count back to 0 undoes the slip
+  const sl = $('#slip', v); if (sl) sl.onclick = () => {
+    if (!b.smoke) { b.smoke = { since: today(), best: 0, slips: [] }; save(); render(); return; }
+    b.smoke.prev = { since: b.smoke.since, best: b.smoke.best };
+    b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, d)); b.smoke.slips.push(d); b.smoke.since = addDays(d, 1) > today() ? today() : addDays(d, 1);
+    (b.smoked ||= {})[d] = 1; save(); toast('Counted. Tomorrow is day 1 💪'); render(); };
+  $$('[data-smk]', v).forEach(x => x.onclick = () => {
+    const o = b.smoked ||= {}; o[d] = Math.max(0, (o[d] || 0) + +x.dataset.smk);
+    if (!o[d]) { o[d] = undefined; b.smoke.slips = b.smoke.slips.filter(y => y !== d); if (b.smoke.prev) { Object.assign(b.smoke, b.smoke.prev); b.smoke.prev = undefined; } toast('Slip undone'); }
+    save(); render(); });
   $$('[data-hcfg]', v).forEach(x => x.onclick = () => habitEdit(x.dataset.hcfg));
   $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
 };
