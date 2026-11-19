@@ -329,8 +329,8 @@ VIEWS.log = () => {
   ${SLOTS.map(s => {
     const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pcs = myCards(d, s.id);
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
-    return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
-      ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small">${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>`
+    return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${list.length ? 'ate ' + hm(Math.min(...list.map(e => e.at))) : s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
+      ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small"><button class="linkish" data-at="${e.id}">${hm(e.at)}</button> · ${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>`
         : skipOf(d, s.id) ? `<div class="row gap"><span class="muted grow">Skipped · ${SKIP.find(x => x[0] === skipOf(d, s.id))[1]}</span><button class="mini ghost" data-unskip="${s.id}">Undo</button></div>`
         : pcs.map(pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`).join('') + `<div class="right"><button class="mini ghost" data-skip="${s.id}">Skipped</button></div>`}
       ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
@@ -384,6 +384,12 @@ BIND.log = v => {
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
   $('#unplAdd', v).onclick = unplDialog;
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
+  $$('[data-at]', v).forEach(b => b.onclick = () => {
+    const e = (S.log[UI.day] || []).find(x => x.id === b.dataset.at); if (!e) return;
+    dialog(`<h2>${esc(e.name)}</h2><label>Ate at</label><input name="t" type="time" value="${hm(e.at)}">`, f => {
+      const [h, m] = f.t.value.split(':').map(Number); if (isNaN(h)) return false; const x = new Date(e.at); x.setHours(h, m, 0, 0); e.at = x.getTime();
+    });
+  });
   $$('[data-unskip]', v).forEach(b => b.onclick = () => { delete ((S.day[UI.day] || {}).skip || {})[b.dataset.unskip]; save(); render(); });
   $$('[data-why]', v).forEach(b => b.onclick = () => { const [id, k] = b.dataset.why.split('|'); const e = (S.log[UI.day] || []).find(x => x.id === id); if (e) { e.why = e.why === k ? '' : k; save(); render(); } });
   $$('[data-logcard]', v).forEach(b => b.onclick = () => logCardDialog(cardById(b.dataset.logcard), b.dataset.slot));
