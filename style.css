@@ -76,9 +76,10 @@ label.tick input { width: 18px; height: 18px; }
 .bar.over > i { background: var(--warn); }
 .macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 
-.drops { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
-.drop { width: 20px; height: 26px; padding: 0; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: var(--bg2); border: 1px solid var(--line); }
-.drop.on { background: var(--info); border-color: var(--info); }
+.drops { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.drop { width: 19px; height: 26px; padding: 0; border: 0; border-radius: 0 0 3px 3px; clip-path: polygon(0 0, 100% 0, 84% 100%, 16% 100%);
+  background: linear-gradient(90deg, rgba(255,255,255,.10), rgba(255,255,255,.03) 40%, rgba(255,255,255,.10)), #163a4f; }
+.drop.on { background: linear-gradient(90deg, rgba(255,255,255,.25), transparent 40%, rgba(255,255,255,.18)), linear-gradient(transparent 16%, var(--info) 16%), #163a4f; }
 
 .list { list-style: none; padding: 0; margin: 0; }
 .list li { padding: 9px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; cursor: default; }

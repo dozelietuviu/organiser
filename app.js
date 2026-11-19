@@ -210,7 +210,7 @@ function bars(tot) {
 }
 function waterRow(day) {
   const w = (S.day[day] || {}).water || 0, n = S.settings.water;
-  return `<div class="row"><div class="grow"><div class="muted small">Water</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${w}/${n}</b></div>`;
+  return `<div class="row"><div class="grow"><div class="muted small">Water · 250 ml glasses · ${r1(w * .25)} of ${r1(n * .25)} L</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${w}/${n}</b></div>`;
 }
 const bindWater = v => $$('[data-w]', v).forEach(b => b.onclick = () => { const dd = S.day[UI.day] ||= {}; const n = +b.dataset.w; dd.water = dd.water === n ? n - 1 : n; save(); render(); });
 function nextMeal() {
