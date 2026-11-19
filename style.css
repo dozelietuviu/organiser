@@ -138,3 +138,6 @@ video.scan { width: 100%; border-radius: 10px; background: #000; max-height: 50v
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(255,255,255,.25); }
 .vslot { margin: 8px 0; } .warnc { color: #ffa392; }
 textarea { min-height: 3em; }
+.linkish.plain { color: var(--text); text-decoration: none; font-size: 1rem; text-align: left; }
+.pslot.paused { opacity: .5; }
+.vitrow { align-items: center; margin-top: 6px; }

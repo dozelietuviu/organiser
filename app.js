@@ -337,14 +337,59 @@ function heatmap() {
     <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span>${MOODS.filter(m => m[2]).map(m => `<span><i class="hm mood" style="--mc:${m[2]}"></i> ${m[1].replace(/^\S+ /, '')}</span>`).join('')}<span>colour = discharge</span></div>`;
 }
 const vitDue = (it, d) => !it.every || daysBetween(it.from || d, d) % it.every === 0;
+// habits: each one can be adjusted (limit, note) and paused
+const HAB_DEF = {
+  smoke: { icon: '🚭', name: 'Smoke-free', note: '' },
+  coffee: { icon: '☕', name: 'Coffee', per: 'day', limit: 1, note: 'before 12:00' },
+  fairy: { icon: '🧚', name: 'Fairy dust', per: 'month', limit: 0, note: '' },
+  alcohol: { icon: '🍷', name: 'Alcohol', per: 'week', limit: 0, note: 'birthdays & weddings only' },
+};
+const habCfg = k => Object.assign({}, HAB_DEF[k], (B().habits || {})[k] || {});
+function habCount(k, d) {
+  const o = B()[k] || {}, c = habCfg(k);
+  if (c.per === 'month') return Object.entries(o).filter(([x]) => x.slice(0, 7) === d.slice(0, 7)).reduce((a, [, n]) => a + n, 0);
+  if (c.per === 'week') return Array.from({ length: 7 }, (_, i) => o[addDays(d, -i)] || 0).reduce((a, x) => a + x, 0);
+  return o[d] || 0;
+}
+function habitRows(d) {
+  const b = B();
+  return Object.keys(HAB_DEF).map(k => {
+    const c = habCfg(k), head = `<button class="linkish plain" data-hcfg="${k}">${c.icon} ${esc(c.name)}</button>`;
+    if (c.paused) return `<div class="row pslot paused"><div class="grow">${head}<div class="muted small">⏸ paused</div></div></div>`;
+    if (k === 'smoke') { const smk = b.smoke, sf = smk ? daysBetween(smk.since, today()) : 0;
+      return `<div class="row pslot"><div class="grow">${head}<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}${c.note ? ' · ' + esc(c.note) : ''}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>`; }
+    const today_n = (b[k] || {})[d] || 0, tot = habCount(k, d), over = c.limit && tot > c.limit;
+    const per = c.per === 'day' ? 'today' : c.per === 'week' ? 'this week' : 'this month';
+    const lim = c.limit ? `${c.limit} a ${c.per}` : '';
+    return `<div class="row pslot"><div class="grow">${head}<div class="muted small ${over ? 'warnc' : ''}">${[lim, c.note && esc(c.note), c.per !== 'day' ? `${tot} ${per}` : over ? `that's ${tot} today` : ''].filter(Boolean).join(' · ')}</div></div>
+      <button class="mini" data-hab="${k}|-1">−</button><span class="qty">${c.per === 'month' ? '×' + tot : today_n}</span><button class="mini" data-hab="${k}|1">+</button></div>`;
+  }).join('');
+}
+function habitEdit(k) {
+  const b = B(), c = habCfg(k);
+  const body = dialog(`<h2>${c.icon} ${esc(c.name)}</h2>
+    <label class="row tick"><input type="checkbox" name="pz" ${c.paused ? 'checked' : ''}> ⏸ Pause this habit</label>
+    ${k === 'smoke' ? `<label>Smoke-free since</label><input type="date" name="since" value="${(b.smoke || {}).since || today()}"><label>Best streak (days)</label><input name="best" inputmode="numeric" value="${(b.smoke || {}).best || 0}">`
+      : `<div class="row"><div class="grow"><label>Limit (0 = none)</label><input name="lim" inputmode="numeric" value="${c.limit || 0}"></div><div class="grow"><label>Counted per</label><select name="per">${['day', 'week', 'month'].map(x => `<option ${x === c.per ? 'selected' : ''}>${x}</option>`).join('')}</select></div></div>`}
+    <label>Note</label><input name="note" value="${esc(c.note || '')}" placeholder="e.g. before 12:00">`, f => {
+    b.habits ||= {}; const h = b.habits[k] ||= {};
+    h.paused = f.pz.checked; h.note = f.note.value.trim();
+    if (k === 'smoke') { if (f.since.value) { b.smoke ||= { slips: [] }; b.smoke.since = f.since.value; b.smoke.best = parseInt(f.best.value) || 0; } }
+    else { h.limit = parseInt(f.lim.value) || 0; h.per = f.per.value; }
+  });
+}
+// vitamins shown inside the Log meal boxes (same ticks as the Body tab)
+const VIT_MEAL = { wake: 'Pre-workout', bfast: 'Breakfast', lunch: 'Lunch', eve: 'Dinner', bed: 'Dinner' };
+function vitChipsFor(d, slot) {
+  if (!S.body) return '';
+  const vt = B().vit[d] || {}, its = B().vitSlots.filter(sl => (sl.meal || VIT_MEAL[sl.id]) === slot).flatMap(sl => sl.items.filter(it => vitDue(it, d)).map(it => ({ it, bed: sl.id === 'bed' })));
+  if (!its.length) return '';
+  return `<div class="chips vitrow"><span class="muted small">💊</span>${its.map(({ it, bed }) => `<button class="chip sm ${vt[it.id] ? 'on' : ''}" data-vit="${it.id}">${vt[it.id] ? '✓ ' : ''}${esc(it.name)}${bed ? ' <span class="muted">· bed</span>' : ''}</button>`).join('')}</div>`;
+}
 VIEWS.body = () => {
   const b = B(), d = UI.day, w = b.weights[d], m = b.meas[d] || {}, ci = cycleInfo(d), s = b.sym[d] || {}, st = b.start || {};
   const a7 = avgW(d), aPrev = avgW(addDays(d, -7)), lastM = Object.entries(b.meas).filter(([x]) => x <= d).sort().pop();
   const fri = parseDay(d).getDay() === 5, vt = b.vit[d] || {};
-  const smk = b.smoke, sf = smk ? daysBetween(smk.since, today()) : null;
-  const cof = (b.coffee || {})[d] || 0, alc = (b.alcohol || {})[d] || 0;
-  const fairyMonth = Object.entries(b.fairy || {}).filter(([x]) => x.slice(0, 7) === d.slice(0, 7)).reduce((a, [, n]) => a + n, 0);
-  const alcWeek = Array.from({ length: 7 }, (_, i) => (b.alcohol || {})[addDays(d, -i)] || 0).reduce((x, y) => x + y, 0);
   return `${dayBar()}
   <div class="card"><div class="row"><h2 class="grow">Weight</h2><span class="muted small">judged by the weekly average</span></div>
     <div class="row gap"><input id="bw" class="grow" inputmode="decimal" placeholder="kg today" value="${w ?? ''}"><button class="primary mini" id="bwSave">Save</button></div>
@@ -371,11 +416,8 @@ VIEWS.body = () => {
       return `<div class="vslot"><span class="slot">${esc(sl.title)}</span> <span class="muted small">${esc(sl.time || '')}</span><div class="chips">${its.map(it => `<button class="chip sm ${vt[it.id] ? 'on' : ''}" data-vit="${it.id}" title="${esc(it.hint || '')}">${vt[it.id] ? '✓ ' : ''}${esc(it.name)}</button>`).join('')}</div></div>`; }).join('') || '<p class="muted small">No vitamins yet. Tap Edit list.</p>'}
     ${b.vitSlots.some(sl => sl.items.some(it => !vitDue(it, d))) ? `<p class="muted small">Not today: ${b.vitSlots.flatMap(sl => sl.items.filter(it => !vitDue(it, d)).map(it => esc(it.name))).join(', ')}.</p>` : ''}
   </div>
-  <div class="card"><h2>Habits</h2>
-    <div class="row pslot"><div class="grow">🚭 Smoke-free<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>
-    <div class="row pslot"><div class="grow">☕ Coffee<div class="muted small ${cof > 1 ? 'warnc' : ''}">1 a day, before 12:00${cof > 1 ? ' · that\'s ' + cof + ' today' : ''}</div></div><button class="mini" data-hab="coffee|-1">−</button><span class="qty">${cof}</span><button class="mini" data-hab="coffee|1">+</button></div>
-    <div class="row pslot"><div class="grow">🧚 Fairy dust<div class="muted small">this month · ${new Date(parseDay(d)).toLocaleDateString('en-GB', { month: 'long' })}</div></div><button class="mini" data-hab="fairy|-1">−</button><span class="qty">×${fairyMonth}</span><button class="mini" data-hab="fairy|1">+</button></div>
-    <div class="row pslot"><div class="grow">🍷 Alcohol<div class="muted small">birthdays & weddings only · ${alcWeek} this week</div></div><button class="mini" data-hab="alcohol|-1">−</button><span class="qty">${alc}</span><button class="mini" data-hab="alcohol|1">+</button></div>
+  <div class="card"><div class="row"><h2 class="grow">Habits</h2><span class="muted small">tap a name to change or pause</span></div>
+    ${habitRows(d)}
   </div>`;
 };
 BIND.body = v => {
@@ -394,7 +436,8 @@ BIND.body = v => {
   $$('[data-mood]', v).forEach(x => x.onclick = () => { const s = b.sym[d] ||= {}; s.mood = moodOf(s) === x.dataset.mood ? '' : x.dataset.mood; save(); render(); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = b.vit[d] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $('#vEdit', v).onclick = vitEdit;
-  $('#slip', v).onclick = () => { if (!b.smoke) b.smoke = { since: today(), best: 0, slips: [] }; else { b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, today())); b.smoke.slips.push(today()); b.smoke.since = today(); toast('Reset. Day 1 starts now 💪'); } save(); render(); };
+  const sl = $('#slip', v); if (sl) sl.onclick = () => { if (!b.smoke) b.smoke = { since: today(), best: 0, slips: [] }; else { b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, today())); b.smoke.slips.push(today()); b.smoke.since = today(); toast('Reset. Day 1 starts now 💪'); } save(); render(); };
+  $$('[data-hcfg]', v).forEach(x => x.onclick = () => habitEdit(x.dataset.hcfg));
   $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
 };
 // edit vitamins: one line per item, "Name | hint | every N days"
@@ -498,6 +541,7 @@ VIEWS.log = () => {
       ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
       ${lowP ? `<div class="note warn sm">Only ${r0(t.p)} g protein in this meal (aim for ${S.settings.minP} g+).</div>` : ''}
       ${list.length ? `<div class="chips">${FULL.map(([k, l]) => `<button class="chip sm ${(dd.full || {})[s.id] === k ? 'on' : ''}" data-full="${s.id}|${k}">${l}</button>`).join('')}</div>` : ''}
+      ${list.length ? vitChipsFor(d, s.id) : ''}
     </div>`;
   }).join('')}
   ${unplCard(es)}
@@ -545,6 +589,7 @@ BIND.log = v => {
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
   $('#unplAdd', v).onclick = unplDialog;
+  $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = B().vit[UI.day] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-at]', v).forEach(b => b.onclick = () => {
     const e = (S.log[UI.day] || []).find(x => x.id === b.dataset.at); if (!e) return;
