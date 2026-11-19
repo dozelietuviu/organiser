@@ -36,6 +36,19 @@ const SLOTS = [
 ];
 const SLOT_IDS = SLOTS.map(s => s.id);
 const PLAN_SLOTS = ['Breakfast', 'Lunch', 'Dinner'];
+// unplanned eating: logged with a reason so patterns can be spotted (no guilt, just info)
+const UNPL = 'Unplanned';
+const WHY = [['offered', 'Someone offered'], ['road', 'On the go'], ['badday', 'Bad day'], ['craving', 'Craving'], ['social', 'Social'], ['bored', 'Bored'], ['hungry', 'Too hungry']];
+const WHY_TIP = {
+  offered: 'Saying "I just ate, thank you" or taking half is fine.',
+  road: 'Keep a shake or protein bar in your bag for these days.',
+  badday: 'Bad days happen. Check sleep, stress and where you are in your cycle. Tomorrow is a normal day.',
+  craving: 'Put a small planned treat on a card so it is part of the plan.',
+  social: 'Look at the menu before you go and pick the protein option.',
+  bored: 'Try water or a short walk first, then see if you are still hungry.',
+  hungry: 'Too long between meals. Keep gaps under 5 hours and make the meal before more filling.',
+};
+const UNPL_PRESETS = [['Slice of cake', 350], ['Donut', 280], ['Pastry / bun', 320], ['Chocolate bar', 230], ['Handful of crisps', 160], ['Biscuits (3)', 210], ['Fast-food meal', 900], ['Glass of wine', 120], ['Ice cream', 250]];
 const CARD_TYPES = [...SLOT_IDS, 'Extra'];
 const PLACES = ['Fridge', 'Freezer', 'Cupboard', 'Spice rack', 'Household'];
 const SHOPS = ['Lidl', 'IKI', 'Maxima', 'Other'];
@@ -186,16 +199,24 @@ function warnings(day) {
   const tot = sumM(S.log[day] || []);
   const passed = SLOTS.filter(x => { const [a, b] = x.time.split(':').map(Number); return h * 60 + new Date().getMinutes() >= a * 60 + b + 30; }).length;
   if (h >= 15 && tot.p < s.p * (passed / SLOTS.length) * 0.8) out.push(['warn', `Protein is behind: ${r0(tot.p)} of ${s.p} g. Pick a protein-rich meal next.`]);
+  // unplanned eating: today's total, then patterns over the last 7 days
+  const un = (S.log[day] || []).filter(e => e.slot === UNPL), unK = sumM(un).kcal;
+  if (unK >= 250) out.push(['info', `${r0(unK)} kcal unplanned today. No need to skip meals: keep the next one protein-first and a bit lighter.`]);
+  const week = Array.from({ length: 7 }, (_, i) => S.log[addDays(day, -i)] || []).flat().filter(e => e.slot === UNPL);
+  if (week.length >= 3) {
+    const cnt = {}; week.forEach(e => e.why && (cnt[e.why] = (cnt[e.why] || 0) + 1));
+    const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+    out.push(['warn', `${week.length} unplanned in the last 7 days (${r0(sumM(week).kcal)} kcal).${top && top[1] >= 2 ? ` Mostly "${WHY.find(w => w[0] === top[0])[1]}": ${WHY_TIP[top[0]]}` : ''}`]);
+  } else if (un.length) { const w = un[un.length - 1].why; if (w && WHY_TIP[w]) out.push(['info', WHY_TIP[w]]); }
   // freezer: things to take out tonight for tomorrow
   const fz = freezerFor(addDays(day, 1));
   if (fz.length && h >= 16) out.push(['info', `Take out of the freezer tonight: ${fz.map(esc).join(', ')}.`]);
   return out;
 }
 function freezerFor(day) {
-  const p = S.plan[day]; if (!p) return [];
   const names = new Set();
-  for (const slot of PLAN_SLOTS) {
-    const c = cardById(p[slot]); if (!c || (p.cooked || {})[slot]) continue;
+  for (const slot of PLAN_SLOTS) for (const c of mealCards(day, slot)) {
+    if (isCooked(day, slot)) continue;
     for (const i of c.items) { const f = foodById(i.foodId); const pi = f && S.pantry[f.id]; if (pi && pi.place === 'Freezer' && pantryHas(f.id)) names.add(f.name); }
   }
   return [...names];
@@ -224,7 +245,7 @@ function nextMeal() {
   }
   return null;
 }
-const plannedCard = (d, slot) => cardById((S.plan[d] || {})[slot]) || (PLAN_SLOTS.includes(slot) ? null : cardById(S.settings.fixed[slot]));
+const plannedCard = (d, slot) => myCards(d, slot)[0] || null;
 
 VIEWS.today = () => {
   const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null, last = lastAte();
@@ -243,7 +264,7 @@ VIEWS.today = () => {
 function mealSummary(d) {
   const es = S.log[d] || [];
   return `<ul class="list">${SLOTS.map(s => { const t = sumM(es.filter(e => e.slot === s.id)); const f = ((S.day[d] || {}).full || {})[s.id];
-    return `<li><div class="grow">${s.id}<div class="muted small">${s.time}${t.kcal ? ` · ${r0(t.kcal)} kcal · P ${r0(t.p)} g` : ''}</div></div>${f ? `<span class="chip sm">${FULL.find(x => x[0] === f)[1]}</span>` : ''}${t.kcal ? '<span class="ok">✓</span>' : ''}</li>`; }).join('')}</ul>`;
+    return `<li><div class="grow">${s.id}<div class="muted small">${s.time}${t.kcal ? ` · ${r0(t.kcal)} kcal · P ${r0(t.p)} g` : ''}</div></div>${f ? `<span class="chip sm">${FULL.find(x => x[0] === f)[1]}</span>` : ''}${t.kcal ? '<span class="ok">✓</span>' : ''}</li>`; }).join('')}${(() => { const u = sumM(es.filter(e => e.slot === UNPL)); return u.kcal ? `<li><div class="grow">Unplanned<div class="muted small">${r0(u.kcal)} kcal</div></div></li>` : ''; })()}</ul>`;
 }
 BIND.today = v => {
   bindDayBar(v); bindWater(v);
@@ -262,18 +283,39 @@ VIEWS.log = () => {
     ${recent.length ? `<div class="chips">${recent.map(f => `<button class="chip" data-food="${f.id}">${esc(f.name)}</button>`).join('')}</div>` : ''}
     <div id="results"></div></div>
   ${SLOTS.map(s => {
-    const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pc = plannedCard(d, s.id);
+    const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pcs = myCards(d, s.id);
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
     return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
       ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small">${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>`
-        : pc ? `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>` : ''}
+        : pcs.map(pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`).join('')}
       ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
       ${lowP ? `<div class="note warn sm">Only ${r0(t.p)} g protein in this meal (aim for ${S.settings.minP} g+).</div>` : ''}
       ${list.length ? `<div class="chips">${FULL.map(([k, l]) => `<button class="chip sm ${(dd.full || {})[s.id] === k ? 'on' : ''}" data-full="${s.id}|${k}">${l}</button>`).join('')}</div>` : ''}
     </div>`;
   }).join('')}
+  ${unplCard(es)}
   <div class="card">${waterRow(d)}</div>`;
 };
+function unplCard(es) {
+  const list = es.filter(e => e.slot === UNPL), t = sumM(list);
+  return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">Unplanned</span> <span class="muted small">cake, snacks on the go…</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal' : ''}</span><button class="mini" id="unplAdd">+</button></div>
+    ${list.length ? `<ul class="list">${list.map(e => `<li style="flex-wrap:wrap"><div class="grow">${esc(e.name)}<div class="muted small">${r0(e.kcal)} kcal${e.p ? ' · P ' + r1(e.p) : ''}</div></div><button class="mini del" data-del="${e.id}">✕</button>
+      <div class="chips" style="width:100%">${WHY.map(([k, l]) => `<button class="chip sm ${e.why === k ? 'on' : ''}" data-why="${e.id}|${k}">${l}</button>`).join('')}</div></li>`).join('')}</ul>` : '<p class="muted small">Ate something you didn\'t plan? Log it here. It counts in your day, and the reason helps spot patterns.</p>'}</div>`;
+}
+function unplDialog() {
+  const body = dialog(`<h2>Unplanned food</h2>
+    <div class="chips">${UNPL_PRESETS.map(([n, k]) => `<button class="chip sm" data-pre="${esc(n)}|${k}">${esc(n)} <span class="muted">${k}</span></button>`).join('')}</div>
+    <label>What was it?</label><input name="name" placeholder="e.g. slice of cake at work">
+    <div class="row"><div class="grow"><label>kcal (a guess is fine)</label><input name="kcal" inputmode="decimal"></div><div class="grow"><label>Protein g (optional)</label><input name="p" inputmode="decimal"></div></div>
+    <label>Why?</label><div class="chips">${WHY.map(([k, l]) => `<button class="chip sm" data-w2="${k}">${l}</button>`).join('')}</div>
+    <p><button class="mini" id="uSearch">Or find it in your foods / scan it</button></p>`, b => {
+    const kcal = num(b.kcal.value); if (!b.name.value.trim() || !kcal) { toast('Add a name and kcal'); return false; }
+    addLog({ slot: UNPL, name: b.name.value.trim(), g: 0, kcal, p: num(b.p.value), c: 0, f: 0, fib: 0, why: body.dataset.why || '' }); toast('Logged ✓');
+  }, 'Log it');
+  $$('[data-pre]', body).forEach(c => c.onclick = e => { e.preventDefault(); const [n, k] = c.dataset.pre.split('|'); body.name.value = n; body.kcal.value = k; });
+  $$('[data-w2]', body).forEach(c => c.onclick = e => { e.preventDefault(); body.dataset.why = c.dataset.w2; $$('[data-w2]', body).forEach(x => x.classList.toggle('on', x === c)); });
+  $('#uSearch', body).onclick = e => { e.preventDefault(); pickForSlot(UNPL); };
+}
 function searchLocal(q) {
   q = q.trim().toLowerCase(); if (!q) return '';
   const words = q.split(/\s+/), hit = s => words.every(w => s.toLowerCase().includes(w));
@@ -295,6 +337,8 @@ BIND.log = v => {
   $('#newFood', v).onclick = () => foodDialog({}, true);
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
+  $('#unplAdd', v).onclick = unplDialog;
+  $$('[data-why]', v).forEach(b => b.onclick = () => { const [id, k] = b.dataset.why.split('|'); const e = (S.log[UI.day] || []).find(x => x.id === id); if (e) { e.why = e.why === k ? '' : k; save(); render(); } });
   $$('[data-logcard]', v).forEach(b => b.onclick = () => logCardDialog(cardById(b.dataset.logcard), b.dataset.slot));
   $$('[data-full]', v).forEach(b => b.onclick = () => { const [slot, k] = b.dataset.full.split('|'); const dd = S.day[UI.day] ||= {}; dd.full ||= {}; dd.full[slot] = dd.full[slot] === k ? undefined : k; save(); render(); });
 };
@@ -312,7 +356,7 @@ function pickForSlot(slot) {
   $('#sOnline', body).onclick = e => { e.preventDefault(); onlineDialog(body.q.value, slot); };
 }
 function addLog(entry) { (S.log[UI.day] ||= []).push(Object.assign({ id: uid(), at: UI.day === today() ? Date.now() : parseDay(UI.day).getTime() + 12 * 36e5 }, entry)); }
-const slotSelect = sel => `<label>Meal</label><select name="slot">${SLOT_IDS.map(s => `<option ${s === sel ? 'selected' : ''}>${s}</option>`).join('')}</select>`;
+const slotSelect = sel => `<label>Meal</label><select name="slot">${[...SLOT_IDS, UNPL].map(s => `<option ${s === sel ? 'selected' : ''}>${s}</option>`).join('')}</select>`;
 function logFoodDialog(food, slot) {
   if (!food) return;
   const unit = food.unit && food.unitG;
@@ -582,33 +626,105 @@ function pantryAdd() {
   $('#pOnline', body).onclick = e => { e.preventDefault(); onlineDialog(body.q.value, null, pick); };
   $('#pNew', body).onclick = e => { e.preventDefault(); closeDlg(); foodDialog({ name: body.q.value }, false, pick); };
 }
+// ---------- PLAN ----------
+// S.plan[day] = { meals: {slot: [cardId…]}, who: {slot: ['me','j']}, left: {Lunch: true}, cooked: {slot: bool}, extras: [cardId] }
+// Lunch with left = leftovers of the day before's dinner: cooking that dinner also covers it.
+const WHO_DEFAULT = { Breakfast: ['me'], Lunch: ['me', 'j'], Dinner: ['me', 'j'] };
+function migratePlan() {
+  for (const p of Object.values(S.plan)) {
+    p.meals ||= {}; p.who ||= {};
+    for (const slot of PLAN_SLOTS) if (typeof p[slot] === 'string') {
+      const c = cardById(p[slot]); p.meals[slot] = c ? [c.id] : [];
+      p.who[slot] = slot === 'Breakfast' ? ['me'] : c && c.jonas ? ['me', 'j'] : ['me']; delete p[slot];
+    }
+  }
+}
+const dayPlan = d => { const p = S.plan[d] ||= {}; p.meals ||= {}; p.who ||= {}; p.cooked ||= {}; p.left ||= {}; return p; };
+const mealCards = (d, slot) => (((S.plan[d] || {}).meals || {})[slot] || []).map(cardById).filter(Boolean);
+const whoOf = (d, slot) => ((S.plan[d] || {}).who || {})[slot] || WHO_DEFAULT[slot];
+const isCooked = (d, slot) => !!((S.plan[d] || {}).cooked || {})[slot];
+// what I eat from a slot (my Today / my day totals)
+const myCards = (d, slot) => PLAN_SLOTS.includes(slot) ? (whoOf(d, slot).includes('me') ? mealCards(d, slot) : []) : [cardById(S.settings.fixed[slot])].filter(Boolean);
+// portions to cook for one card in a slot: my portion = the card, Jonas's = scaled to his kcal
+const jonasPortion = (c, slot) => { const t = cardTotals(c).kcal; if (!t) return 0; return (c.jonasKcal || (slot === 'Lunch' ? S.settings.jonasLunch : S.settings.jonasDinner)) / t; };
+const portions = (d, slot, c) => { const w = whoOf(d, slot); return (w.includes('me') ? 1 : 0) + (w.includes('j') ? jonasPortion(c, slot) : 0); };
 function useUp(card, mult = 1) {
   for (const i of card.items) { const p = S.pantry[i.foodId]; if (!p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * mult); if (!p.qty) p.have = false; }
 }
-
-// ---------- PLAN ----------
+// main protein of a card, for "don't repeat the same meat two dinners in a row"
+function protGroup(c) {
+  let best = null, bp = 0;
+  for (const i of c.items) { const f = foodById(i.foodId); if (!f) continue; const pg = f.p * i.g / 100; if (pg > bp) { bp = pg; best = f; } }
+  if (!best) return '';
+  const k = (best.key || best.name || '').toLowerCase();
+  for (const [g, re] of [['chicken', /chicken|poultry/], ['beef', /beef|mince/], ['pork', /pork|bacon|ham/], ['fish', /salmon|tuna|fish/], ['egg', /egg/], ['dairy', /varske|yog|cheese|cottage/], ['veg', /tofu|lentil|bean/]]) if (re.test(k)) return g;
+  return k;
+}
+const pantryShare = c => { const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean); return ings.length ? ings.filter(f => pantryHas(f.id)).length / ings.length : 0; };
+const usedBetween = (c, a, b) => Object.entries(S.plan).some(([d, p]) => d >= a && d <= b && PLAN_SLOTS.some(s => ((p.meals || {})[s] || []).includes(c.id)));
+// Shuffle: C pantry first > D different protein from the last dinner > B not used in the past week > A stars > F protein for the day
+function pickCard(pool, { prevProt, usedSet, needP } = {}) {
+  let cands = pool.filter(c => c.stars !== 1);
+  if (!cands.length) return null;
+  const strict = cands.filter(c => (!prevProt || protGroup(c) !== prevProt) && !usedSet.has(c.id));
+  const noProt = cands.filter(c => !prevProt || protGroup(c) !== prevProt);
+  cands = strict.length ? strict : noProt.length ? noProt : cands;      // relax B first, then D
+  const best = Math.max(...cands.map(pantryShare));
+  cands = cands.filter(c => pantryShare(c) >= best - 0.25);             // C: close to the best pantry match
+  if (needP) { const ok = cands.filter(c => cardTotals(c).p >= needP); if (ok.length) cands = ok; } // F
+  const w = cands.map(c => (c.stars || 3) ** 2);                        // A: 5★ ≈ 3× as likely as 3★
+  let r = Math.random() * w.reduce((a, x) => a + x, 0);
+  for (let i = 0; i < cands.length; i++) { r -= w[i]; if (r <= 0) return cands[i]; }
+  return cands[cands.length - 1];
+}
+function shuffleWeek() {
+  const days = Array.from({ length: 5 }, (_, i) => addDays(UI.week, i));
+  const used = new Set(S.cards.filter(c => usedBetween(c, addDays(UI.week, -7), addDays(UI.week, -1))).map(c => c.id));
+  const brk = pickCard(S.cards.filter(c => c.slot === 'Breakfast'), { usedSet: used });
+  const dinners = S.cards.filter(c => c.slot === 'Dinner');
+  const sun = addDays(UI.week, -1);
+  let prev = isCooked(sun, 'Dinner') || mealCards(sun, 'Dinner').length ? mealCards(sun, 'Dinner') : [];
+  const fixedP = ['Pre-workout', 'Snack'].reduce((a, s) => a + (cardById(S.settings.fixed[s]) ? cardTotals(cardById(S.settings.fixed[s])).p : 0), 0);
+  for (const d of days) {
+    const p = dayPlan(d);
+    if (brk && !p.cooked.Breakfast) { p.meals.Breakfast = [brk.id]; p.who.Breakfast = WHO_DEFAULT.Breakfast.slice(); }
+    if (!p.cooked.Lunch) {
+      if (prev.length) { p.meals.Lunch = prev.map(c => c.id); p.left.Lunch = true; }
+      else { const lc = S.cards.filter(c => c.slot === 'Lunch'), l = pickCard(lc.length ? lc : dinners, { usedSet: used }); p.meals.Lunch = l ? [l.id] : []; p.left.Lunch = false; }
+      p.who.Lunch = WHO_DEFAULT.Lunch.slice();
+    }
+    if (!p.cooked.Dinner) {
+      const have = (brk ? cardTotals(brk).p : 0) + mealCards(d, 'Lunch').reduce((a, c) => a + cardTotals(c).p, 0) + fixedP;
+      const c = pickCard(dinners, { prevProt: prev[0] && protGroup(prev[0]), usedSet: used, needP: S.settings.p - have });
+      p.meals.Dinner = c ? [c.id] : []; p.who.Dinner = WHO_DEFAULT.Dinner.slice();
+      if (c) used.add(c.id);
+    }
+    prev = mealCards(d, 'Dinner');
+  }
+  save(); render(); toast('Shuffled 🎲 Tap any meal to change it.');
+}
 function suggest(slot, day) {
-  const s = S.cards.filter(c => c.slot === slot);
+  const s = S.cards.filter(c => c.slot === slot || (slot === 'Lunch' && c.slot === 'Dinner'));
   return s.map(c => {
     const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean);
     const need = ings.filter(f => !pantryHas(f.id));
     const have = ings.length ? (ings.length - need.length) / ings.length : 0;
-    const recentUse = Object.entries(S.plan).filter(([d, p]) => d < day && d >= addDays(day, -6) && PLAN_SLOTS.some(x => p[x] === c.id)).length;
-    return { c, need, score: have * 3 + (c.stars || 0) * 0.6 - recentUse * 0.8 };
+    const recentUse = usedBetween(c, addDays(day, -6), addDays(day, -1)) ? 1 : 0;
+    return { c, need, score: have * 3 + (c.stars || 0) * 0.6 - recentUse * 0.8 + (c.slot === slot ? 0.5 : 0) };
   }).sort((a, b) => b.score - a.score);
 }
-function dayTotals(day) {
-  const p = S.plan[day] || {}, cs = SLOT_IDS.map(s => PLAN_SLOTS.includes(s) ? cardById(p[s]) : cardById(S.settings.fixed[s])).filter(Boolean);
-  return sumM(cs.map(cardTotals));
-}
+function dayTotals(day) { return sumM(SLOT_IDS.flatMap(s => myCards(day, s)).map(cardTotals)); }
 VIEWS.plan = () => {
+  migratePlan();
   const days = Array.from({ length: 7 }, (_, i) => addDays(UI.week, i)), s = S.settings;
   return `<div class="row daybar"><button class="mini" data-wk="-7">‹</button><div class="grow center">Week of ${fmtDay(UI.week)}</div><button class="mini" data-wk="7">›</button></div>
-  <div class="row gap"><button class="grow" id="canMake">What can I make now?</button><button class="grow" id="autoFill">Fill Mon–Fri</button></div>
+  <div class="row gap"><button class="grow" id="canMake">What can I make now?</button><button class="grow primary" id="shuffle">🎲 Shuffle week</button></div>
+  <p class="muted small">Shuffle picks one breakfast for the week and a different dinner each night, and the dinner becomes the next day's lunch. It goes for what's in your pantry first, then a different meat each night, nothing from last week, and your favourites.</p>
   ${days.map((d, i) => { const p = S.plan[d] || {}, t = dayTotals(d), wknd = i > 4;
     return `<div class="card ${wknd ? 'weekend' : ''} ${d === today() ? 'is-today' : ''}"><div class="row"><h2 class="grow">${DOW(d)} <span class="muted small">${parseDay(d).getDate()}</span></h2><span class="muted small ${Math.abs(t.kcal - s.kcal) < 150 ? 'good' : ''}">${r0(t.kcal)} / ${s.kcal} kcal · P ${r0(t.p)}</span></div>
-      ${PLAN_SLOTS.map(slot => { const c = cardById(p[slot]), cooked = (p.cooked || {})[slot];
-        return `<div class="row pslot"><span class="slot w">${slot}</span>${c ? `<button class="grow pcard" data-pick="${d}|${slot}">${esc(c.name)}${c.jonas ? ' <span class="muted small">+J</span>' : ''}</button><button class="mini ${cooked ? 'on' : ''}" data-cook="${d}|${slot}" title="Cooked">${cooked ? '✓ cooked' : 'Cook'}</button>` : `<button class="grow pcard empty" data-pick="${d}|${slot}">${wknd ? 'Pick if you like' : '+ Choose'}</button>`}</div>`; }).join('')}
+      ${PLAN_SLOTS.map(slot => { const cs = mealCards(d, slot), cooked = isCooked(d, slot), w = whoOf(d, slot), left = (p.left || {})[slot];
+        const whoTxt = `${w.includes('me') ? 'Me' : ''}${w.length > 1 ? ' + ' : ''}${w.includes('j') ? 'Jonas' : ''}`;
+        return `<div class="row pslot"><span class="slot w">${slot}</span>${cs.length ? `<button class="grow pcard" data-pick="${d}|${slot}">${cs.map(c => esc(c.name)).join(' + ')}<span class="muted small"> · ${left ? 'leftovers · ' : ''}${whoTxt}</span></button>${left ? (cooked ? '<span class="chip sm on">✓ Cooked</span>' : '') : `<button class="mini ${cooked ? 'on' : ''}" data-cook="${d}|${slot}">${cooked ? '✓ Cooked' : 'Cooked?'}</button>`}` : `<button class="grow pcard empty" data-pick="${d}|${slot}">${wknd ? 'Pick if you like' : '+ Choose'}</button>`}</div>`; }).join('')}
       ${(p.extras || []).length ? `<div class="muted small">Jonas extras: ${p.extras.map(id => esc((cardById(id) || {}).name)).join(', ')}</div>` : ''}
     </div>`; }).join('')}`;
 };
@@ -616,27 +732,34 @@ BIND.plan = v => {
   $$('[data-wk]', v).forEach(b => b.onclick = () => { UI.week = addDays(UI.week, +b.dataset.wk); render(); });
   $$('[data-pick]', v).forEach(b => b.onclick = () => { const [d, slot] = b.dataset.pick.split('|'); planPick(d, slot); });
   $$('[data-cook]', v).forEach(b => b.onclick = () => {
-    const [d, slot] = b.dataset.cook.split('|'), p = S.plan[d], c = cardById(p[slot]); p.cooked ||= {};
-    if (p.cooked[slot]) { p.cooked[slot] = false; save(); render(); return; }
-    useUp(c, 1 + jonasFactor(c)); for (const id of (slot === 'Dinner' ? p.extras || [] : [])) { const x = cardById(id); x && useUp(x); }
-    p.cooked[slot] = true; save(); toast('Cooked ✓ pantry updated'); render();
+    const [d, slot] = b.dataset.cook.split('|'), p = dayPlan(d), next = dayPlan(addDays(d, 1));
+    const leftNext = slot === 'Dinner' && next.left.Lunch;
+    if (p.cooked[slot]) { p.cooked[slot] = false; if (leftNext) next.cooked.Lunch = false; save(); render(); return; }
+    for (const c of mealCards(d, slot)) useUp(c, portions(d, slot, c));
+    if (slot === 'Dinner') for (const id of p.extras || []) { const x = cardById(id); x && useUp(x); }
+    if (leftNext) { for (const c of mealCards(addDays(d, 1), 'Lunch')) useUp(c, portions(addDays(d, 1), 'Lunch', c)); next.cooked.Lunch = true; }
+    p.cooked[slot] = true; save(); toast(leftNext ? 'Cooked ✓ incl. tomorrow\'s lunch' : 'Cooked ✓ pantry updated'); render();
   });
   $('#canMake', v).onclick = canMakeDialog;
-  $('#autoFill', v).onclick = () => {
-    for (let i = 0; i < 5; i++) { const d = addDays(UI.week, i); const p = S.plan[d] ||= {};
-      for (const slot of PLAN_SLOTS) if (!p[slot]) { const top = suggest(slot, d)[0]; if (top) p[slot] = top.c.id; } }
-    save(); render(); toast('Filled the gaps. Tap any meal to change it.');
-  };
+  $('#shuffle', v).onclick = shuffleWeek;
 };
 function planPick(d, slot) {
-  const p = S.plan[d] ||= {}, list = suggest(slot, d), extras = S.cards.filter(c => c.slot === 'Extra');
-  const body = dialog(`<h2>${slot} · ${fmtDay(d)}</h2><p class="muted small">Best matches first: what's in your pantry, then your favourites.</p>
-    ${list.length ? `<ul class="list">${list.map(({ c, need }) => `<li data-pc="${c.id}" class="${p[slot] === c.id ? 'sel' : ''}"><div class="grow">${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} · ${need.length ? 'need: ' + need.slice(0, 3).map(f => esc(f.name)).join(', ') + (need.length > 3 ? '…' : '') : '✓ all in pantry'}</div></div></li>`).join('')}</ul>` : `<p class="muted">No ${slot.toLowerCase()} cards yet. Make one under Cards.</p>`}
+  const p = dayPlan(d), list = suggest(slot, d), extras = S.cards.filter(c => c.slot === 'Extra');
+  p.meals[slot] ||= []; p.who[slot] ||= WHO_DEFAULT[slot].slice();
+  const prevDinner = mealCards(addDays(d, -1), 'Dinner');
+  const body = dialog(`<h2>${slot} · ${fmtDay(d)}</h2>
+    <label>Who's eating?</label><div class="chips"><button class="chip ${p.who[slot].includes('me') ? 'on' : ''}" data-who="me">Me</button><button class="chip ${p.who[slot].includes('j') ? 'on' : ''}" data-who="j">Jonas</button></div>
+    ${slot === 'Lunch' && prevDinner.length ? `<div class="chips"><button class="chip ${p.left.Lunch ? 'on' : ''}" id="leftC">Leftovers: ${prevDinner.map(c => esc(c.name)).join(' + ')}</button></div>` : ''}
+    <p class="muted small">Tap one or more cards. Best matches first: what's in your pantry, then your favourites.</p>
+    ${list.length ? `<ul class="list">${list.map(({ c, need }) => `<li data-pc="${c.id}" class="${p.meals[slot].includes(c.id) ? 'sel' : ''}"><div class="grow">${p.meals[slot].includes(c.id) ? '✓ ' : ''}${esc(c.name)} ${stars(c.stars)}<div class="muted small">${slot === 'Lunch' && c.slot === 'Dinner' ? 'dinner card · ' : ''}${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} · ${need.length ? 'need: ' + need.slice(0, 3).map(f => esc(sn(f))).join(', ') + (need.length > 3 ? '…' : '') : '✓ all in pantry'}</div></div></li>`).join('')}</ul>` : `<p class="muted">No ${slot.toLowerCase()} cards yet. Make one under Cards.</p>`}
     ${slot === 'Dinner' && extras.length ? `<h3>Jonas extras</h3><div class="chips">${extras.map(x => `<button class="chip ${(p.extras || []).includes(x.id) ? 'on' : ''}" data-ex="${x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
-    ${p[slot] ? '<p><button class="del mini" id="clr">Clear this meal</button></p>' : ''}`, null);
-  $$('[data-pc]', body).forEach(li => li.onclick = () => { p[slot] = li.dataset.pc; if (p.cooked) p.cooked[slot] = false; save(); closeDlg(); render(); });
+    ${p.meals[slot].length ? '<p><button class="del mini" id="clr">Clear this meal</button></p>' : ''}`, null);
+  const changed = () => { p.cooked[slot] = false; save(); render(); };
+  $$('[data-who]', body).forEach(b => b.onclick = e => { e.preventDefault(); const k = b.dataset.who, w = p.who[slot]; p.who[slot] = w.includes(k) ? w.filter(x => x !== k) : [...w, k]; b.classList.toggle('on'); save(); render(); });
+  $$('[data-pc]', body).forEach(li => li.onclick = () => { const id = li.dataset.pc, m = p.meals[slot]; p.meals[slot] = m.includes(id) ? m.filter(x => x !== id) : [...m, id]; p.left[slot] = false; changed(); planPick(d, slot); });
+  const lc = $('#leftC', body); if (lc) lc.onclick = e => { e.preventDefault(); p.left.Lunch = !p.left.Lunch; if (p.left.Lunch) p.meals.Lunch = prevDinner.map(c => c.id); changed(); planPick(d, slot); };
   $$('[data-ex]', body).forEach(b => b.onclick = e => { e.preventDefault(); p.extras ||= []; const id = b.dataset.ex; p.extras = p.extras.includes(id) ? p.extras.filter(x => x !== id) : [...p.extras, id]; b.classList.toggle('on'); save(); });
-  const clr = $('#clr', body); if (clr) clr.onclick = e => { e.preventDefault(); delete p[slot]; save(); closeDlg(); render(); };
+  const clr = $('#clr', body); if (clr) clr.onclick = e => { e.preventDefault(); p.meals[slot] = []; p.left[slot] = false; changed(); closeDlg(); };
 }
 function canMakeDialog() {
   const rows = S.cards.filter(c => PLAN_SLOTS.includes(c.slot)).map(c => { const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean); return { c, need: ings.filter(f => !pantryHas(f.id)) }; })
@@ -652,7 +775,7 @@ function shoppingNeeds() {
   for (let i = 0; i < 7; i++) {
     const d = addDays(UI.week, i); if (d < from) continue;
     const p = S.plan[d]; if (!p) continue;
-    for (const slot of PLAN_SLOTS) { const c = cardById(p[slot]); if (!c || (p.cooked || {})[slot]) continue; add(c, 1 + jonasFactor(c)); if (slot === 'Dinner') for (const id of p.extras || []) { const x = cardById(id); x && add(x, 1); } }
+    for (const slot of PLAN_SLOTS) { if (isCooked(d, slot)) continue; for (const c of mealCards(d, slot)) add(c, portions(d, slot, c)); if (slot === 'Dinner') for (const id of p.extras || []) { const x = cardById(id); x && add(x, 1); } }
     for (const slot of ['Pre-workout', 'Snack']) { const c = cardById(S.settings.fixed[slot]); if (c) add(c, 1); }
   }
   // cooked foods (e.g. cooked buckwheat) are bought dry: convert, after using what's already cooked in the pantry
@@ -794,6 +917,7 @@ function openSettings() {
 }
 
 // ---------- start ----------
+migratePlan(); save();
 render();
 syncFoodData();
 if (S.settings.sheetUrl) sheetWatch();
