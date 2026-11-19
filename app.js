@@ -247,6 +247,36 @@ function nextMeal() {
 }
 const plannedCard = (d, slot) => myCards(d, slot)[0] || null;
 
+// ---------- CAT ----------
+// "Did you feed the cat?": ticking it takes 1 wet food out of the pantry; warns at 3 or fewer.
+const CAT_LOW = 3;
+const catFood = () => S.foods.find(f => f.key === 'cat-wet');
+const CAT_SVG = `<svg viewBox="0 0 64 64" width="52" height="52" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 28 L10 8 L25 18 Q32 16 39 18 L54 8 L52 28 Q56 36 52 44 Q44 56 32 56 Q20 56 12 44 Q8 36 12 28 Z" fill="rgba(94,211,195,.08)"/>
+  <path d="M15 13 L22 18 M49 13 L42 18" stroke-width="1.6" opacity=".6"/>
+  <ellipse cx="24" cy="34" rx="3.2" ry="4" fill="currentColor" stroke="none"/><ellipse cx="40" cy="34" rx="3.2" ry="4" fill="currentColor" stroke="none"/>
+  <circle cx="25" cy="32.5" r="1" fill="#06121b" stroke="none"/><circle cx="41" cy="32.5" r="1" fill="#06121b" stroke="none"/>
+  <path d="M30 41 L34 41 L32 43.5 Z" fill="currentColor"/><path d="M32 43.5 Q32 47 28 47 M32 43.5 Q32 47 36 47"/>
+  <path d="M6 38 L20 40 M6 45 L20 43 M58 38 L44 40 M58 45 L44 43" stroke-width="1.4" opacity=".7"/></svg>`;
+function catCard(d) {
+  const f = catFood(), fed = (S.day[d] || {}).catFed || 0, left = f && S.pantry[f.id] ? pantryQty(f.id) : null;
+  const low = left != null && left <= CAT_LOW;
+  return `<div class="card cat ${fed ? 'fed' : ''}"><div class="row"><span class="cathead">${CAT_SVG}</span>
+    <div class="grow"><div class="h">${fed ? 'Cat is fed ✓' : 'Did you feed the cat?'}</div>
+      <div class="muted small">${left == null ? 'Add wet cat food to the pantry to count it' : `${left === Infinity ? '' : r0(left)} wet food left`}${fed > 1 ? ` · fed ${fed}× today` : ''}</div></div>
+    ${fed ? `<button class="mini" data-cat="1" title="Fed again">+1</button><button class="mini ghost" data-cat="-1">Undo</button>` : `<button class="primary" data-cat="1">Fed</button>`}</div>
+    ${low ? `<div class="note warn sm">Only ${r0(left)} wet food left. <button class="mini" id="catShop">Add to shopping</button></div>` : ''}</div>`;
+}
+function bindCat(v, d) {
+  $$('[data-cat]', v).forEach(b => b.onclick = () => {
+    const n = +b.dataset.cat, dd = S.day[d] ||= {}, f = catFood();
+    dd.catFed = Math.max(0, (dd.catFed || 0) + n);
+    const p = f && S.pantry[f.id];
+    if (p && p.qty != null) { p.qty = Math.max(0, p.qty - n); p.have = p.qty > 0; }
+    save(); render();
+  });
+  const cs = $('#catShop', v); if (cs) cs.onclick = () => { const f = catFood(); S.extras ||= []; if (!S.extras.some(x => x.key === f.key)) S.extras.push({ id: uid(), key: f.key, name: sn(f), qty: 1, cat: f.cat || 'Cat', price: f.price || 0 }); save(); toast('On the shopping list ✓'); render(); };
+}
 VIEWS.today = () => {
   const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null, last = lastAte();
   const ws = warnings(d), pl = portionLimit();
@@ -257,6 +287,7 @@ VIEWS.today = () => {
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     ${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}</div></div>` : ''}
   <div class="card">${waterRow(d)}</div>
+  ${catCard(d)}
   <div class="card"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
     <div class="grow right"><div class="muted small">Comfortable meal</div><div>${pl.g} g${pl.learned ? ' <span class="muted small">learned</span>' : ''}</div></div></div></div>
   <div class="card"><div class="row"><h2 class="grow">Meals</h2><button class="mini" data-gofood>Open log</button></div>${mealSummary(d)}</div>`;
@@ -267,7 +298,7 @@ function mealSummary(d) {
     return `<li><div class="grow">${s.id}<div class="muted small">${s.time}${t.kcal ? ` · ${r0(t.kcal)} kcal · P ${r0(t.p)} g` : ''}</div></div>${f ? `<span class="chip sm">${FULL.find(x => x[0] === f)[1]}</span>` : ''}${t.kcal ? '<span class="ok">✓</span>' : ''}</li>`; }).join('')}${(() => { const u = sumM(es.filter(e => e.slot === UNPL)); return u.kcal ? `<li><div class="grow">Unplanned<div class="muted small">${r0(u.kcal)} kcal</div></div></li>` : ''; })()}</ul>`;
 }
 BIND.today = v => {
-  bindDayBar(v); bindWater(v);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day);
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
   $$('[data-lognext]', v).forEach(b => b.onclick = () => { const slot = b.dataset.lognext; logCardDialog(plannedCard(today(), slot), slot); });
 };

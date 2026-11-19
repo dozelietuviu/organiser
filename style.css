@@ -116,3 +116,6 @@ video.scan { width: 100%; border-radius: 10px; background: #000; max-height: 50v
 .item { margin: 6px 0; }
 .chip.on .muted { color: #0b4a42; }
 .qty { min-width: 4.6em; text-align: center; font-size: .9rem; }
+.cathead { color: var(--accent); display: flex; flex: none; }
+.card.cat.fed .cathead { color: var(--accent2); }
+.card.cat .h { font-size: 1.05rem; }
