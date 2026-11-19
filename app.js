@@ -156,7 +156,7 @@ function portionLimit() {
 
 // ---------- UI ----------
 const UI = { tab: 'today', day: today(), food: 'log', week: monday(today()), search: '' };
-const TITLES = { body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
+const TITLES = { train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
 const VIEWS = {}, BIND = {};
 const FOOD_TABS = ['log', 'plan', 'cards', 'pantry', 'shop'];
 const FOOD_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', pantry: 'Pantry', shop: 'Shop' };
@@ -475,6 +475,127 @@ function vitEdit() {
   });
 }
 
+// ---------- TRAIN ----------
+// S.train = { ex:[{id,name,group,src,sets,reps,cues,last:{w,r}}], sessions:[{id,name,src,ex:[id]}], week:{0..6: plan}, logs:[{id,date,name,items:[{ex,name,sets:[{w,r}]}]}], live, watch:{day:{steps,kcal}} }
+const GROUPS = ['Legs', 'Glutes', 'Push', 'Pull', 'Shoulders', 'Arms', 'Core', 'Cardio'];
+const DAY_PLANS = ['Rest', 'PT with James', 'Muay Thai', 'Walk', 'Full body', 'Upper body', 'Lower body', ...GROUPS];
+const T = () => { const t = S.train ||= {}; for (const [k, v] of Object.entries({ ex: [], sessions: [], week: {}, logs: [], watch: {} })) t[k] ||= v; return t; };
+async function loadTrainSeed() {
+  if (S.train && S.train.ex && S.train.ex.length) return;
+  try { const r = await fetch('data/train.json', { cache: 'no-cache' }); if (!r.ok) return; const j = await r.json();
+    const t = T(); t.ex = j.ex.map(e => Object.assign({ src: 'PT' }, e)); t.sessions = j.sessions; save(); render(); } catch {}
+}
+const exById = id => T().ex.find(e => e.id === id);
+const dowIdx = d => (parseDay(d).getDay() + 6) % 7; // Mon = 0
+const DOWS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const lastTxt = e => e.last ? `${e.last.w}${/^[\d.]+$/.test(e.last.w) ? ' kg' : ''} × ${e.last.r}` : 'no log yet';
+// exercises for a plan: a PT session's list, or every card in that muscle group
+function planExercises(plan) {
+  const t = T(), s = t.sessions.find(x => x.name === plan);
+  if (s) return s.ex.map(exById).filter(Boolean);
+  const g = plan === 'Upper body' ? ['Push', 'Pull', 'Shoulders', 'Arms'] : plan === 'Lower body' ? ['Legs', 'Glutes'] : plan === 'Full body' ? GROUPS : [plan];
+  return t.ex.filter(e => g.includes(e.group));
+}
+VIEWS.train = () => {
+  const t = T(), d = UI.day;
+  if (t.live) return liveView();
+  const plan = t.week[dowIdx(d)] || '', w = t.watch[d] || {};
+  const wkSteps = Array.from({ length: 7 }, (_, i) => (t.watch[addDays(d, -i)] || {}).steps).filter(Boolean);
+  const done = t.logs.filter(l => l.date === d);
+  return `${dayBar()}
+  <div class="card ${plan ? 'is-today' : ''}"><div class="muted small">${DOWS[dowIdx(d)]} plan</div><div class="row"><div class="h grow">${esc(plan || 'Nothing planned')}</div>
+    ${plan && !['Rest', 'Muay Thai', 'Walk'].includes(plan) ? `<button class="primary" id="start">Start</button>` : `<button class="mini" id="startAny">Start a session</button>`}</div>
+    ${done.length ? `<p class="good small">✓ Done today: ${done.map(l => esc(l.name)).join(', ')}</p>` : ''}</div>
+  <div class="card"><div class="row"><h2 class="grow">Watch</h2><span class="muted small">${wkSteps.length ? `avg ${r0(wkSteps.reduce((a, x) => a + x, 0) / wkSteps.length)} steps this week` : 'goal 10k steps'}</span></div>
+    <div class="row gap"><input id="wSteps" inputmode="numeric" placeholder="steps" value="${w.steps ?? ''}"><input id="wKcal" inputmode="numeric" placeholder="workout kcal" value="${w.kcal ?? ''}"><button class="mini" id="wSave">Save</button></div>
+    ${w.steps ? `<div class="bar"><i style="width:${Math.min(100, w.steps / 100)}%"></i></div>` : ''}</div>
+  <div class="card"><div class="row"><h2 class="grow">My week</h2><span class="muted small">repeats every week</span></div>
+    ${DOWS.map((n, i) => `<div class="row pslot"><span class="slot w">${n}</span><select class="grow" data-wk="${i}"><option value="">—</option>
+      <optgroup label="PT sessions">${t.sessions.map(s => `<option ${t.week[i] === s.name ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</optgroup>
+      <optgroup label="Muscle groups / other">${DAY_PLANS.map(x => `<option ${t.week[i] === x ? 'selected' : ''}>${x}</option>`).join('')}</optgroup></select></div>`).join('')}</div>
+  <div class="card"><div class="row"><h2 class="grow">Exercise cards</h2><button class="primary mini" id="exNew">+ New</button></div>
+    ${GROUPS.map(g => { const l = t.ex.filter(e => e.group === g); return l.length ? `<h3>${g}</h3><ul class="list">${l.map(e => `<li data-ex="${e.id}"><div class="grow">${esc(e.name)} <span class="chip sm">${e.src === 'own' ? 'own' : 'PT'}</span><div class="muted small">${e.sets}×${esc(e.reps)} · last ${esc(lastTxt(e))}${e.cues ? ' · ' + esc(e.cues) : ''}</div></div><span>›</span></li>`).join('')}</ul>` : ''; }).join('')}</div>
+  <div class="card"><h2>History</h2>${t.logs.length ? `<ul class="list">${t.logs.slice(-10).reverse().map(l => `<li data-log="${l.id}"><div class="grow">${esc(l.name)}<div class="muted small">${fmtDay(l.date)} · ${l.items.length} exercises · ${l.items.reduce((a, i) => a + i.sets.length, 0)} sets</div></div><span>›</span></li>`).join('')}</ul>` : '<p class="muted small">Finished sessions show here.</p>'}</div>`;
+};
+BIND.train = v => {
+  const t = T(), d = UI.day;
+  if (t.live) return bindLive(v);
+  bindDayBar(v);
+  const st = $('#start', v); if (st) st.onclick = () => startSession(t.week[dowIdx(d)]);
+  const sa = $('#startAny', v); if (sa) sa.onclick = pickSession;
+  $('#wSave', v).onclick = () => { const s = parseInt($('#wSteps', v).value) || 0, k = parseInt($('#wKcal', v).value) || 0; if (s || k) t.watch[d] = { steps: s, kcal: k }; else t.watch[d] = undefined; save(); toast('Saved ✓'); render(); };
+  $$('[data-wk]', v).forEach(s => s.onchange = () => { t.week[s.dataset.wk] = s.value; save(); render(); });
+  $('#exNew', v).onclick = () => exEdit({});
+  $$('[data-ex]', v).forEach(li => li.onclick = () => exEdit(exById(li.dataset.ex)));
+  $$('[data-log]', v).forEach(li => li.onclick = () => { const l = t.logs.find(x => x.id === li.dataset.log);
+    const body = dialog(`<h2>${esc(l.name)}</h2><p class="muted small">${fmtDay(l.date)}</p>${l.items.map(i => `<h3>${esc(i.name)}</h3><div class="muted">${i.sets.map(s => `${esc(s.w)}${/^[\d.]+$/.test(s.w) ? ' kg' : ''} × ${esc(s.r)}`).join(' · ')}</div>`).join('')}<p><button class="del mini" id="lDel">Remove this session</button></p>`, null);
+    $('#lDel', body).onclick = e => { e.preventDefault(); t.logs = t.logs.filter(x => x !== l); save(); closeDlg(); render(); }; });
+};
+function pickSession() {
+  const t = T();
+  const body = dialog(`<h2>Start a session</h2><h3>PT sessions</h3><div class="chips">${t.sessions.map(s => `<button class="chip" data-ps="${esc(s.name)}">${esc(s.name)}</button>`).join('')}</div>
+    <h3>By muscle group</h3><div class="chips">${['Full body', 'Upper body', 'Lower body', ...GROUPS].map(g => `<button class="chip" data-ps="${g}">${g}</button>`).join('')}</div>`, null);
+  $$('[data-ps]', body).forEach(b => b.onclick = e => { e.preventDefault(); closeDlg(); startSession(b.dataset.ps); });
+}
+// a session from a muscle group lets you tick which cards to do; a PT session starts straight away
+function startSession(plan) {
+  const t = T(), list = planExercises(plan), isPT = t.sessions.some(s => s.name === plan);
+  const go = ids => { t.live = { name: plan, date: UI.day, items: ids.map(id => { const e = exById(id); return { ex: id, sets: Array.from({ length: e.sets || 3 }, () => ({ w: e.last ? e.last.w : '', r: e.last ? e.last.r : String(e.reps).replace(/\D.*$/, ''), done: false })) }; }) }; save(); render(); scrollTo(0, 0); };
+  if (isPT) return go(list.map(e => e.id));
+  if (!list.length) { toast('No cards for that yet. Add one under Exercise cards.'); return; }
+  const body = dialog(`<h2>${esc(plan)}</h2><p class="muted small">Pick the exercises for today.</p><ul class="list">${list.map(e => `<li><label class="row tick grow"><input type="checkbox" name="x" value="${e.id}" checked> ${esc(e.name)} <span class="muted small">${e.group}</span></label></li>`).join('')}</ul>`, f => {
+    const ids = [...f.querySelectorAll('[name=x]:checked')].map(x => x.value); if (!ids.length) return false; setTimeout(() => go(ids));
+  }, 'Start');
+}
+function liveView() {
+  const L = T().live;
+  return `<div class="card is-today"><div class="row"><div class="grow"><div class="muted small">Session · ${fmtDay(L.date)}</div><div class="h">${esc(L.name)}</div></div><button class="primary" id="finish">Finish</button></div>
+    <p class="muted small">Weights are filled in from last time. Change them if needed and tick each set.</p></div>
+  ${L.items.map((it, i) => { const e = exById(it.ex) || { name: '?' };
+    return `<div class="card"><div class="row"><h2 class="grow">${esc(e.name)}</h2><span class="muted small">${e.sets}×${esc(e.reps)}</span></div>
+      <div class="muted small">Last: ${esc(lastTxt(e))}${e.cues ? ' · ' + esc(e.cues) : ''}</div>
+      ${it.sets.map((s, j) => `<div class="row pslot setrow ${s.done ? 'sdone' : ''}"><span class="muted small" style="width:3em">Set ${j + 1}</span><input data-sw="${i}|${j}" value="${esc(s.w)}" placeholder="kg" inputmode="decimal"><span class="muted">×</span><input data-sr="${i}|${j}" value="${esc(s.r)}" placeholder="reps" inputmode="numeric"><button class="mini ${s.done ? 'on' : ''}" data-sd="${i}|${j}">${s.done ? '✓' : 'Done'}</button></div>`).join('')}
+      <div class="row gap"><button class="mini ghost" data-addset="${i}">+ set</button><button class="mini ghost" data-rmset="${i}">− set</button><span class="grow"></span><button class="mini del ghost" data-rmex="${i}">Skip exercise</button></div></div>`; }).join('')}
+  <div class="row gap"><button class="mini ghost" id="addEx">+ Add exercise</button><span class="grow"></span><button class="mini del" id="cancelS">Cancel session</button></div>`;
+}
+function bindLive(v) {
+  const t = T(), L = t.live, at = s => s.split('|').map(Number);
+  $$('[data-sw]', v).forEach(x => x.oninput = () => { const [i, j] = at(x.dataset.sw); L.items[i].sets[j].w = x.value.trim(); save(); });
+  $$('[data-sr]', v).forEach(x => x.oninput = () => { const [i, j] = at(x.dataset.sr); L.items[i].sets[j].r = x.value.trim(); save(); });
+  $$('[data-sd]', v).forEach(x => x.onclick = () => { const [i, j] = at(x.dataset.sd); const s = L.items[i].sets[j]; s.done = !s.done; save(); render(); });
+  $$('[data-addset]', v).forEach(x => x.onclick = () => { const it = L.items[+x.dataset.addset], last = it.sets[it.sets.length - 1] || { w: '', r: '' }; it.sets.push({ w: last.w, r: last.r, done: false }); save(); render(); });
+  $$('[data-rmset]', v).forEach(x => x.onclick = () => { L.items[+x.dataset.rmset].sets.pop(); save(); render(); });
+  $$('[data-rmex]', v).forEach(x => x.onclick = () => { L.items.splice(+x.dataset.rmex, 1); save(); render(); });
+  $('#addEx', v).onclick = () => { const body = dialog(`<h2>Add exercise</h2><ul class="list">${t.ex.filter(e => !L.items.some(i => i.ex === e.id)).map(e => `<li data-ax="${e.id}"><div class="grow">${esc(e.name)} <span class="muted small">${e.group}</span></div></li>`).join('')}</ul>`, null);
+    $$('[data-ax]', body).forEach(li => li.onclick = () => { const e = exById(li.dataset.ax); L.items.push({ ex: e.id, sets: Array.from({ length: e.sets || 3 }, () => ({ w: e.last ? e.last.w : '', r: e.last ? e.last.r : '', done: false })) }); save(); closeDlg(); render(); }); };
+  $('#cancelS', v).onclick = () => { t.live = null; save(); render(); };
+  $('#finish', v).onclick = () => {
+    // ticked sets count; if nothing was ticked, keep every filled-in set
+    const anyDone = L.items.some(it => it.sets.some(x => x.done));
+    const items = L.items.map(it => ({ ex: it.ex, name: (exById(it.ex) || {}).name, sets: it.sets.filter(x => anyDone ? x.done : (x.w || x.r)).map(({ w, r }) => ({ w, r })) })).filter(i => i.sets.length);
+    if (!items.length) { toast('Fill in or tick at least one set'); return; }
+    for (const i of items) { const e = exById(i.ex), top = i.sets.reduce((m, x) => (parseFloat(x.w) || 0) >= (parseFloat(m.w) || 0) ? x : m, i.sets[0]); if (e) e.last = { w: top.w, r: top.r }; }
+    t.logs.push({ id: uid(), date: L.date, name: L.name, items }); t.live = null; save(); toast('Session saved 💪'); render();
+  };
+}
+function exEdit(e) {
+  const t = T(), isNew = !e.id;
+  const body = dialog(`<h2>${isNew ? 'New exercise' : 'Edit exercise'}</h2>
+    <label>Name</label><input name="name" value="${esc(e.name || '')}">
+    <div class="row"><div class="grow"><label>Muscle group</label><select name="group">${GROUPS.map(g => `<option ${g === e.group ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
+      <div class="grow"><label>From</label><select name="src"><option value="PT" ${e.src !== 'own' ? 'selected' : ''}>PT (James)</option><option value="own" ${e.src === 'own' ? 'selected' : ''}>My own</option></select></div></div>
+    <div class="row"><div class="grow"><label>Sets</label><input name="sets" inputmode="numeric" value="${e.sets || 3}"></div><div class="grow"><label>Reps</label><input name="reps" value="${esc(e.reps || '10')}"></div></div>
+    <label>Cues / notes</label><input name="cues" value="${esc(e.cues || '')}" placeholder="e.g. 5 kg next, lay on the floor">
+    <div class="row"><div class="grow"><label>Last weight</label><input name="lw" value="${esc((e.last || {}).w || '')}" placeholder="kg or BW"></div><div class="grow"><label>Last reps</label><input name="lr" value="${esc((e.last || {}).r || '')}"></div></div>
+    ${isNew ? '' : '<p><button class="del mini" id="exDel">Delete card</button></p>'}`, f => {
+    if (!f.name.value.trim()) return false;
+    const o = isNew ? { id: uid() } : e;
+    Object.assign(o, { name: f.name.value.trim(), group: f.group.value, src: f.src.value, sets: parseInt(f.sets.value) || 3, reps: f.reps.value.trim() || '10', cues: f.cues.value.trim(), last: f.lw.value.trim() ? { w: f.lw.value.trim(), r: f.lr.value.trim() } : undefined });
+    if (isNew) t.ex.push(o);
+  }, isNew ? 'Add' : 'Save');
+  const del = $('#exDel', body); if (del) del.onclick = ev => { ev.preventDefault(); t.ex = t.ex.filter(x => x !== e); for (const s of t.sessions) s.ex = s.ex.filter(x => x !== e.id); save(); closeDlg(); render(); };
+}
+
 // ---------- CAT ----------
 // "Did you feed the cat?": ticking it takes 1 wet food out of the pantry; warns at 3 or fewer.
 const CAT_LOW = 3;
@@ -486,6 +607,12 @@ const CAT_SVG = `<svg viewBox="0 0 64 64" width="52" height="52" aria-hidden="tr
   <circle cx="25" cy="32.5" r="1" fill="#06121b" stroke="none"/><circle cx="41" cy="32.5" r="1" fill="#06121b" stroke="none"/>
   <path d="M30 41 L34 41 L32 43.5 Z" fill="currentColor"/><path d="M32 43.5 Q32 47 28 47 M32 43.5 Q32 47 36 47"/>
   <path d="M6 38 L20 40 M6 45 L20 43 M58 38 L44 40 M58 45 L44 43" stroke-width="1.4" opacity=".7"/></svg>`;
+function trainToday(d) {
+  if (!S.train) return '';
+  const t = T(), plan = t.week[dowIdx(d)], done = t.logs.filter(l => l.date === d);
+  if (!plan && !done.length && !t.live) return '';
+  return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Training</div><div>${t.live ? '⏱ Session in progress: ' + esc(t.live.name) : done.length ? '✓ ' + done.map(l => esc(l.name)).join(', ') : esc(plan)}</div></div><button class="mini" id="goTrain">${t.live ? 'Continue' : done.length ? 'Open' : 'Go'}</button></div></div>`;
+}
 function catCard(d) {
   const f = catFood(), fed = (S.day[d] || {}).catFed || 0, left = f && S.pantry[f.id] ? pantryQty(f.id) : null;
   const low = left != null && left <= CAT_LOW;
@@ -515,6 +642,7 @@ VIEWS.today = () => {
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}
   <div class="card">${waterRow(d)}</div>
+  ${trainToday(d)}
   ${catCard(d)}
   <div class="card"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
     <div class="grow right"><div class="muted small">Comfortable meal</div><div>${pl.g} g${pl.learned ? ' <span class="muted small">learned</span>' : ''}</div></div></div></div>
@@ -527,6 +655,7 @@ function mealSummary(d) {
 }
 BIND.today = v => {
   bindDayBar(v); bindWater(v); bindCat(v, UI.day);
+  const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-lognext]', v).forEach(b => b.onclick = () => { const slot = b.dataset.lognext; logCardDialog(plannedCard(today(), slot), slot); });
@@ -1218,6 +1347,7 @@ function openSettings() {
 migratePlan(); save();
 render();
 syncFoodData();
+loadTrainSeed();
 if (S.settings.sheetUrl) sheetWatch();
 let lastDay = today();
 document.addEventListener('visibilitychange', () => { if (document.hidden) return; reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); });

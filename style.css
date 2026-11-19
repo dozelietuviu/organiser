@@ -141,3 +141,5 @@ textarea { min-height: 3em; }
 .linkish.plain { color: var(--text); text-decoration: none; font-size: 1rem; text-align: left; }
 .pslot.paused { opacity: .5; }
 .vitrow { align-items: center; margin-top: 6px; }
+.setrow input { width: 4.6em; text-align: center; padding: 7px 4px; }
+.setrow.sdone input { border-color: var(--accent); }

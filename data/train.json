@@ -1,0 +1,42 @@
+{
+ "note": "Starting exercise cards and sessions from the trainer's sheet (Sheet3). Only read when the app has no Train data yet.",
+ "sessions": [
+  { "id": "s-sq", "name": "SQ focus · Strength", "src": "PT", "ex": ["lowbar-squat", "seated-db-press", "pull-up", "bb-sldl", "hammer-curl", "weighted-crunch"] },
+  { "id": "s-pp", "name": "Push Pull focus · Strength", "src": "PT", "ex": ["flat-bench", "cable-row-traps", "rfe-lunge", "cable-delt-fly", "close-grip-tri", "sl-hip-thrust", "plate-twist"] },
+  { "id": "s-dl", "name": "DL focus", "src": "PT", "ex": ["bb-deadlift", "low-incline-db", "bb-row", "ffe-lunge", "cable-rdl"] },
+  { "id": "s-lb", "name": "Lower body pump", "src": "PT", "ex": ["highbar-eccentric", "db-lateral", "seated-cable-row", "incline-bb", "incline-curl", "plank-pullthrough"] },
+  { "id": "s-hv", "name": "Push Pull · High volume", "src": "PT", "ex": ["push-up", "inverted-row", "split-squat", "rear-delt-fly", "oh-tricep", "v-situp"] }
+ ],
+ "ex": [
+  { "id": "lowbar-squat", "name": "Low bar back squat", "group": "Legs", "sets": 3, "reps": "10", "cues": "60%" },
+  { "id": "seated-db-press", "name": "Seated DB shoulder press", "group": "Shoulders", "sets": 3, "reps": "12" },
+  { "id": "pull-up", "name": "Pull up", "group": "Pull", "sets": 3, "reps": "12" },
+  { "id": "bb-sldl", "name": "BB stiff-leg deadlift", "group": "Glutes", "sets": 3, "reps": "12" },
+  { "id": "hammer-curl", "name": "Standing DB hammer curl", "group": "Arms", "sets": 3, "reps": "12-15" },
+  { "id": "weighted-crunch", "name": "Weighted crunches", "group": "Core", "sets": 3, "reps": "10-15" },
+  { "id": "flat-bench", "name": "Flat bench", "group": "Push", "sets": 3, "reps": "10", "cues": "30 last time, keep", "last": { "w": "25", "r": "10" } },
+  { "id": "cable-row-traps", "name": "Cable row (traps)", "group": "Pull", "sets": 3, "reps": "12", "cues": "21 next", "last": { "w": "18", "r": "12" } },
+  { "id": "rfe-lunge", "name": "Rear foot elevated lunge", "group": "Legs", "sets": 3, "reps": "8 each side", "cues": "5 kg all next", "last": { "w": "3", "r": "8" } },
+  { "id": "cable-delt-fly", "name": "Cable delt fly", "group": "Shoulders", "sets": 3, "reps": "12 each side", "cues": "Lay on the floor", "last": { "w": "2×3", "r": "12" } },
+  { "id": "close-grip-tri", "name": "Close grip tricep press", "group": "Arms", "sets": 3, "reps": "10", "cues": "12 reps next", "last": { "w": "15", "r": "10" } },
+  { "id": "sl-hip-thrust", "name": "Single leg hip thrust", "group": "Glutes", "sets": 3, "reps": "8", "cues": "10 reps next", "last": { "w": "BW", "r": "8" } },
+  { "id": "plate-twist", "name": "Plate Russian twist", "group": "Core", "sets": 3, "reps": "16" },
+  { "id": "bb-deadlift", "name": "BB deadlift", "group": "Glutes", "sets": 3, "reps": "10" },
+  { "id": "low-incline-db", "name": "Low incline DB press", "group": "Push", "sets": 3, "reps": "6" },
+  { "id": "bb-row", "name": "BB row", "group": "Pull", "sets": 3, "reps": "10" },
+  { "id": "ffe-lunge", "name": "Front foot elevated lunge", "group": "Legs", "sets": 3, "reps": "10 each side" },
+  { "id": "cable-rdl", "name": "Cable RDL", "group": "Glutes", "sets": 3, "reps": "12", "cues": "Cable low pull" },
+  { "id": "highbar-eccentric", "name": "High bar squat, 5 s down", "group": "Legs", "sets": 4, "reps": "5" },
+  { "id": "db-lateral", "name": "DB lateral raise", "group": "Shoulders", "sets": 4, "reps": "8" },
+  { "id": "seated-cable-row", "name": "Seated cable row to sternum", "group": "Pull", "sets": 4, "reps": "12" },
+  { "id": "incline-bb", "name": "Incline BB press", "group": "Push", "sets": 4, "reps": "8 each side" },
+  { "id": "incline-curl", "name": "Incline alt DB bicep curl", "group": "Arms", "sets": 4, "reps": "10-12" },
+  { "id": "plank-pullthrough", "name": "Plank DB pull-through", "group": "Core", "sets": 3, "reps": "30 s" },
+  { "id": "push-up", "name": "Push ups", "group": "Push", "sets": 4, "reps": "8-10" },
+  { "id": "inverted-row", "name": "Inverted row", "group": "Pull", "sets": 4, "reps": "10-12" },
+  { "id": "split-squat", "name": "Split squats", "group": "Legs", "sets": 4, "reps": "6" },
+  { "id": "rear-delt-fly", "name": "Cable rear delt fly", "group": "Shoulders", "sets": 3, "reps": "12-15" },
+  { "id": "oh-tricep", "name": "Cable overhead tricep ext", "group": "Arms", "sets": 3, "reps": "10-12" },
+  { "id": "v-situp", "name": "Alt V sit-ups", "group": "Core", "sets": 3, "reps": "10-12" }
+ ]
+}
