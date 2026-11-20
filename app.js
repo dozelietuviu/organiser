@@ -167,6 +167,7 @@ function render() {
   const seg = UI.tab === 'food' ? `<div class="seg">${FOOD_TABS.map(t => `<button data-seg="${t}" class="${UI.food === t ? 'on' : ''}">${FOOD_LABELS[t]}</button>`).join('')}</div>` : '';
   const v = $('#view'); v.innerHTML = seg + VIEWS[view](); BIND[view] && BIND[view](v);
   $$('[data-seg]', v).forEach(b => b.onclick = () => { UI.food = b.dataset.seg; render(); scrollTo(0, 0); });
+  if (S.alerts && S.alerts.topic) alertSoon();
 }
 const go = tab => { if (FOOD_TABS.includes(tab)) { UI.food = tab; tab = 'food'; } UI.tab = tab; render(); scrollTo(0, 0); };
 $$('.tabs button').forEach(b => b.onclick = () => go(b.dataset.tab));
@@ -254,7 +255,7 @@ function waterRow(day) {
   const w = (S.day[day] || {}).water || 0, n = S.settings.water;
   return `<div class="row"><div class="grow"><div class="muted small">Water · 250 ml glasses · ${r1(w * .25)} of ${r1(n * .25)} L</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${w}/${n}</b></div>`;
 }
-const bindWater = v => $$('[data-w]', v).forEach(b => b.onclick = () => { const dd = S.day[UI.day] ||= {}; const n = +b.dataset.w; dd.water = dd.water === n ? n - 1 : n; save(); render(); });
+const bindWater = v => $$('[data-w]', v).forEach(b => b.onclick = () => { const dd = S.day[UI.day] ||= {}; const n = +b.dataset.w; dd.water = dd.water === n ? n - 1 : n; dd.waterAt = Date.now(); save(); render(); });
 function nextMeal() {
   const d = today(), cur = nowSlot(), idx = SLOT_IDS.indexOf(cur);
   for (const slot of SLOT_IDS.slice(idx)) {
@@ -1711,6 +1712,74 @@ async function sheetWatch() {
   } catch {}
 }
 
+// ---------- PHONE ALERTS (ntfy) ----------
+// Real Android notifications even when this app is closed: the app hands ntfy.sh a delayed message
+// ("At:" = when), using a fixed sequence ID per alert so it can be moved or cancelled later.
+// Wording stays generic (no weights, no health details) because messages pass through ntfy's server.
+// S.alerts = { topic, on:{stop,drink,gap,water}, sent:{seq: unixSeconds} }
+const ALERT_KINDS = [['stop', '🚱 Stop drinking, 30 min before meals'], ['drink', '💧 Drink again, 30 min after eating'], ['gap', '⏰ Too long since you ate'], ['water', '💧 Water reminder when you\'re behind']];
+const DRINK_SLOTS = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
+const AL = () => { const a = S.alerts ||= {}; a.on ||= {}; a.sent ||= {}; return a; };
+const atTime = (d, hhmm) => { const [h, m] = hhmm.split(':').map(Number); const x = parseDay(d); x.setHours(h, m, 0, 0); return x.getTime(); };
+// what should be scheduled right now: seq -> { at (ms), title, msg }
+function wantedAlerts() {
+  const a = AL(), out = {}, now = Date.now(), d0 = today();
+  if (a.on.stop) for (const d of [d0, addDays(d0, 1)]) for (const s of SLOTS.filter(x => DRINK_SLOTS.includes(x.id))) {
+    if ((S.log[d] || []).some(e => e.slot === s.id) || skipOf(d, s.id)) continue;
+    out[`stop-${d}-${s.id}`] = { at: atTime(d, s.time) - 30 * 6e4, title: 'Stop drinking', tag: 'no_entry_sign', msg: `${s.id} in 30 min. Last sips now.` };
+  }
+  if (a.on.drink) for (const d of [d0, addDays(d0, -1)]) for (const sl of DRINK_SLOTS) {
+    const es = (S.log[d] || []).filter(e => e.slot === sl); if (!es.length) continue;
+    out[`drink-${d}-${sl}`] = { at: Math.max(...es.map(e => e.at)) + 30 * 6e4, title: 'Drink again', tag: 'droplet', msg: '30 min since you ate. Water is back on.' };
+  }
+  if (a.on.gap) { const last = lastAte(); if (last) { const at = last + S.settings.gapH * 36e5, h = new Date(at).getHours();
+    if (h >= 8 && h < 22) out.gap = { at, title: 'Time to eat', tag: 'alarm_clock', msg: `${S.settings.gapH} h since you last ate. Have something with protein.` }; } }
+  if (a.on.water) { const dd = S.day[d0] || {}, w = dd.water || 0;
+    if (w < S.settings.water) { let at = (dd.waterAt || atTime(d0, '08:00')) + 2 * 36e5; if (at < now + 6e4) at = Math.ceil((now + 6e4) / 18e5) * 18e5; const h = new Date(at).getHours();
+      if (h >= 8 && h < 21) out.water = { at, title: 'Water', tag: 'droplet', msg: `Time for a glass. ${w} of ${S.settings.water} so far.` }; } }
+  for (const k of Object.keys(out)) if (out[k].at < now + 15e3 || out[k].at > now + 2.9 * 864e5) delete out[k];
+  return out;
+}
+let alertBusy = false;
+async function syncAlerts() {
+  const a = AL(); if (!a.topic || alertBusy || !navigator.onLine) return;
+  alertBusy = true;
+  try {
+    const want = wantedAlerts(), base = `https://ntfy.sh/${a.topic}/`, now = Date.now() / 1000;
+    for (const [seq, w] of Object.entries(want)) {
+      const at = Math.round(w.at / 1000); if (a.sent[seq] === at) continue;
+      const r = await fetch(base + seq, { method: 'POST', body: w.msg, headers: { Title: w.title, Tags: w.tag, Priority: '5', At: String(at) } }).catch(() => ({ ok: false }));
+      if (r.ok) { a.sent[seq] = at; save(); }
+    }
+    for (const [seq, at] of Object.entries(a.sent)) {
+      if (want[seq]) continue;
+      if (at > now) { const r = await fetch(base + seq, { method: 'DELETE' }).catch(() => ({ ok: false, status: 0 })); if (!r.ok && r.status !== 404) continue; }
+      delete a.sent[seq]; save();
+    }
+  } catch {} finally { alertBusy = false; }
+}
+let alertT; const alertSoon = () => { clearTimeout(alertT); alertT = setTimeout(syncAlerts, 2000); };
+function alertsDialog() {
+  const a = AL(); a.topic ||= 'organiser-' + Array.from(crypto.getRandomValues(new Uint8Array(12)), x => x.toString(36).padStart(2, '0')).join('').slice(0, 20);
+  save();
+  const body = dialog(`<h2>Phone alerts</h2>
+    <p class="small">Alerts arrive through the free <b>ntfy</b> app, even when this app is closed.</p>
+    <ol class="small" style="padding-left:18px;margin:6px 0">
+      <li>In ntfy tap <b>＋</b>, paste this topic, keep server <b>ntfy.sh</b>, tap Subscribe:</li></ol>
+    <div class="row"><input name="topic" class="grow" value="${esc(a.topic)}" readonly><button class="mini" id="alCopy">Copy</button></div>
+    <ol class="small" start="2" style="padding-left:18px;margin:6px 0"><li>Tap <b>Send test</b> below. When it arrives, open the topic's settings in ntfy and allow pop-up notifications.</li></ol>
+    <button class="mini" id="alTest">Send test</button>
+    <h3>Alerts</h3>${ALERT_KINDS.map(([k, l]) => `<label class="row tick"><input type="checkbox" name="${k}" ${a.on[k] ? 'checked' : ''}> ${l}</label>`).join('')}
+    <p class="muted small">Keep the topic private: anyone who knows it could read the alerts. The texts are kept general on purpose.</p>`, f => {
+    for (const [k] of ALERT_KINDS) a.on[k] = f[k].checked;
+    alertSoon(); toast('Alerts updated ✓');
+  });
+  $('#alCopy', body).onclick = e => { e.preventDefault(); navigator.clipboard && navigator.clipboard.writeText(a.topic).then(() => toast('Copied ✓'), () => body.topic.select()); };
+  $('#alTest', body).onclick = async e => { e.preventDefault();
+    try { const r = await fetch(`https://ntfy.sh/${a.topic}`, { method: 'POST', body: 'Alerts are working ✨', headers: { Title: 'Organiser', Tags: 'sparkles', Priority: '5' } }); toast(r.ok ? 'Sent. Check your phone.' : 'ntfy said no. Try again.'); }
+    catch { toast('No connection'); } };
+}
+
 // ---------- settings ----------
 function openSettings() {
   const s = S.settings;
@@ -1724,6 +1793,7 @@ function openSettings() {
     <h3>Trainer's Sheet</h3>
     <label>Link (shared "anyone with the link"). You get a note when he changes it.</label><input name="sheetUrl" value="${esc(s.sheetUrl)}" placeholder="https://docs.google.com/spreadsheets/d/…">
     <button class="mini" id="split">Apply his macro split to my kcal now</button>
+    <h3>Phone alerts</h3><button class="mini" id="alerts">🔔 Set up phone alerts</button>
     <h3>Backup</h3><p class="muted small">Your data lives on this phone only. Download a backup now and then.</p>
     <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
     <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}.</p>`, b => {
@@ -1732,6 +1802,7 @@ function openSettings() {
   });
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
     try { const t = await checkSheet(); if (!t || !t.p) throw 0; applySplit(t); S.settings.sheetSeen = JSON.stringify(t); save(); closeDlg(); render(); toast(`P ${s.p} · C ${s.c} · F ${s.f} ✓`); } catch { toast('Couldn\'t read the Sheet. Is it shared by link?'); } };
+  $('#alerts', body).onclick = e => { e.preventDefault(); alertsDialog(); };
   $('#exp', body).onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `organiser-backup-${today()}.json`; a.click(); };
   $('#paste', body).onclick = e => { e.preventDefault();
     const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude sent you.</p><textarea name="t" rows="8"></textarea>`, f => {
