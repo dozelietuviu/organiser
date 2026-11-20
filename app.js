@@ -480,9 +480,10 @@ function vitEdit() {
 const GROUPS = ['Legs', 'Glutes', 'Push', 'Pull', 'Shoulders', 'Arms', 'Core', 'Cardio'];
 const DAY_PLANS = ['Rest', 'PT with James', 'Muay Thai', 'Walk', 'Full body', 'Upper body', 'Lower body', ...GROUPS];
 const T = () => { const t = S.train ||= {}; for (const [k, v] of Object.entries({ ex: [], sessions: [], week: {}, logs: [], watch: {} })) t[k] ||= v;
-  for (const k of Object.keys(t.week)) if (!Array.isArray(t.week[k])) t.week[k] = t.week[k] ? [t.week[k]] : []; return t; };
-// a day can hold several things (Core in the morning + Muay Thai in the evening)
-const dayPlans = d => (T().week[dowIdx(d)] || []).filter(x => x !== 'Rest');
+  for (const k of Object.keys(t.week)) { const w = t.week[k]; if (typeof w === 'string') t.week[k] = { am: w, pm: '' }; else if (Array.isArray(w)) t.week[k] = { am: w[0] || '', pm: w[1] || '' }; } return t; };
+// each day has a morning and an evening slot (Core in the morning + Muay Thai in the evening)
+const AMPM = [['am', 'Morning'], ['pm', 'Evening']];
+const dayPlans = d => { const w = T().week[dowIdx(d)] || {}; return [w.am, w.pm].filter(x => x && x !== 'Rest'); };
 const TICK_ONLY = ['Muay Thai', 'Walk', 'PT with James'];
 const canStart = x => !TICK_ONLY.includes(x) && planExercises(x).length > 0;
 const doneOn = (d, x) => T().logs.some(l => l.date === d && l.name === x);
@@ -509,16 +510,17 @@ VIEWS.train = () => {
   const wkSteps = Array.from({ length: 7 }, (_, i) => (t.watch[addDays(d, -i)] || {}).steps).filter(Boolean);
   const done = t.logs.filter(l => l.date === d);
   return `${dayBar()}
-  <div class="card ${plans.length ? 'is-today' : ''}"><div class="muted small">${DOWS[dowIdx(d)]} plan</div>
-    ${plans.length ? plans.map(x => { const ok = doneOn(d, x); return `<div class="row pslot"><button class="mini ${ok ? 'on' : ''}" data-tk="${esc(x)}" title="Mark done">${ok ? '✓' : '○'}</button><div class="h grow">${esc(x)}</div>${!ok && canStart(x) ? `<button class="primary mini" data-st="${esc(x)}">Start</button>` : ''}</div>`; }).join('') : `<div class="h">${(t.week[dowIdx(d)] || []).includes('Rest') ? 'Rest day' : 'Nothing planned'}</div>`}
-    ${done.filter(l => !plans.includes(l.name)).length ? `<p class="good small">✓ Also done: ${done.filter(l => !plans.includes(l.name)).map(l => esc(l.name)).join(', ')}</p>` : ''}
-    <div class="row gap"><button class="mini" id="startAny">+ Something else today</button></div></div>
+  <div class="card ${plans.length ? 'is-today' : ''}">${(() => { const w = t.week[dowIdx(d)] || {}, rows = AMPM.filter(([k]) => w[k]);
+      if (!rows.length) return `<div class="muted small">${DOWS[dowIdx(d)]} plan</div><div class="row"><div class="h grow">Nothing planned</div><button class="mini" id="startAny">Start a session</button></div>`;
+      return rows.map(([k, lab]) => { const x = w[k], ok = doneOn(d, x);
+        return `<div class="muted small" style="margin-top:6px">${DOWS[dowIdx(d)]} ${lab.toLowerCase()}</div><div class="row"><div class="h grow">${esc(x)}</div>${x === 'Rest' ? '' : ok ? '<span class="good">✓</span>' : canStart(x) ? `<button class="primary" data-st="${esc(x)}">Start</button>` : `<button class="mini" data-tk="${esc(x)}">Mark done</button>`}</div>`; }).join(''); })()}
+    ${done.length ? `<p class="good small">✓ Done today: ${done.map(l => esc(l.name)).join(', ')}</p>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">Watch</h2><span class="muted small">${wkSteps.length ? `avg ${r0(wkSteps.reduce((a, x) => a + x, 0) / wkSteps.length)} steps this week` : 'goal 10k steps'}</span></div>
     <div class="row gap"><input id="wSteps" inputmode="numeric" placeholder="steps" value="${w.steps ?? ''}"><input id="wKcal" inputmode="numeric" placeholder="workout kcal" value="${w.kcal ?? ''}"><button class="mini" id="wSave">Save</button></div>
     ${w.steps ? `<div class="bar"><i style="width:${Math.min(100, w.steps / 100)}%"></i></div>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">My week</h2><span class="muted small">repeats every week</span></div>
-    ${DOWS.map((n, i) => `<div class="row pslot"><span class="slot w">${n}</span><div class="grow row wrap" style="gap:6px">${(t.week[i] || []).map((x, j) => `<button class="chip" data-wkx="${i}|${j}">${esc(x)} ✕</button>`).join('')}<button class="chip" data-wkadd="${i}">＋</button></div></div>`).join('')}
-    <p class="muted small">Tap ＋ to add, tap a name to remove. Add as many as you like, e.g. Core + Muay Thai.</p></div>
+    <div class="row pslot"><span class="slot w"></span><span class="grow muted small">Morning</span><span class="grow muted small">Evening</span></div>
+    ${DOWS.map((n, i) => `<div class="row pslot"><span class="slot w">${n}</span>${AMPM.map(([k]) => `<select class="grow" data-wk="${i}|${k}"><option value="">—</option>${DAY_PLANS.map(x => `<option ${(t.week[i] || {})[k] === x ? 'selected' : ''}>${x}</option>`).join('')}</select>`).join('')}</div>`).join('')}</div>
   <div class="card"><div class="row"><h2 class="grow">Exercise cards</h2><button class="primary mini" id="exNew">+ New</button></div>
     ${GROUPS.map(g => { const l = t.ex.filter(e => e.group === g); return l.length ? `<h3>${g}</h3><ul class="list">${l.map(e => `<li data-ex="${e.id}"><div class="grow">${esc(e.name)} <span class="chip sm">${e.src === 'own' ? 'own' : 'PT'}</span><div class="muted small">${e.sets}×${esc(e.reps)} · last ${esc(lastTxt(e))}${e.cues ? ' · ' + esc(e.cues) : ''}</div></div><span>›</span></li>`).join('')}</ul>` : ''; }).join('')}</div>
   <div class="card"><h2>History</h2>${t.logs.length ? `<ul class="list">${t.logs.slice(-10).reverse().map(l => `<li data-log="${l.id}"><div class="grow">${esc(l.name)}<div class="muted small">${fmtDay(l.date)} · ${l.items.length ? `${l.items.length} exercises · ${l.items.reduce((a, i) => a + i.sets.length, 0)} sets` : 'done'}</div></div><span>›</span></li>`).join('')}</ul>` : '<p class="muted small">Finished sessions show here.</p>'}</div>`;
@@ -529,13 +531,9 @@ BIND.train = v => {
   bindDayBar(v);
   $$('[data-st]', v).forEach(b => b.onclick = () => startSession(b.dataset.st));
   $$('[data-tk]', v).forEach(b => b.onclick = () => tickPlan(d, b.dataset.tk));
-  $('#startAny', v).onclick = pickSession;
+  const sa = $('#startAny', v); if (sa) sa.onclick = pickSession;
   $('#wSave', v).onclick = () => { const s = parseInt($('#wSteps', v).value) || 0, k = parseInt($('#wKcal', v).value) || 0; if (s || k) t.watch[d] = { steps: s, kcal: k }; else t.watch[d] = undefined; save(); toast('Saved ✓'); render(); };
-  $$('[data-wkx]', v).forEach(b => b.onclick = () => { const [i, j] = b.dataset.wkx.split('|').map(Number); t.week[i].splice(j, 1); save(); render(); });
-  $$('[data-wkadd]', v).forEach(b => b.onclick = () => { const i = +b.dataset.wkadd;
-    const body = dialog(`<h2>Add to ${DOWS[i]}</h2><div class="chips">${DAY_PLANS.map(x => `<button class="chip" data-pk="${x}">${x}</button>`).join('')}</div>`, null);
-    $$('[data-pk]', body).forEach(c => c.onclick = e => { e.preventDefault(); const w = t.week[i] ||= []; const x = c.dataset.pk;
-      if (x === 'Rest') t.week[i] = ['Rest']; else { t.week[i] = w.filter(y => y !== 'Rest'); if (!t.week[i].includes(x)) t.week[i].push(x); } save(); closeDlg(); render(); }); });
+  $$('[data-wk]', v).forEach(x => x.onchange = () => { const [i, k] = x.dataset.wk.split('|'); (t.week[i] ||= { am: '', pm: '' })[k] = x.value; save(); render(); });
   $('#exNew', v).onclick = () => exEdit({});
   $$('[data-ex]', v).forEach(li => li.onclick = () => exEdit(exById(li.dataset.ex)));
   $$('[data-log]', v).forEach(li => li.onclick = () => { const l = t.logs.find(x => x.id === li.dataset.log);
@@ -544,8 +542,8 @@ BIND.train = v => {
 };
 function pickSession() {
   const t = T();
-  const body = dialog(`<h2>Something else today</h2><h3>Just mark it done</h3><div class="chips">${['Muay Thai', 'Walk', 'PT with James', 'Cardio'].map(g => `<button class="chip" data-qk="${g}">${g}</button>`).join('')}</div>
-    <h3>Gym session by muscle group</h3><div class="chips">${['Full body', 'Upper body', 'Lower body', ...GROUPS].map(g => `<button class="chip" data-ps="${g}">${g}</button>`).join('')}</div>`, null);
+  const body = dialog(`<h2>Start a session</h2>
+    <h3>By muscle group</h3><div class="chips">${['Full body', 'Upper body', 'Lower body', ...GROUPS].map(g => `<button class="chip" data-ps="${g}">${g}</button>`).join('')}</div>`, null);
   $$('[data-ps]', body).forEach(b => b.onclick = e => { e.preventDefault(); closeDlg(); startSession(b.dataset.ps); });
   $$('[data-qk]', body).forEach(b => b.onclick = e => { e.preventDefault(); closeDlg(); if (!doneOn(UI.day, b.dataset.qk)) tickPlan(UI.day, b.dataset.qk); });
 }
