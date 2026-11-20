@@ -331,7 +331,7 @@ function heatmap() {
   for (let i = 0; i < 84; i++) {
     const d = addDays(start, i), s = sym[d] || {}, dis = DIS.find(x => x[0] === s.dis), mo = MOODS.find(x => x[0] === moodOf(s));
     const bg = isPeriodDay(d) ? '#c9566a' : dis ? dis[2] : '';
-    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${mo && mo[2] ? 'mood' : ''}" style="${bg ? 'background:' + bg + ';' : ''}${mo && mo[2] ? '--mc:' + mo[2] : ''}" data-e="${mo && mo[2] ? mo[1].split(' ')[0] : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${mo ? ' · ' + mo[1] : ''}"></i>`;
+    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${mo && mo[2] ? 'mood' : ''} ${mo && mo[0] === 'muggle' ? 'mug' : ''}" style="${bg ? 'background:' + bg + ';' : ''}${mo && mo[2] ? '--mc:' + mo[2] : ''}" data-e="${mo && mo[2] ? mo[1].split(' ')[0] : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${mo ? ' · ' + mo[1] : ''}"></i>`;
   }
   return `<div class="hmgrid">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<b>${x}</b>`).join('')}${cells}</div>
     <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span>${MOODS.filter(m => m[2]).map(m => `<span><i class="hm mood" data-e="${m[1].split(' ')[0]}"></i> ${m[1].replace(/^\S+ /, '')}</span>`).join('')}<span>colour = discharge</span></div>`;
