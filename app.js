@@ -677,7 +677,7 @@ function goalCard(g) {
     <div class="row"><div class="gicon">${esc(g.icon || '☆')}</div><div class="grow"><div class="h">${esc(g.title)}</div>
       <div class="muted small">${g.done ? '🏆 Achieved ' + fmtDay(g.done) : [dueTxt(g.due), g.due ? 'by ' + fmtDay(g.due) : ''].filter(Boolean).join(' · ')}</div></div>
       <button class="icon" data-gedit="${g.id}" title="Edit">✎</button></div>
-    ${photo ? `<div class="polaroid small-p"><img src="${photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
+    ${photo ? `<div class="polaroid small-p"><img src="${photo.mine || photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
     ${goalBar(g)}
     <div class="small">${goalLine(g)}</div>
     ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · 🔥 ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small">🔥 ${st} weeks in a row</div>` : ''}
@@ -699,18 +699,21 @@ function farCard() {
   if (!bits.length) return '';
   return `<div class="card compact far"><div class="muted small">How far you've come${st.date ? ' since ' + fmtDay(st.date) : ''}</div><div class="row wrap gap">${bits.map(([i, t]) => `<span class="chip">${i} ${t}</span>`).join('')}</div></div>`;
 }
+const polaroid = (x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:${(i * 7 % 9 - 4) * .6}deg"><img src="${x.mine || x.img}" alt="">${x.mine ? `<img class="inset" src="${x.img}" alt="">` : ''}${x.done ? '<span class="won-tag">🏆</span>' : ''}<div class="cap">${esc(x.cap || '')}</div></div>`;
 function boardView() {
-  const bd = G().board;
+  const all = G().board, bd = all.filter(x => !x.arch), ar = all.filter(x => x.arch);
   return `<div class="row" style="margin:18px 2px 8px"><h2 class="grow">Vision board</h2><label class="btn mini">＋ Photo<input type="file" id="vbAdd" accept="image/*" multiple hidden></label></div>
-    ${bd.length ? `<div class="board">${bd.map((x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:${(i * 7 % 9 - 4) * .6}deg"><img src="${x.img}" alt="">${x.done ? '<span class="won-tag">🏆</span>' : ''}<div class="cap">${esc(x.cap || '')}</div></div>`).join('')}</div>`
-      : `<div class="card muted small">Add photos that pull you toward your goals: the body, the fight, the places, the life. When you achieve a goal, its photo lands here too.</div>`}`;
+    ${bd.length ? `<div class="board">${bd.map(polaroid).join('')}</div>`
+      : `<div class="card muted small">Add photos that pull you toward your goals: the body, the fight, the places, the life. When you achieve a goal, its photo lands here too.</div>`}
+    ${ar.length ? `<details class="card"><summary>🗄 Archived photos (${ar.length})</summary><div class="board" style="margin-top:10px">${ar.map(polaroid).join('')}</div></details>` : ''}`;
 }
 VIEWS.goals = () => {
-  const L = G().list, open = L.filter(g => !g.done).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done);
+  const L = G().list, arch = L.filter(g => g.arch), open = L.filter(g => !g.done && !g.arch).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done && !g.arch);
   return `${farCard()}
     ${open.map(goalCard).join('') || '<div class="card muted">No goals yet. Tap ＋ Goal, or paste the goals Claude sent you in Settings → 📋 Paste data.</div>'}
     <div class="row"><button class="mini" id="gAdd">＋ Goal</button></div>
     ${won.length ? `<details class="card"><summary>🏆 Achieved (${won.length})</summary>${won.map(goalCard).join('')}</details>` : ''}
+    ${arch.length ? `<details class="card"><summary>🗄 Archived goals (${arch.length})</summary>${arch.map(goalCard).join('')}</details>` : ''}
     ${boardView()}`;
 };
 BIND.goals = v => {
@@ -737,7 +740,7 @@ function goalEdit(id) {
     <label>Track progress by</label><select name="track">${Object.entries(TRACKS).map(([k, t]) => `<option value="${k}" ${g.track === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <div class="grid3" id="nums"><div><label>Start</label><input name="start" inputmode="decimal" value="${g.start ?? ''}" placeholder="${g.track === 'weight' ? 'from Body' : '0'}"></div><div><label>Target</label><input name="target" inputmode="decimal" value="${g.target ?? ''}"></div><div><label>Unit</label><input name="unit" value="${esc(g.unit || '')}" placeholder="kg, %, min"></div></div>
     <div id="cks"><label>Checklist (one per line; each one ticked = its share of 100%)</label><textarea name="checks" rows="4">${esc(ck)}</textarea></div>
-    ${id ? `<div class="row gap">${g.done ? '<button class="mini" id="gReopen">Not achieved yet</button>' : ''}<div class="grow"></div><button class="mini del" id="gDel">Delete goal</button></div>` : ''}`, f => {
+    ${id ? `<div class="row gap">${g.done ? '<button class="mini" id="gReopen">Not achieved yet</button>' : ''}<button class="mini" id="gArch">${g.arch ? 'Unarchive' : '🗄 Archive'}</button><div class="grow"></div><button class="mini del" id="gDel">Delete goal</button></div>` : ''}`, f => {
     if (!f.title.value.trim()) { toast('Give it a name'); return false; }
     Object.assign(g, { icon: f.icon.value.trim() || '☆', title: f.title.value.trim(), s: f.s.value.trim(), m: f.m.value.trim(), a: f.a.value.trim(), r: f.r.value.trim(), due: f.due.value || undefined, track: f.track.value,
       start: f.start.value.trim() === '' ? undefined : num(f.start.value), target: f.target.value.trim() === '' ? undefined : num(f.target.value), unit: f.unit.value.trim() || undefined,
@@ -748,6 +751,7 @@ function goalEdit(id) {
   const sync = () => { const t = body.track.value; $('#cks', body).hidden = t !== 'check'; $('#nums', body).hidden = t === 'check'; };
   body.track.onchange = sync; sync();
   const del = $('#gDel', body); if (del) del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.list = G().list.filter(x => x.id !== id); S.goals.board = G().board.filter(x => x.goal !== id || !x.done); save(); closeDlg(); render(); toast('Goal deleted'); };
+  const ga = $('#gArch', body); if (ga) ga.onclick = e => { e.preventDefault(); g.arch = g.arch ? undefined : today(); save(); closeDlg(); render(); toast(g.arch ? 'Archived' : 'Back on your list'); };
   const ro = $('#gReopen', body); if (ro) ro.onclick = e => { e.preventDefault(); g.done = undefined; save(); closeDlg(); render(); };
 }
 function goalLog(id) {
@@ -788,12 +792,19 @@ async function addPhoto(file, extra) {
 }
 function photoEdit(pid) {
   const x = G().board.find(y => y.id === pid);
-  const body = dialog(`<div class="polaroid big-p"><img src="${x.img}" alt=""></div>
+  const body = dialog(`<div class="${x.mine ? 'row' : ''}" style="gap:10px"><div class="polaroid big-p ${x.mine ? 'grow' : ''}"><img src="${x.img}" alt="">${x.mine ? '<div class="cap">Inspo</div>' : ''}</div>${x.mine ? `<div class="polaroid big-p grow"><img src="${x.mine}" alt=""><div class="cap">Me 🏆 ${fmtDay(x.done)}</div></div>` : ''}</div>
     <label>Caption</label><input name="cap" value="${esc(x.cap || '')}">
     <label>Goal</label><select name="goal"><option value="">None</option>${G().list.map(g => `<option value="${g.id}" ${x.goal === g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}</select>
-    <div class="row gap"><button class="mini" data-mv="-1">‹ Move</button><button class="mini" data-mv="1">Move ›</button><div class="grow"></div><button class="mini del" id="phDel">Remove photo</button></div>`, f => {
+    <div class="row gap"><button class="mini" data-mv="-1">‹ Move</button><button class="mini" data-mv="1">Move ›</button><div class="grow"></div><button class="mini del" id="phDel">Remove photo</button></div>
+    <div class="row gap"><label class="btn mini">${x.mine ? '📷 Replace my photo' : '🏆 Achieved: add my own photo'}<input type="file" id="phMine" accept="image/*" hidden></label>${x.mine ? '<button class="mini ghost" id="phUndo">Not achieved</button>' : ''}<div class="grow"></div><button class="mini" id="phArch">${x.arch ? 'Unarchive' : '🗄 Archive'}</button></div>`, f => {
     x.cap = f.cap.value.trim(); x.goal = f.goal.value || undefined;
   });
+  $('#phMine', body).onchange = async e => { const file = e.target.files[0]; if (!file) return;
+    try { const old = { mine: x.mine, done: x.done }; x.mine = await shrink(file); x.done = x.done && old.mine ? x.done : today(); x.cap = body.cap.value.trim() || x.cap;
+      try { save(); } catch { Object.assign(x, old); toast('Phone storage is full. Remove a photo first.'); return; }
+      closeDlg(); render(); toast('Achieved 🏆'); } catch { toast('Couldn\'t read that photo'); } };
+  const un = $('#phUndo', body); if (un) un.onclick = e => { e.preventDefault(); x.mine = undefined; x.done = undefined; save(); closeDlg(); render(); };
+  $('#phArch', body).onclick = e => { e.preventDefault(); x.arch = x.arch ? undefined : today(); save(); closeDlg(); render(); toast(x.arch ? 'Archived' : 'Back on the board'); };
   $$('[data-mv]', body).forEach(b => b.onclick = e => { e.preventDefault(); const bd = G().board, i = bd.indexOf(x), j = i + +b.dataset.mv; if (j < 0 || j >= bd.length) return; bd.splice(i, 1); bd.splice(j, 0, x); save(); render(); toast('Moved'); });
   const del = $('#phDel', body); del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.board = G().board.filter(y => y !== x); save(); closeDlg(); render(); };
 }
