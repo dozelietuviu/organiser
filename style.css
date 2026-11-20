@@ -164,3 +164,6 @@ details > summary { cursor: pointer; }
 .polaroid .inset { position: absolute; left: -6px; bottom: 30px; width: 34%; aspect-ratio: 1; object-fit: cover; border: 4px solid #efe6d3; box-shadow: 0 3px 8px rgba(0,0,0,.4); transform: rotate(-6deg); }
 .row > .polaroid.big-p { max-width: none; min-width: 0; }
 .row > .polaroid.big-p img { aspect-ratio: 3 / 4; object-fit: cover; }
+/* how-full chips: soft purple, so they don't look like the vitamin chips */
+.chip.feel { background: rgba(183, 156, 240, .10); border-color: rgba(183, 156, 240, .35); color: #d9ccfa; }
+.chip.feel.on { background: #b79cf0; border-color: #b79cf0; color: #24133f; }
