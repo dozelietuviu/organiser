@@ -1717,7 +1717,7 @@ async function sheetWatch() {
 // ("At:" = when), using a fixed sequence ID per alert so it can be moved or cancelled later.
 // Wording stays generic (no weights, no health details) because messages pass through ntfy's server.
 // S.alerts = { topic, on:{stop,drink,gap,water}, sent:{seq: unixSeconds} }
-const ALERT_KINDS = [['stop', '🚱 Stop drinking, 30 min before meals'], ['drink', '💧 Drink again, 30 min after eating'], ['gap', '⏰ Too long since you ate'], ['water', '💧 Water reminder when you\'re behind'], ['meal', '🍽 Log your meal, 15 min after meal time'], ['mood', '🔮 Mood + cycle heads-up (mood ones start once you have 2+ cycles of moods logged)']];
+const ALERT_KINDS = [['stop', '🚱 Stop drinking, 30 min before meals'], ['drink', '💧 Drink again, 30 min after eating'], ['gap', '⏰ Too long since you ate'], ['water', '💧 Water reminder when you\'re behind'], ['eat', '🍴 Eating time, at each meal time'], ['meal', '🍽 Log your meal, 15 min after meal time'], ['mood', '🔮 Mood + cycle heads-up (mood ones start once you have 2+ cycles of moods logged)']];
 const DRINK_SLOTS = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
 const AL = () => { const a = S.alerts ||= {}; a.on ||= {}; a.sent ||= {}; return a; };
 const atTime = (d, hhmm) => { const [h, m] = hhmm.split(':').map(Number); const x = parseDay(d); x.setHours(h, m, 0, 0); return x.getTime(); };
@@ -1737,9 +1737,13 @@ function wantedAlerts() {
   if (a.on.water) { const dd = S.day[d0] || {}, w = dd.water || 0;
     if (w < S.settings.water) { let at = (dd.waterAt || atTime(d0, '08:00')) + 2 * 36e5; if (at < now + 6e4) at = Math.ceil((now + 6e4) / 18e5) * 18e5; const h = new Date(at).getHours();
       if (h >= 8 && h < 21) out.water = { at, title: 'Water', tag: 'droplet', msg: `Time for a glass. ${w} of ${S.settings.water} so far.` }; } }
+  if (a.on.eat) for (const d of [d0, addDays(d0, 1)]) for (const s of SLOTS.filter(x => DRINK_SLOTS.includes(x.id))) {
+    if ((S.log[d] || []).some(e => e.slot === s.id) || skipOf(d, s.id)) continue;
+    out[`eat-${d}-${s.id}`] = { at: atTime(d, s.time), title: 'Eating time', tag: 'fork_and_knife', msg: `${s.id} time. Protein first, small bites, slowly.` };
+  }
   if (a.on.meal) for (const d of [d0, addDays(d0, 1)]) for (const s of SLOTS.filter(x => DRINK_SLOTS.includes(x.id))) {
     if ((S.log[d] || []).some(e => e.slot === s.id) || skipOf(d, s.id)) continue;
-    out[`meal-${d}-${s.id}`] = { at: atTime(d, s.time) + 15 * 6e4, title: `Log your ${s.id.toLowerCase()}`, tag: 'fork_and_knife', msg: 'Tap to log it, or mark it skipped.' };
+    out[`meal-${d}-${s.id}`] = { at: atTime(d, s.time) + 15 * 6e4, title: `Log your ${s.id.toLowerCase()}`, tag: 'pencil', msg: 'Tap to log it, or mark it skipped.' };
   }
   if (a.on.mood) for (const d of [d0, addDays(d0, 1), addDays(d0, 2)]) {
     // mood: only patterns learned from your own logs; cycle: a heads-up 2 days before the next start
