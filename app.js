@@ -912,9 +912,9 @@ VIEWS.log = () => {
   return `${dayBar()}
   <div class="card compact">${bars(sumM(es))}</div>
   <div class="card"><div class="row"><input id="q" class="grow" placeholder="Search foods and cards" value="${esc(UI.search)}" autocomplete="off"></div>
-    <div class="row wrap gap"><button id="scan">📷 Scan</button><button id="online">🔎 Search shops</button><button id="newFood">+ New food</button></div>
+    <div class="row wrap gap"><button id="scan">📷 Scan</button><button id="newFood">+ New food</button></div>
     ${recent.length ? `<div class="chips">${recent.map(f => `<button class="chip" data-food="${f.id}">${esc(f.name)}</button>`).join('')}</div>` : ''}
-    <div id="results"></div></div>
+    <div id="results"></div><div id="shopRes"></div></div>
   ${SLOTS.map(s => {
     const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pcs = myCards(d, s.id);
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
@@ -955,7 +955,7 @@ function searchLocal(q) {
   q = q.trim().toLowerCase(); if (!q) return '';
   const words = q.split(/\s+/), hit = s => words.every(w => s.toLowerCase().includes(w));
   const foods = S.foods.filter(f => f.kind !== 'item' && !f.hidden && hit(f.name + ' ' + (f.brand || ''))).slice(0, 20), cards = S.cards.filter(c => hit(c.name)).slice(0, 8);
-  if (!foods.length && !cards.length) return `<p class="muted small">No match. Try Search shops, or + New food.</p>`;
+  if (!foods.length && !cards.length) return `<p class="muted small">Not in your foods yet.</p>`;
   return `<ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)}<div class="muted small">${c.slot} card · ${r0(cardTotals(c).kcal)} kcal</div></div><span>›</span></li>`).join('')}${foods.map(f => `<li data-food="${f.id}"><div class="grow">${f.kind === 'recipe' ? '🥣 ' : ''}${esc(f.name)}<div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g</div></div><span>›</span></li>`).join('')}</ul>`;
 }
 const bindPick = (v, slot) => {
@@ -966,9 +966,9 @@ BIND.log = v => {
   bindDayBar(v); bindWater(v);
   const res = $('#results', v), q = $('#q', v);
   const run = () => { UI.search = q.value; res.innerHTML = searchLocal(q.value); bindPick(res); };
-  q.oninput = run; run(); bindPick($('.chips', v) || document.createElement('div'));
+  const shops = autoShops(q, $('#shopRes', v), f => logFoodDialog(f));
+  q.oninput = () => { run(); shops(); }; run(); if (UI.search) shops(); bindPick($('.chips', v) || document.createElement('div'));
   $('#scan', v).onclick = () => scanDialog();
-  $('#online', v).onclick = () => onlineDialog(q.value);
   $('#newFood', v).onclick = () => foodDialog({}, true);
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
@@ -990,14 +990,14 @@ function pickForSlot(slot) {
   const cards = S.cards.filter(c => c.slot === slot).sort((a, b) => (b.stars || 0) - (a.stars || 0));
   const body = dialog(`<h2>Add to ${slot}</h2>
     ${cards.length ? `<h3>Cards</h3><ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} g</div></div><span>›</span></li>`).join('')}</ul>` : ''}
-    <h3>Food</h3><input name="q" placeholder="Search foods" autocomplete="off"><div id="sres"></div>
-    <div class="row wrap gap"><button class="mini" id="sScan">📷 Scan</button><button class="mini" id="sOnline">🔎 Search shops</button></div>`, null);
+    <h3>Food</h3><input name="q" placeholder="Search foods" autocomplete="off"><div id="sres"></div><div id="sshop"></div>
+    <div class="row wrap gap"><button class="mini" id="sScan">📷 Scan</button></div>`, null);
   UI.pendingSlot = slot;
   const res = $('#sres', body);
-  body.q.oninput = () => { res.innerHTML = searchLocal(body.q.value); bindPick(res, slot); };
+  const shops = autoShops(body.q, $('#sshop', body), f => logFoodDialog(f, slot));
+  body.q.oninput = () => { res.innerHTML = searchLocal(body.q.value); bindPick(res, slot); shops(); };
   bindPick(body, slot);
   $('#sScan', body).onclick = e => { e.preventDefault(); scanDialog(slot); };
-  $('#sOnline', body).onclick = e => { e.preventDefault(); onlineDialog(body.q.value, slot); };
 }
 function addLog(entry) {
   // time eaten: from the dialog's "Ate at" box (so 'Last ate' and the gap warning are right when you log late)
@@ -1077,26 +1077,83 @@ async function scanDialog(slot, onFound) {
     tick();
   } catch { msg.textContent = 'Camera not available. Type the number instead.'; video.remove(); }
 }
+// Shop search (Open Food Facts), automatic: Lithuanian products first, the rest of the world only if few are found.
+// Results are grouped: "Strawberry jam · 9 brands" instead of nine near-identical lines. Tap a group to use a typical
+// (average) value or to pick the exact brand. Answers are remembered, and a slow server times out instead of hanging.
+const OFF_CACHE = {};
+const timed = (url, ms) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); return fetch(url, { signal: c.signal }).finally(() => clearTimeout(t)); };
+async function offQuery(q, lt) {
+  // fast search server first, the classic one as a fallback
+  const tag = lt ? ' countries_tags:"en:lithuania"' : '';
+  try {
+    const r = await timed(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q + tag)}&page_size=40&fields=${OFF_FIELDS}`, 6000);
+    if (r.ok) { const j = await r.json(); if (Array.isArray(j.hits)) return j.hits.map(h => Object.assign({}, h, { brands: Array.isArray(h.brands) ? h.brands.join(',') : h.brands })); }
+  } catch {}
+  const ltq = lt ? '&tagtype_0=countries&tag_contains_0=contains&tag_0=lithuania' : '';
+  const r = await timed(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=40${ltq}&fields=${OFF_FIELDS}`, 12000);
+  return (await r.json()).products || [];
+}
+async function offSearch(q) {
+  const k = q.trim().toLowerCase(); if (OFF_CACHE[k]) return OFF_CACHE[k];
+  let items = (await offQuery(k, true)).map(offToFood).filter(Boolean);
+  if (items.length < 6) { try { items = items.concat((await offQuery(k, false)).map(offToFood).filter(Boolean)); } catch {} }
+  const seen = new Set(); items = items.filter(f => { const id = f.barcode || f.name + f.kcal; if (seen.has(id)) return false; seen.add(id); return true; });
+  return (OFF_CACHE[k] = items);
+}
+// "Bonne Maman Confiture extra fraises 370g" → "confiture extra fraises"
+function coreName(f) {
+  let n = (f.name || '').toLowerCase();
+  for (const b of (f.brand || '').toLowerCase().split(/[,&]/)) if (b.trim().length > 2) n = n.split(b.trim()).join(' ');
+  n = n.replace(/\d+[.,]?\d*\s*(g|kg|ml|l|%|x)\b/g, ' ').replace(/[^\p{L}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  return n.split(' ').slice(0, 4).join(' ') || (f.name || '').toLowerCase();
+}
+function groupFoods(items) {
+  const m = new Map();
+  for (const f of items) { const k = coreName(f); if (!m.has(k)) m.set(k, []); m.get(k).push(f); }
+  return [...m.entries()].map(([k, list]) => ({ k, list, name: list[0].name.length < 40 ? cap1(k) : cap1(k) })).sort((a, b) => b.list.length - a.list.length);
+}
+const cap1 = s => s.charAt(0).toUpperCase() + s.slice(1);
+// typical value = average of the group, saved as one plain food without a brand
+function typicalFood(g) {
+  const L = g.list, av = k => r1(L.reduce((a, f) => a + (f[k] || 0), 0) / L.length);
+  const ex = S.foods.find(f => f.typical && f.name === g.name); if (ex) return ex;
+  const o = { id: uid(), kind: 'food', typical: true, name: g.name, brand: '', kcal: av('kcal'), p: av('p'), c: av('c'), f: av('f'), fib: av('fib'), unit: '', unitG: 0, shop: 'Lidl', place: 'Cupboard' };
+  S.foods.push(o); save(); return o;
+}
+function shopResults(out, items, onPick, more) {
+  const gs = groupFoods(items), show = more ? gs : gs.slice(0, 8);
+  const rng = l => { const k = l.map(f => f.kcal), lo = r0(Math.min(...k)), hi = r0(Math.max(...k)); return lo === hi ? lo + ' kcal' : `${lo}–${hi} kcal`; };
+  out.innerHTML = `<h3>From shops</h3><ul class="list">${show.map((g, i) => `<li data-g="${i}"><div class="grow">${esc(g.list.length > 1 ? g.name : g.list[0].name)}<div class="muted small">${g.list.length > 1 ? g.list.length + ' brands · ' + rng(g.list) : esc(g.list[0].brand || 'no brand') + ' · ' + r0(g.list[0].kcal) + ' kcal'} /100 g</div></div><span>›</span></li>`).join('')}</ul>
+    ${!more && gs.length > 8 ? '<button class="mini ghost" id="gMore">Show more</button>' : ''}`;
+  $$('[data-g]', out).forEach(li => li.onclick = () => { const g = show[+li.dataset.g];
+    if (g.list.length === 1) return onPick(keepFood(g.list[0]));
+    const t = g;
+    const body = dialog(`<h2>${esc(g.name)}</h2><button class="primary" id="gTyp" style="width:100%">Use a typical one · ${r0(g.list.reduce((a, f) => a + f.kcal, 0) / g.list.length)} kcal /100 g</button>
+      <h3>Or the exact brand</h3><ul class="list">${g.list.map((f, i) => `<li data-b="${i}"><div class="grow">${esc(f.name)}<div class="muted small">${esc(f.brand || '—')} · ${r0(f.kcal)} kcal · P ${r1(f.p)}</div></div><span>›</span></li>`).join('')}</ul>`, null);
+    $('#gTyp', body).onclick = e => { e.preventDefault(); const f = typicalFood(t); closeDlg(); onPick(f); };
+    $$('[data-b]', body).forEach(x => x.onclick = () => { const f = keepFood(t.list[+x.dataset.b]); closeDlg(); onPick(f); }); });
+  const mb = $('#gMore', out); if (mb) mb.onclick = () => shopResults(out, items, onPick, true);
+}
+// hook a search box: your own foods show at once, shops follow automatically after a short pause
+function autoShops(input, out, onPick) {
+  let timer, seq = 0;
+  return () => {
+    clearTimeout(timer); const q = input.value.trim(), my = ++seq;
+    if (q.length < 3) { out.innerHTML = ''; return; }
+    out.innerHTML = '<p class="muted small">Looking in shops…</p>';
+    timer = setTimeout(async () => {
+      try { const items = await offSearch(q); if (my !== seq) return;
+        if (!items.length) { out.innerHTML = '<p class="muted small">Nothing in shops for that. Try fewer words, or + New food.</p>'; return; }
+        shopResults(out, items, onPick); }
+      catch { if (my === seq) out.innerHTML = '<p class="muted small">Shops aren\'t answering right now (slow internet or their server). Your own foods still work. <button class="mini ghost" id="sRetry">Try again</button></p>'; const rb = $('#sRetry', out); if (rb) rb.onclick = () => input.dispatchEvent(new Event('input')); }
+    }, 700);
+  };
+}
 function onlineDialog(q0, slot, onFound) {
   const done = onFound || (f => logFoodDialog(f, slot));
-  const body = dialog(`<h2>Search shops</h2><p class="muted small">Open Food Facts: free, with many Lidl, Maxima and IKI products.</p>
-    <div class="row"><input name="q" class="grow" value="${esc(q0 || '')}" placeholder="e.g. Pilos skyr"><button class="mini" id="go">Search</button></div>
-    <label class="row tick"><input type="checkbox" name="lt" ${S.settings.offLT ? 'checked' : ''}> Sold in Lithuania only</label><div id="offRes"></div>`, null);
-  const run = async e => {
-    e && e.preventDefault(); const q = body.q.value.trim(); if (!q) return;
-    S.settings.offLT = body.lt.checked; save();
-    const out = $('#offRes', body); out.innerHTML = '<p class="muted">Searching…</p>';
-    const lt = body.lt.checked ? '&tagtype_0=countries&tag_contains_0=contains&tag_0=lithuania' : '';
-    try {
-      const r = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=30${lt}&fields=${OFF_FIELDS}`);
-      const items = ((await r.json()).products || []).map(offToFood).filter(Boolean);
-      if (!items.length) { out.innerHTML = '<p class="muted">Nothing found. Try fewer words or untick Lithuania.</p>'; return; }
-      out.innerHTML = `<ul class="list">${items.map((f, i) => `<li data-i="${i}"><div class="grow">${esc(f.name)}<div class="muted small">${esc(f.brand)} · ${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g</div></div><span>›</span></li>`).join('')}</ul>`;
-      $$('[data-i]', out).forEach(li => li.onclick = () => { const f = keepFood(items[+li.dataset.i]); closeDlg(); done(f); });
-    } catch { out.innerHTML = '<p class="muted">No connection.</p>'; }
-  };
-  $('#go', body).onclick = run; body.q.onkeydown = e => { if (e.key === 'Enter') run(e); };
-  if (q0) run();
+  const body = dialog(`<h2>Search shops</h2><input name="q" value="${esc(q0 || '')}" placeholder="e.g. Pilos skyr" autocomplete="off"><div id="offRes"></div>`, null);
+  const run = autoShops(body.q, $('#offRes', body), f => { closeDlg(); done(f); });
+  body.q.oninput = run; if (q0) run();
 }
 function foodDialog(f, logAfter = false, onSaved) {
   const isNew = !f.id;
