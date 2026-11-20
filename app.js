@@ -485,7 +485,24 @@ const T = () => { const t = S.train ||= {}; for (const [k, v] of Object.entries(
 const AMPM = [['am', 'Morning'], ['pm', 'Evening']];
 const dayPlans = d => { const w = T().week[dowIdx(d)] || {}; return [w.am, w.pm].filter(x => x && x !== 'Rest'); };
 const TICK_ONLY = ['Muay Thai', 'Walk', 'PT with James'];
-const canStart = x => !TICK_ONLY.includes(x) && planExercises(x).length > 0;
+const canStart = x => x === 'Cardio' || (!TICK_ONLY.includes(x) && planExercises(x).length > 0);
+const MACHINES = ['Bike', 'Stair master', 'Treadmill walk', 'Treadmill incline walk', 'Treadmill run', 'Cross trainer', 'Rowing machine', 'Ski erg', 'Air bike', 'Recumbent bike', 'Skipping rope', 'Swimming'];
+const cardioTxt = c => [c.min && c.min + ' min', c.kcal && c.kcal + ' kcal', c.dist && c.dist + ' km', c.lvl && 'level ' + c.lvl].filter(Boolean).join(' · ');
+// cardio: pick one or more machines, fill in time / kcal / km / level after
+function pickCardio(add) {
+  const t = T(), own = (t.machines || []), all = [...MACHINES, ...own];
+  const body = dialog(`<h2>${add ? 'Add a machine' : 'Cardio'}</h2><p class="muted small">Pick the machines for today. You fill in minutes and kcal after.</p>
+    <div class="chips">${all.map(m => `<label class="chip"><input type="checkbox" name="m" value="${esc(m)}" hidden> ${esc(m)}</label>`).join('')}</div>
+    <label>Something else</label><input name="other" placeholder="e.g. Spin class">`, f => {
+    const ms = [...f.querySelectorAll('[name=m]:checked')].map(x => x.value), o = f.other.value.trim();
+    if (o) { ms.push(o); if (!all.includes(o)) (t.machines ||= []).push(o); }
+    if (!ms.length) { toast('Pick a machine'); return false; }
+    const items = ms.map(m => ({ cardio: m, min: '', kcal: '', dist: '', lvl: '' }));
+    if (add && t.live) t.live.items.push(...items); else t.live = { name: 'Cardio', date: UI.day, items };
+    setTimeout(() => scrollTo(0, 0));
+  }, add ? 'Add' : 'Start');
+  $$('.chip input', body).forEach(x => x.onchange = () => x.parentElement.classList.toggle('on', x.checked));
+}
 const doneOn = (d, x) => T().logs.some(l => l.date === d && l.name === x);
 async function loadTrainSeed() {
   if (S.train && S.train.ex && S.train.ex.length) return;
@@ -523,7 +540,7 @@ VIEWS.train = () => {
     ${DOWS.map((n, i) => `<div class="row pslot"><span class="slot w">${n}</span>${AMPM.map(([k]) => `<select class="grow" data-wk="${i}|${k}"><option value="">—</option>${DAY_PLANS.map(x => `<option ${(t.week[i] || {})[k] === x ? 'selected' : ''}>${x}</option>`).join('')}</select>`).join('')}</div>`).join('')}</div>
   <div class="card"><div class="row"><h2 class="grow">Exercise cards</h2><button class="primary mini" id="exNew">+ New</button></div>
     ${GROUPS.map(g => { const l = t.ex.filter(e => e.group === g); return l.length ? `<h3>${g}</h3><ul class="list">${l.map(e => `<li data-ex="${e.id}"><div class="grow">${esc(e.name)} <span class="chip sm">${e.src === 'own' ? 'own' : 'PT'}</span><div class="muted small">${e.sets}×${esc(e.reps)} · last ${esc(lastTxt(e))}${e.cues ? ' · ' + esc(e.cues) : ''}</div></div><span>›</span></li>`).join('')}</ul>` : ''; }).join('')}</div>
-  <div class="card"><h2>History</h2>${t.logs.length ? `<ul class="list">${t.logs.slice(-10).reverse().map(l => `<li data-log="${l.id}"><div class="grow">${esc(l.name)}<div class="muted small">${fmtDay(l.date)} · ${l.items.length ? `${l.items.length} exercises · ${l.items.reduce((a, i) => a + i.sets.length, 0)} sets` : 'done'}</div></div><span>›</span></li>`).join('')}</ul>` : '<p class="muted small">Finished sessions show here.</p>'}</div>`;
+  <div class="card"><h2>History</h2>${t.logs.length ? `<ul class="list">${t.logs.slice(-10).reverse().map(l => `<li data-log="${l.id}"><div class="grow">${esc(l.name)}<div class="muted small">${fmtDay(l.date)} · ${l.items.length ? l.items.some(i => i.cardio) && l.items.every(i => i.cardio) ? esc(l.items.map(i => i.name + (i.min ? ' ' + i.min + ' min' : '')).join(', ')) : `${l.items.length} exercises · ${l.items.reduce((a, i) => a + i.sets.length, 0)} sets` : 'done'}</div></div><span>›</span></li>`).join('')}</ul>` : '<p class="muted small">Finished sessions show here.</p>'}</div>`;
 };
 BIND.train = v => {
   const t = T(), d = UI.day;
@@ -537,7 +554,10 @@ BIND.train = v => {
   $('#exNew', v).onclick = () => exEdit({});
   $$('[data-ex]', v).forEach(li => li.onclick = () => exEdit(exById(li.dataset.ex)));
   $$('[data-log]', v).forEach(li => li.onclick = () => { const l = t.logs.find(x => x.id === li.dataset.log);
-    const body = dialog(`<h2>${esc(l.name)}</h2><p class="muted small">${fmtDay(l.date)}</p>${l.items.map(i => `<h3>${esc(i.name)}</h3><div class="muted">${i.sets.map(s => `${esc(s.w)}${/^[\d.]+$/.test(s.w) ? ' kg' : ''} × ${esc(s.r)}`).join(' · ')}</div>`).join('')}<p><button class="del mini" id="lDel">Remove this session</button></p>`, null);
+    const body = dialog(`<h2>${esc(l.name)}</h2><p class="muted small">${fmtDay(l.date)}</p>${l.items.map(i => `<h3>${esc(i.name)}</h3><div class="muted">${i.cardio ? esc(cardioTxt(i) || 'done') : ''}${i.sets.map(s => `${esc(s.w)}${/^[\d.]+$/.test(s.w) ? ' kg' : ''} × ${esc(s.r)}`).join(' · ')}</div>`).join('')}${l.items.some(i => i.cardio) ? '<p><button class="mini" id="lEdit">Edit minutes / kcal</button></p>' : ''}<p><button class="del mini" id="lDel">Remove this session</button></p>`, null);
+    const le = $('#lEdit', body); if (le) le.onclick = e => { e.preventDefault(); const cs = l.items.filter(i => i.cardio);
+      dialog(`<h2>${esc(l.name)}</h2>${cs.map((c, n) => `<h3>${esc(c.name)}</h3><div class="grid4">${[['min', 'Minutes'], ['kcal', 'kcal'], ['dist', 'km'], ['lvl', 'Level']].map(([k, lab]) => `<div><label>${lab}</label><input name="${k}${n}" value="${esc(c[k] || '')}" inputmode="decimal"></div>`).join('')}</div>`).join('')}`, f => {
+        cs.forEach((c, n) => { for (const k of ['min', 'kcal', 'dist', 'lvl']) c[k] = f[k + n].value.trim(); if (c.min || c.kcal) (t.cardioLast ||= {})[c.name] = { min: c.min, kcal: c.kcal, dist: c.dist, lvl: c.lvl }; }); }); };
     $('#lDel', body).onclick = e => { e.preventDefault(); t.logs = t.logs.filter(x => x !== l); save(); closeDlg(); render(); }; });
 };
 function pickSession() {
@@ -556,6 +576,7 @@ function tickPlan(d, x) {
 }
 // a session from a muscle group lets you tick which cards to do; a PT session starts straight away
 function startSession(plan) {
+  if (plan === 'Cardio') return pickCardio();
   const t = T(), list = planExercises(plan), isPT = t.sessions.some(s => s.name === plan);
   const go = ids => { t.live = { name: plan, date: UI.day, items: ids.map(id => { const e = exById(id); return { ex: id, sets: Array.from({ length: e.sets || 3 }, () => ({ w: e.last ? e.last.w : '', r: e.last ? e.last.r : String(e.reps).replace(/\D.*$/, ''), done: false })) }; }) }; save(); render(); scrollTo(0, 0); };
   if (isPT) return go(list.map(e => e.id));
@@ -567,13 +588,17 @@ function startSession(plan) {
 function liveView() {
   const L = T().live;
   return `<div class="card is-today"><div class="row"><div class="grow"><div class="muted small">Session · ${fmtDay(L.date)}</div><div class="h">${esc(L.name)}</div></div><button class="primary" id="finish">Finish</button></div>
-    <p class="muted small">Weights are filled in from last time. Change them if needed and tick each set.</p></div>
-  ${L.items.map((it, i) => { const e = exById(it.ex) || { name: '?' };
+    <p class="muted small">${L.items.every(i => i.cardio) ? 'Fill in minutes and kcal from the machine or your watch. You can also add them later in History.' : 'Weights are filled in from last time. Change them if needed and tick each set.'}</p></div>
+  ${L.items.map((it, i) => { if (it.cardio) { const last = (T().cardioLast || {})[it.cardio];
+      return `<div class="card"><div class="row"><h2 class="grow">${esc(it.cardio)}</h2><button class="mini del ghost" data-rmex="${i}">Remove</button></div>
+      ${last ? `<div class="muted small">Last: ${esc(cardioTxt(last))}</div>` : ''}
+      <div class="grid4">${[['min', 'Minutes'], ['kcal', 'kcal'], ['dist', 'km'], ['lvl', 'Level']].map(([k, lab]) => `<div><label>${lab}</label><input data-cv="${i}|${k}" value="${esc(it[k])}" inputmode="decimal"></div>`).join('')}</div></div>`; }
+    const e = exById(it.ex) || { name: '?' };
     return `<div class="card"><div class="row"><h2 class="grow">${esc(e.name)}</h2><span class="muted small">${e.sets}×${esc(e.reps)}</span></div>
       <div class="muted small">Last: ${esc(lastTxt(e))}${e.cues ? ' · ' + esc(e.cues) : ''}</div>
       ${it.sets.map((s, j) => `<div class="row pslot setrow ${s.done ? 'sdone' : ''}"><span class="muted small" style="width:3em">Set ${j + 1}</span><input data-sw="${i}|${j}" value="${esc(s.w)}" placeholder="kg" inputmode="decimal"><span class="muted">×</span><input data-sr="${i}|${j}" value="${esc(s.r)}" placeholder="reps" inputmode="numeric"><button class="mini ${s.done ? 'on' : ''}" data-sd="${i}|${j}">${s.done ? '✓' : 'Done'}</button></div>`).join('')}
       <div class="row gap"><button class="mini ghost" data-addset="${i}">+ set</button><button class="mini ghost" data-rmset="${i}">− set</button><span class="grow"></span><button class="mini del ghost" data-rmex="${i}">Skip exercise</button></div></div>`; }).join('')}
-  <div class="row gap"><button class="mini ghost" id="addEx">+ Add exercise</button><span class="grow"></span><button class="mini del" id="cancelS">Cancel session</button></div>`;
+  <div class="row gap"><button class="mini ghost" id="addEx">+ Add exercise</button><button class="mini ghost" id="addCardio">+ Add machine</button><span class="grow"></span><button class="mini del" id="cancelS">Cancel session</button></div>`;
 }
 function bindLive(v) {
   const t = T(), L = t.live, at = s => s.split('|').map(Number);
@@ -585,14 +610,18 @@ function bindLive(v) {
   $$('[data-rmex]', v).forEach(x => x.onclick = () => { L.items.splice(+x.dataset.rmex, 1); save(); render(); });
   $('#addEx', v).onclick = () => { const body = dialog(`<h2>Add exercise</h2><ul class="list">${t.ex.filter(e => !L.items.some(i => i.ex === e.id)).map(e => `<li data-ax="${e.id}"><div class="grow">${esc(e.name)} <span class="muted small">${e.group}</span></div></li>`).join('')}</ul>`, null);
     $$('[data-ax]', body).forEach(li => li.onclick = () => { const e = exById(li.dataset.ax); L.items.push({ ex: e.id, sets: Array.from({ length: e.sets || 3 }, () => ({ w: e.last ? e.last.w : '', r: e.last ? e.last.r : '', done: false })) }); save(); closeDlg(); render(); }); };
+  $$('[data-cv]', v).forEach(x => x.oninput = () => { const [i, k] = x.dataset.cv.split('|'); L.items[+i][k] = x.value.trim(); save(); });
+  $('#addCardio', v).onclick = () => pickCardio(true);
   $('#cancelS', v).onclick = () => { t.live = null; save(); render(); };
   $('#finish', v).onclick = () => {
     // ticked sets count; if nothing was ticked, keep every filled-in set
-    const anyDone = L.items.some(it => it.sets.some(x => x.done));
-    const items = L.items.map(it => ({ ex: it.ex, name: (exById(it.ex) || {}).name, sets: it.sets.filter(x => anyDone ? x.done : (x.w || x.r)).map(({ w, r }) => ({ w, r })) })).filter(i => i.sets.length);
-    if (!items.length) { toast('Fill in or tick at least one set'); return; }
+    const anyDone = L.items.some(it => (it.sets || []).some(x => x.done));
+    const cardio = L.items.filter(it => it.cardio).map(({ cardio: c, min, kcal, dist, lvl }) => ({ name: c, cardio: true, min, kcal, dist, lvl, sets: [] }));
+    for (const c of cardio) if (c.min || c.kcal) (t.cardioLast ||= {})[c.name] = { min: c.min, kcal: c.kcal, dist: c.dist, lvl: c.lvl };
+    const items = L.items.filter(it => !it.cardio).map(it => ({ ex: it.ex, name: (exById(it.ex) || {}).name, sets: it.sets.filter(x => anyDone ? x.done : (x.w || x.r)).map(({ w, r }) => ({ w, r })) })).filter(i => i.sets.length);
+    if (!items.length && !cardio.length) { toast('Fill in or tick at least one set'); return; }
     for (const i of items) { const e = exById(i.ex), top = i.sets.reduce((m, x) => (parseFloat(x.w) || 0) >= (parseFloat(m.w) || 0) ? x : m, i.sets[0]); if (e) e.last = { w: top.w, r: top.r }; }
-    t.logs.push({ id: uid(), date: L.date, name: L.name, items }); t.live = null; save(); toast('Session saved 💪'); render();
+    t.logs.push({ id: uid(), date: L.date, name: L.name, items: [...cardio, ...items] }); t.live = null; save(); toast('Session saved 💪'); render();
   };
 }
 function exEdit(e) {
