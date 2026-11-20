@@ -133,7 +133,7 @@ video.scan { width: 100%; border-radius: 10px; background: #000; max-height: 50v
 .hmgrid b { font-size: .65rem; color: var(--muted); text-align: center; font-weight: normal; }
 .hm { display: block; aspect-ratio: 1; border-radius: 4px; background: #143247; position: relative; }
 .hm.fut { opacity: .35; } .hm.now { outline: 1.5px solid var(--accent); }
-.hm.mood::after { content: ''; position: absolute; right: 2px; top: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--mc, var(--info)); }
+.hm.mood::after { content: attr(data-e); position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; line-height: 1; font-style: normal; }
 .hmkey { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; align-items: center; } .hmkey span { display: flex; gap: 4px; align-items: center; } .hmkey .hm { width: 12px; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(255,255,255,.25); }
 .vslot { margin: 8px 0; } .warnc { color: #ffa392; }
@@ -167,3 +167,4 @@ details > summary { cursor: pointer; }
 /* how-full chips: soft purple, so they don't look like the vitamin chips */
 .chip.feel { background: rgba(183, 156, 240, .10); border-color: rgba(183, 156, 240, .35); color: #d9ccfa; }
 .chip.feel.on { background: #b79cf0; border-color: #b79cf0; color: #24133f; }
+.hmkey .hm.mood { background: none; width: 16px; } .hmkey .hm.mood::after { font-size: 13px; }

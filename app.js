@@ -269,7 +269,7 @@ const plannedCard = (d, slot) => myCards(d, slot)[0] || null;
 // ---------- BODY ----------
 // S.body = { weights:{day:kg}, meas:{day:{waist,hips}}, start, periods:[{start,end}], sym:{day:{dis,mood}}, vit:{day:{id:true}}, vitSlots, smoke:{since,best,slips}, coffee:{day:n}, alcohol:{day:n} }
 const DIS = [['clear', 'Clear', '#cfe8ef'], ['white', 'White / creamy', '#f3ecd9'], ['paleyellow', 'Pale yellow', '#f2e39b'], ['yellowgreen', 'Yellow-green', '#b9c96a'], ['pink', 'Pink', '#f2a7b8'], ['brown', 'Red / brown', '#8a3b2e'], ['grey', 'Grey', '#8b939a']];
-const MOODS = [['muggle', '🧙 Muggle', ''], ['glow', '✨ GLOWING', '#e6c48a'], ['low', '☁︎ Low mood', '#7fb3ff'], ['stab', '🔪 Stab a bitch', '#ff7a66']];
+const MOODS = [['muggle', '🧙 Muggle', ''], ['glow', '✨ GLOWING', '#e6c48a'], ['vibes', '🎀 Good vibes', '#f4a7c4'], ['low', '☁️ Low mood', '#7fb3ff'], ['stab', '🔪 Stab a bitch', '#ff7a66']];
 const moodOf = s => s && (s.mood === true ? 'low' : s.mood || '');
 const B = () => { const b = S.body ||= {}; for (const [k, v] of Object.entries({ weights: {}, meas: {}, periods: [], sym: {}, vit: {}, vitSlots: [], coffee: {}, alcohol: {} })) b[k] ||= v; return b; };
 // starting Body data (health history) is NOT in the public repo: it comes in as a private file via Settings → Restore
@@ -331,10 +331,10 @@ function heatmap() {
   for (let i = 0; i < 84; i++) {
     const d = addDays(start, i), s = sym[d] || {}, dis = DIS.find(x => x[0] === s.dis), mo = MOODS.find(x => x[0] === moodOf(s));
     const bg = isPeriodDay(d) ? '#c9566a' : dis ? dis[2] : '';
-    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${mo && mo[2] ? 'mood' : ''}" style="${bg ? 'background:' + bg + ';' : ''}${mo && mo[2] ? '--mc:' + mo[2] : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${mo ? ' · ' + mo[1] : ''}"></i>`;
+    cells += `<i class="hm ${d > today() ? 'fut' : ''} ${d === today() ? 'now' : ''} ${mo && mo[2] ? 'mood' : ''}" style="${bg ? 'background:' + bg + ';' : ''}${mo && mo[2] ? '--mc:' + mo[2] : ''}" data-e="${mo && mo[2] ? mo[1].split(' ')[0] : ''}" title="${d}${ps.includes(d) ? ' · period started' : ''}${dis ? ' · ' + dis[1] : ''}${mo ? ' · ' + mo[1] : ''}"></i>`;
   }
   return `<div class="hmgrid">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<b>${x}</b>`).join('')}${cells}</div>
-    <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span>${MOODS.filter(m => m[2]).map(m => `<span><i class="hm mood" style="--mc:${m[2]}"></i> ${m[1].replace(/^\S+ /, '')}</span>`).join('')}<span>colour = discharge</span></div>`;
+    <div class="muted small hmkey"><span><i class="hm" style="background:#c9566a"></i> period</span>${MOODS.filter(m => m[2]).map(m => `<span><i class="hm mood" data-e="${m[1].split(' ')[0]}"></i> ${m[1].replace(/^\S+ /, '')}</span>`).join('')}<span>colour = discharge</span></div>`;
 }
 const vitDue = (it, d) => !it.every || daysBetween(it.from || d, d) % it.every === 0;
 // habits: each one can be adjusted (limit, note) and paused
