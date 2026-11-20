@@ -367,6 +367,21 @@ function habitRows(d) {
       <button class="mini" data-hab="${k}|-1">−</button><span class="qty">${c.per === 'month' ? '×' + tot : today_n}</span><button class="mini" data-hab="${k}|1">+</button></div>`;
   }).join('');
 }
+function bindHabits(v, d) {
+  const b = B();
+  // slip: resets the streak and starts a count for that day; taking the count back to 0 undoes the slip
+  const sl = $('#slip', v); if (sl) sl.onclick = () => {
+    if (!b.smoke) { b.smoke = { since: today(), best: 0, slips: [] }; save(); render(); return; }
+    b.smoke.prev = { since: b.smoke.since, best: b.smoke.best };
+    b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, d)); b.smoke.slips.push(d); b.smoke.since = addDays(d, 1) > today() ? today() : addDays(d, 1);
+    (b.smoked ||= {})[d] = 1; save(); toast('Counted. Tomorrow is day 1 💪'); render(); };
+  $$('[data-smk]', v).forEach(x => x.onclick = () => {
+    const o = b.smoked ||= {}; o[d] = Math.max(0, (o[d] || 0) + +x.dataset.smk);
+    if (!o[d]) { o[d] = undefined; b.smoke.slips = b.smoke.slips.filter(y => y !== d); if (b.smoke.prev) { Object.assign(b.smoke, b.smoke.prev); b.smoke.prev = undefined; } toast('Slip undone'); }
+    save(); render(); });
+  $$('[data-hcfg]', v).forEach(x => x.onclick = () => habitEdit(x.dataset.hcfg));
+  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
+}
 function habitEdit(k) {
   const b = B(), c = habCfg(k);
   const body = dialog(`<h2>${c.icon} ${esc(c.name)}</h2>
@@ -438,18 +453,7 @@ BIND.body = v => {
   $$('[data-mood]', v).forEach(x => x.onclick = () => { const s = b.sym[d] ||= {}; s.mood = moodOf(s) === x.dataset.mood ? '' : x.dataset.mood; save(); render(); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = b.vit[d] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $('#vEdit', v).onclick = vitEdit;
-  // slip: resets the streak and starts a count for that day; taking the count back to 0 undoes the slip
-  const sl = $('#slip', v); if (sl) sl.onclick = () => {
-    if (!b.smoke) { b.smoke = { since: today(), best: 0, slips: [] }; save(); render(); return; }
-    b.smoke.prev = { since: b.smoke.since, best: b.smoke.best };
-    b.smoke.best = Math.max(b.smoke.best || 0, daysBetween(b.smoke.since, d)); b.smoke.slips.push(d); b.smoke.since = addDays(d, 1) > today() ? today() : addDays(d, 1);
-    (b.smoked ||= {})[d] = 1; save(); toast('Counted. Tomorrow is day 1 💪'); render(); };
-  $$('[data-smk]', v).forEach(x => x.onclick = () => {
-    const o = b.smoked ||= {}; o[d] = Math.max(0, (o[d] || 0) + +x.dataset.smk);
-    if (!o[d]) { o[d] = undefined; b.smoke.slips = b.smoke.slips.filter(y => y !== d); if (b.smoke.prev) { Object.assign(b.smoke, b.smoke.prev); b.smoke.prev = undefined; } toast('Slip undone'); }
-    save(); render(); });
-  $$('[data-hcfg]', v).forEach(x => x.onclick = () => habitEdit(x.dataset.hcfg));
-  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
+  bindHabits(v, d);
 };
 // edit vitamins: one line per item, "Name | hint | every N days"
 // import keeps what you've already tapped in the app and adds the history around it
@@ -979,7 +983,8 @@ VIEWS.today = () => {
   ${catCard(d)}
   <div class="card"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
     <div class="grow right"><div class="muted small">Comfortable meal</div><div>${pl.g} g${pl.learned ? ' <span class="muted small">learned</span>' : ''}</div></div></div></div>
-  <div class="card"><div class="row"><h2 class="grow">Meals</h2><button class="mini" data-gofood>Open log</button></div>${mealSummary(d)}</div>`;
+  <div class="card"><div class="row"><h2 class="grow">Meals</h2><button class="mini" data-gofood>Open log</button></div>${mealSummary(d)}</div>
+  <div class="card"><h2>Habits</h2>${habitRows(d)}</div>`;
 };
 function mealSummary(d) {
   const es = S.log[d] || [];
@@ -989,6 +994,7 @@ function mealSummary(d) {
 BIND.today = v => {
   bindDayBar(v); bindWater(v); bindCat(v, UI.day);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
+  bindHabits(v, UI.day);
   const orp = $('#openRep', v); if (orp) orp.onclick = () => reportDialog();
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
