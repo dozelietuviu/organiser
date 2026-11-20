@@ -242,11 +242,11 @@ function freezerFor(day) {
 }
 
 // ---------- TODAY ----------
-function bars(tot) {
-  const s = S.settings;
+function bars(tot, d = UI.day) {
+  const s = Object.assign({}, S.settings, { kcal: kcalFor(d) }), burned = burnedOn(d);
   const bar = (label, val, target, unit) => `<div><div class="muted small">${label}</div><div><b>${r0(val)}</b><span class="muted small"> / ${r0(target)}${unit}</span></div><div class="bar ${val > target * 1.08 && label !== 'Protein' && label !== 'Fibre' ? 'over' : ''}"><i style="width:${Math.min(100, target ? val / target * 100 : 0)}%"></i></div></div>`;
   const left = s.kcal - tot.kcal;
-  return `<div class="big">${r0(Math.abs(left))}</div><div class="muted">${left >= 0 ? 'kcal left' : 'kcal over'} · ${r0(tot.kcal)} of ${s.kcal} eaten</div>
+  return `<div class="big">${r0(Math.abs(left))}</div><div class="muted">${left >= 0 ? 'kcal left' : 'kcal over'} · ${r0(tot.kcal)} of ${s.kcal} eaten${burned ? ` · <span class="fire">🔥</span> ${r0(burned)} burned` : ''}</div>${isPMS(d) ? `<div class="muted small">🩸 PMS week: +${PMS_EXTRA} kcal, best spent on protein and fibre</div>` : ''}
     <div class="bar ${left < 0 ? 'over' : ''}"><i style="width:${Math.min(100, tot.kcal / s.kcal * 100)}%"></i></div>
     <div class="macros">${bar('Protein', tot.p, s.p, 'g')}${bar('Carbs', tot.c, s.c, 'g')}${bar('Fat', tot.f, s.f, 'g')}${bar('Fibre', tot.fib, s.fib, 'g')}</div>`;
 }
@@ -642,6 +642,92 @@ function exEdit(e) {
   const del = $('#exDel', body); if (del) del.onclick = ev => { ev.preventDefault(); t.ex = t.ex.filter(x => x !== e); for (const s of t.sessions) s.ex = s.ex.filter(x => x !== e.id); save(); closeDlg(); render(); };
 }
 
+// ---------- ENERGY + WEEKLY REPORT ----------
+// Science used here (Nov 2026 notes in concept-notes.md):
+// - watch "calories burned" is unreliable (often 25%+ off), so burned kcal is shown for info and is NOT added back to "kcal left"
+// - real daily burn = average eaten + (weight lost × 7700 kcal/kg) / days, over 2-3 weeks (adaptive TDEE)
+// - the week before a period burns ~100-200 kcal/day more and weight holds water, so the target gets +150 and weigh-ins are read with that in mind
+const PMS_EXTRA = 150, KCAL_PER_KG = 7700;
+const isPMS = d => { const ci = cycleInfo(d); return !!ci && ci.phase === 'PMS week'; };
+const kcalFor = d => S.settings.kcal + (isPMS(d) ? PMS_EXTRA : 0);
+function burnedOn(d) {
+  const t = S.train || {}, w = ((t.watch || {})[d] || {}).kcal || 0;
+  const cardio = (t.logs || []).filter(l => l.date === d).flatMap(l => l.items).filter(i => i.cardio).reduce((a, i) => a + num(i.kcal), 0);
+  return Math.max(w, cardio);
+}
+const mealsOn = d => (S.log[d] || []);
+const loggedDay = d => mealsOn(d).filter(e => e.slot !== UNPL).length >= 2;
+// real burn from food logs + weight trend, over the 21 days ending on `end`
+function realBurn(end) {
+  const start = addDays(end, -20), days = Array.from({ length: 21 }, (_, i) => addDays(start, i)).filter(loggedDay);
+  const w0 = avgW(addDays(start, 6)), w1 = avgW(end);
+  if (days.length < 12 || !w0 || !w1) return null;
+  const eat = days.reduce((a, d) => a + sumM(mealsOn(d)).kcal, 0) / days.length;
+  return { burn: r0(eat + (w0 - w1) * KCAL_PER_KG / 14), eat: r0(eat), days: days.length };
+}
+function weekReport(mon) {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i)), s = S.settings, end = days[6];
+  const logged = days.filter(loggedDay), tots = logged.map(d => sumM(mealsOn(d)));
+  const avgEat = logged.length ? r0(tots.reduce((a, t) => a + t.kcal, 0) / logged.length) : 0;
+  const avgTarget = logged.length ? r0(logged.reduce((a, d) => a + kcalFor(d), 0) / logged.length) : s.kcal;
+  const pDays = tots.filter(t => t.p >= s.p * .9).length, fibDays = tots.filter(t => t.fib >= s.fib * .9).length;
+  const unpl = days.flatMap(d => mealsOn(d).filter(e => e.slot === UNPL)), unplK = r0(unpl.reduce((a, e) => a + e.kcal, 0));
+  const whyC = {}; unpl.forEach(e => e.why && (whyC[e.why] = (whyC[e.why] || 0) + 1)); const topWhy = Object.entries(whyC).sort((a, b) => b[1] - a[1])[0];
+  const hungry = days.reduce((a, d) => a + Object.values(((S.day[d] || {}).full) || {}).filter(x => x === 'hungry').length, 0);
+  const t = S.train || {}, sess = (t.logs || []).filter(l => days.includes(l.date));
+  const cardioMin = r0(sess.flatMap(l => l.items).filter(i => i.cardio).reduce((a, i) => a + num(i.min), 0));
+  const steps = days.map(d => ((t.watch || {})[d] || {}).steps).filter(Boolean), avgSteps = steps.length ? r0(steps.reduce((a, x) => a + x, 0) / steps.length) : 0;
+  const burned = r0(days.reduce((a, d) => a + burnedOn(d), 0));
+  const wEnd = avgW(end), wPrev = avgW(addDays(end, -7)), dW = wEnd && wPrev ? r1(wEnd - wPrev) : null;
+  const pmsEnd = isPMS(end) || (cycleInfo(end) || {}).day <= 3, rb = realBurn(end);
+  const smokeFree = B().smoke && daysBetween(B().smoke.since, end) >= 7;
+  // wins: things that went right
+  const wins = [];
+  if (dW != null && dW < 0) wins.push(`⚖ −${Math.abs(dW)} kg on your 7-day average`);
+  if (logged.length >= 6) wins.push(`📒 ${logged.length}/7 days logged`);
+  if (pDays >= 5) wins.push(`💪 protein hit on ${pDays} days`);
+  if (sess.length >= 3) wins.push(`◇ ${sess.length} sessions done`);
+  if (avgSteps >= 8000) wins.push(`👟 ${avgSteps.toLocaleString('en-GB')} steps a day`);
+  if (fibDays >= 4) wins.push(`🌾 fibre hit on ${fibDays} days`);
+  if (smokeFree) wins.push('🚭 smoke-free all week');
+  if (logged.length >= 4 && Math.abs(avgEat - avgTarget) <= 100) wins.push('🎯 right on your calorie target');
+  // one fix: the biggest gap, in priority order
+  let fix = '';
+  if (logged.length < 5) fix = `Only ${logged.length} days logged. Log at least 5 so the report (and your real burn) can see the truth. Rough guesses are fine.`;
+  else if (avgEat < 1300) fix = `You averaged ${avgEat} kcal. That's too low for the sleeve plan and makes you lose muscle. Add a shake or an extra protein snack.`;
+  else if (pDays < 4) fix = `Protein hit on only ${pDays} days. Protein first at each meal, and a shake on gym days, protects muscle while you lose fat.`;
+  else if (unplK >= 600) fix = `Unplanned food added ${unplK} kcal${topWhy ? `, mostly "${(WHY.find(w => w[0] === topWhy[0]) || [, topWhy[0]])[1]}"` : ''}. Plan a treat into that moment instead.`;
+  else if (hungry >= 4) fix = `You were still hungry after ${hungry} meals. Make those meals bigger on protein and fibre (eggs, peas, lentils, chia), not more snacks.`;
+  else if (avgEat > avgTarget + 120) fix = `You averaged ${avgEat - avgTarget} kcal a day over target. Check portion sizes on the biggest meal.`;
+  else if (rb && (rb.burn - avgTarget) * 7 / KCAL_PER_KG < .5) fix = `Your real burn is about ${rb.burn} kcal, so ${avgTarget} kcal only loses ~${r1(Math.max(0, (rb.burn - avgTarget) * 7 / KCAL_PER_KG))} kg a week. Try ${Math.max(1500, r0((rb.burn - 880) / 50) * 50)} kcal, or add 2,000 steps a day.`;
+  else if (sess.length < 3) fix = `Only ${sess.length} session${sess.length === 1 ? '' : 's'} this week. Strength training keeps the weight you lose as fat, not muscle.`;
+  return { days, logged, avgEat, avgTarget, pDays, unplK, hungry, sess, cardioMin, avgSteps, burned, wEnd, dW, pmsEnd, rb, wins, fix };
+}
+function reportDialog(mon = addDays(monday(today()), -7)) {
+  const r = weekReport(mon), s = S.settings;
+  const kgWeek = r.rb ? r1((r.rb.burn - r.avgTarget) * 7 / KCAL_PER_KG) : null;
+  const body = dialog(`<div class="row"><button class="mini" data-rw="-7">‹</button><h2 class="grow center" style="margin:0">Week of ${fmtDay(mon)}</h2><button class="mini" data-rw="7" ${addDays(mon, 7) > today() ? 'disabled' : ''}>›</button></div>
+    ${r.wins.length ? `<h3>Wins</h3><div class="chips">${r.wins.map(w => `<span class="chip win">${w}</span>`).join('')}</div>` : ''}
+    <h3>Your numbers</h3>
+    <ul class="list rep">
+      <li><span class="grow">Eaten (avg, logged days)</span><b>${r.logged.length ? r.avgEat + ' / ' + r.avgTarget : '—'}</b></li>
+      <li><span class="grow">Weight (7-day avg)</span><b>${r.wEnd ? r1(r.wEnd) + ' kg' : '—'}${r.dW != null ? ` <span class="${r.dW <= 0 ? 'good' : 'muted'}">${r.dW <= 0 ? '▼' : '▲'} ${Math.abs(r.dW)}</span>` : ''}</b></li>
+      <li><span class="grow">Plan pace</span><b>−0.8 kg/week</b></li>
+      <li><span class="grow">Protein days</span><b>${r.pDays}/${r.logged.length || 7}</b></li>
+      <li><span class="grow">Sessions · cardio</span><b>${r.sess.length} · ${r.cardioMin} min</b></li>
+      <li><span class="grow">Steps a day</span><b>${r.avgSteps ? r.avgSteps.toLocaleString('en-GB') : '—'}</b></li>
+      <li><span class="grow"><span class="fire">🔥</span> Burned (watch)</span><b>${r.burned ? r.burned + ' kcal' : '—'}</b></li>
+      ${r.unplK ? `<li><span class="grow">Unplanned</span><b>${r.unplK} kcal</b></li>` : ''}
+    </ul>
+    ${r.pmsEnd && r.dW != null && r.dW > 0 ? '<div class="note sm">🩸 The week ended in PMS/period days. Weight holds water then, so a rise now is mostly water, not fat. Judge it next week.</div>' : ''}
+    <h3>Your real burn</h3>
+    ${r.rb ? `<p class="small">From ${r.rb.days} logged days and your weight trend, your body burns about <b>${r.rb.burn} kcal a day</b>. At ${r.avgTarget} kcal that's about <b>${Math.max(0, kgWeek)} kg a week</b>.</p>`
+      : '<p class="muted small">Needs about 2–3 weeks of food logs and weigh-ins. It gets more accurate every week.</p>'}
+    <h3>One fix for this week</h3><div class="note ${r.fix ? 'warn' : ''} sm">${r.fix || 'Nothing to fix. Keep doing exactly this. ✨'}</div>
+    <p class="muted small">Watch calories are shown for interest only and aren't added back to your food: watches often overcount by 25% or more.</p>`, null);
+  $$('[data-rw]', body).forEach(b => b.onclick = e => { e.preventDefault(); reportDialog(addDays(mon, +b.dataset.rw)); });
+}
+
 // ---------- GOALS ----------
 // S.goals = { list:[goal], board:[{id,img,cap,goal,done}] }
 // goal = { id, icon, title, s, m, a, r, due, track:'weight'|'smoke'|'manual'|'check', start, target, unit, log:[{d,v}], checks:[names], ticks:{'YYYY-MM':[i]}, done, sort }
@@ -739,6 +825,7 @@ function boardView() {
 VIEWS.goals = () => {
   const L = G().list, arch = L.filter(g => g.arch), open = L.filter(g => !g.done && !g.arch).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done && !g.arch);
   return `${farCard()}
+    <div class="row" style="margin:-4px 0 12px"><button class="mini" id="gRep">📈 Weekly report</button></div>
     ${open.map(goalCard).join('') || '<div class="card muted">No goals yet. Tap ＋ Goal, or paste the goals Claude sent you in Settings → 📋 Paste data.</div>'}
     <div class="row"><button class="mini" id="gAdd">＋ Goal</button></div>
     ${won.length ? `<details class="card"><summary>🏆 Achieved (${won.length})</summary>${won.map(goalCard).join('')}</details>` : ''}
@@ -747,6 +834,7 @@ VIEWS.goals = () => {
 };
 BIND.goals = v => {
   $('#gAdd', v).onclick = () => goalEdit();
+  $('#gRep', v).onclick = () => reportDialog();
   $$('[data-gedit]', v).forEach(x => x.onclick = () => goalEdit(x.dataset.gedit));
   $$('[data-glog]', v).forEach(x => x.onclick = () => goalLog(x.dataset.glog));
   $$('[data-gwin]', v).forEach(x => x.onclick = () => goalWin(x.dataset.gwin));
@@ -886,6 +974,7 @@ VIEWS.today = () => {
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}
   <div class="card">${waterRow(d)}</div>
+  ${d === today() && dowIdx(d) <= 1 ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Weekly report</div><div>📈 Last week is ready</div></div><button class="mini" id="openRep">Open</button></div></div>` : ''}
   ${trainToday(d)}
   ${catCard(d)}
   <div class="card"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
@@ -900,6 +989,7 @@ function mealSummary(d) {
 BIND.today = v => {
   bindDayBar(v); bindWater(v); bindCat(v, UI.day);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
+  const orp = $('#openRep', v); if (orp) orp.onclick = () => reportDialog();
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-lognext]', v).forEach(b => b.onclick = () => { const slot = b.dataset.lognext; logCardDialog(plannedCard(today(), slot), slot); });
