@@ -1179,23 +1179,30 @@ async function scanDialog(slot, onFound) {
 // (average) value or to pick the exact brand. Answers are remembered, and a slow server times out instead of hanging.
 const OFF_CACHE = {};
 const timed = (url, ms) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); return fetch(url, { signal: c.signal }).finally(() => clearTimeout(t)); };
+// returns ready-to-use foods. Fast search server first; if it gives nothing usable (it sometimes leaves out
+// the nutrition numbers), the classic Open Food Facts search is used instead.
+const txt = v => v && typeof v === 'object' ? (v.en || v.lt || Object.values(v)[0] || '') : v;
 async function offQuery(q, lt) {
-  // fast search server first, the classic one as a fallback
   const tag = lt ? ' countries_tags:"en:lithuania"' : '';
   try {
-    const r = await timed(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q + tag)}&page_size=40&fields=${OFF_FIELDS}`, 6000);
-    if (r.ok) { const j = await r.json(); if (Array.isArray(j.hits)) return j.hits.map(h => Object.assign({}, h, { brands: Array.isArray(h.brands) ? h.brands.join(',') : h.brands })); }
+    const r = await timed(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q + tag)}&page_size=40&fields=${OFF_FIELDS}`, 5000);
+    if (r.ok) { const j = await r.json();
+      const foods = (j.hits || []).map(h => offToFood(Object.assign({}, h, { product_name: txt(h.product_name), product_name_en: txt(h.product_name_en), product_name_lt: txt(h.product_name_lt), brands: Array.isArray(h.brands) ? h.brands.join(',') : txt(h.brands) }))).filter(Boolean);
+      if (foods.length) return foods; }
   } catch {}
   const ltq = lt ? '&tagtype_0=countries&tag_contains_0=contains&tag_0=lithuania' : '';
-  const r = await timed(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=40${ltq}&fields=${OFF_FIELDS}`, 12000);
-  return (await r.json()).products || [];
+  const r = await timed(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=40${ltq}&fields=${OFF_FIELDS}`, 15000);
+  return ((await r.json()).products || []).map(offToFood).filter(Boolean);
 }
 async function offSearch(q) {
   const k = q.trim().toLowerCase(); if (OFF_CACHE[k]) return OFF_CACHE[k];
-  let items = (await offQuery(k, true)).map(offToFood).filter(Boolean);
-  if (items.length < 6) { try { items = items.concat((await offQuery(k, false)).map(offToFood).filter(Boolean)); } catch {} }
+  let items = [], err;
+  try { items = await offQuery(k, true); } catch (e) { err = e; }
+  if (items.length < 6) { try { items = items.concat(await offQuery(k, false)); err = null; } catch (e) { err = err || e; } }
+  if (!items.length && err) throw err;
   const seen = new Set(); items = items.filter(f => { const id = f.barcode || f.name + f.kcal; if (seen.has(id)) return false; seen.add(id); return true; });
-  return (OFF_CACHE[k] = items);
+  if (items.length) OFF_CACHE[k] = items;
+  return items;
 }
 // "Bonne Maman Confiture extra fraises 370g" → "confiture extra fraises"
 function coreName(f) {
