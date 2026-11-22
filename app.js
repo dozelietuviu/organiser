@@ -882,9 +882,25 @@ function farCard() {
   return `<div class="card compact far"><div class="muted small">How far you've come${st.date ? ' since ' + fmtDay(st.date) : ''}</div><div class="row wrap gap">${bits.map(([i, t]) => `<span class="chip">${i} ${t}</span>`).join('')}</div></div>`;
 }
 const polaroid = (x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:${(i * 7 % 9 - 4) * .6}deg"><img src="${x.mine || x.img}" alt="">${x.mine ? `<img class="inset" src="${x.img}" alt="">` : ''}${x.done ? '<span class="won-tag">🏆</span>' : ''}<div class="cap">${esc(x.cap || '')}</div></div>`;
+// ---------- MORNING AFFIRMATIONS ----------
+// First open of the day before 10:00: the vision board slides up as a carousel (swipe), caption = affirmation.
+// Also on the Goals board with ▶. Shown once a day (S.affDay).
+function affirmations(force) {
+  const list = G().board.filter(x => !x.arch && (x.mine || x.img));
+  if (!list.length || $('#aff')) return;
+  if (!force) { if (S.affDay === today() || new Date().getHours() >= 10) return; S.affDay = today(); save(); }
+  const el = document.createElement('div'); el.id = 'aff';
+  el.innerHTML = `<div class="aff-top"><span class="muted small">Good morning 🌊 say each one out loud</span><button class="mini ghost" id="affX">✕</button></div>
+    <div class="aff-track">${list.map(x => `<div class="aff-slide"><img src="${x.mine || x.img}" alt=""><p class="aff-cap">${esc(x.cap || '')}</p></div>`).join('')}</div>
+    <div class="aff-dots">${list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>`;
+  document.body.appendChild(el);
+  const tr = $('.aff-track', el), dots = $$('.aff-dots i', el);
+  tr.onscroll = () => { const i = Math.round(tr.scrollLeft / tr.clientWidth); dots.forEach((d, j) => d.classList.toggle('on', i === j)); };
+  $('#affX', el).onclick = () => el.remove();
+}
 function boardView() {
   const all = G().board, bd = all.filter(x => !x.arch), ar = all.filter(x => x.arch);
-  return `<div class="row" style="margin:18px 2px 8px"><h2 class="grow">Vision board</h2><label class="btn mini">＋ Photo<input type="file" id="vbAdd" accept="image/*" multiple hidden></label></div>
+  return `<div class="row" style="margin:18px 2px 8px"><h2 class="grow">Vision board</h2>${bd.length ? '<button class="mini" id="affPlay">▶</button>' : ''}<label class="btn mini">＋ Photo<input type="file" id="vbAdd" accept="image/*" multiple hidden></label></div>
     ${bd.length ? `<div class="board">${bd.map(polaroid).join('')}</div>`
       : `<div class="card muted small">Add photos that pull you toward your goals: the body, the fight, the places, the life. When you achieve a goal, its photo lands here too.</div>`}
     ${ar.length ? `<details class="card"><summary>🗄 Archived photos (${ar.length})</summary><div class="board" style="margin-top:10px">${ar.map(polaroid).join('')}</div></details>` : ''}`;
@@ -909,6 +925,7 @@ BIND.goals = v => {
     const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
     t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); save(); render(); });
   $$('[data-vb]', v).forEach(x => x.onclick = () => photoEdit(x.dataset.vb));
+  const ap = $('#affPlay', v); if (ap) ap.onclick = () => affirmations(true);
   $('#vbAdd', v).onchange = async e => { for (const f of e.target.files) await addPhoto(f, {}); render(); };
 };
 const gById = id => G().list.find(g => g.id === id);
@@ -2116,7 +2133,8 @@ render();
 syncFoodData();
 loadTrainSeed();
 if (S.settings.sheetUrl) sheetWatch();
+affirmations();
 let lastDay = today();
-document.addEventListener('visibilitychange', () => { if (document.hidden) return; reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) return; reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); affirmations(); });
 setInterval(() => { if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); }, 5 * 60e3);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
