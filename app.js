@@ -831,7 +831,7 @@ function goalCard(g) {
   const month = ym(today()), ticks = ((g.ticks || {})[month]) || [];
   return `<div class="card goal ${g.done ? 'won' : ''}" data-g="${g.id}">
     <div class="row"><div class="gicon">${esc(g.icon || '☆')}</div><div class="grow"><div class="h">${esc(g.title)}</div>
-      <div class="muted small">${g.done ? '🏆 Achieved ' + fmtDay(g.done) : [dueTxt(g.due), g.due ? 'by ' + fmtDay(g.due) : ''].filter(Boolean).join(' · ')}</div></div>
+      <div class="muted small">${g.done ? '🏆 Achieved ' + fmtDay(g.done) : [dueTxt(g.due), g.due ? 'by ' + fmtDay(g.due) + (g.due.slice(0, 4) !== today().slice(0, 4) ? ' ' + g.due.slice(0, 4) : '') : ''].filter(Boolean).join(' · ')}</div></div>
       <button class="icon" data-gedit="${g.id}" title="Edit">✎</button></div>
     ${photo ? `<div class="polaroid small-p"><img src="${photo.mine || photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
     ${goalBar(g)}
@@ -967,7 +967,12 @@ function photoEdit(pid) {
   const del = $('#phDel', body); del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.board = G().board.filter(y => y !== x); save(); closeDlg(); render(); };
 }
 // private goals import (Settings → Paste data): adds goals by id, never overwrites ones already in the app
-function mergeGoals(list) { const L = G().list; let n = 0; for (const g of list || []) if (!L.some(x => x.id === g.id)) { L.push(Object.assign({ log: [] }, g)); n++; } return n; }
+// a goal marked replace:true updates the one with the same id (its progress log, ticks and achieved date are kept)
+function mergeGoals(list) { const L = G().list; let n = 0;
+  for (const g of list || []) { const old = L.find(x => x.id === g.id);
+    if (!old) { L.push(Object.assign({ log: [] }, g)); n++; }
+    else if (g.replace) { const keep = { log: old.log, ticks: old.ticks, done: old.done, arch: old.arch }; for (const k of Object.keys(old)) delete old[k]; Object.assign(old, g, keep); n++; } }
+  return n; }
 
 // ---------- CAT ----------
 // "Did you feed the cat?": ticking it takes 1 wet food out of the pantry; warns at 3 or fewer.
@@ -1864,7 +1869,7 @@ function openSettings() {
   $('#paste', body).onclick = e => { e.preventDefault();
     const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude sent you.</p><textarea name="t" rows="8"></textarea>`, f => {
       try { const d = JSON.parse(f.t.value.trim());
-        if (d.kind === 'organiser-goals' && d.goals) { const n = mergeGoals(d.goals); toast(n ? `${n} goals added ✓` : 'Those goals are already in'); go('goals'); return; }
+        if (d.kind === 'organiser-goals' && d.goals) { const n = mergeGoals(d.goals); toast(n ? `${n} goals added or updated ✓` : 'Those goals are already in'); go('goals'); return; }
         if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
     }, 'Import'); };
   $('#imp', body).onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.kind === 'organiser-body' && d.body) { mergeBody(d.body); save(); closeDlg(); render(); toast('Body data imported ✓'); return; } if (d.kind === 'organiser-goals' && d.goals) { mergeGoals(d.goals); save(); closeDlg(); go('goals'); toast('Goals imported ✓'); return; } if (!d.settings || !d.foods) throw 0; S = Object.assign(blank(), d); save(); closeDlg(); render(); toast('Backup restored ✓'); } catch { toast('That isn\'t an Organiser backup'); } };
