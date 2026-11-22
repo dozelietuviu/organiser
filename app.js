@@ -56,7 +56,11 @@ const WHY_TIP = {
   hungry: 'Too long between meals. Keep gaps under 5 hours and make the meal before more filling.',
 };
 const UNPL_PRESETS = ['Slice of cake', 'Donut', 'Cinnamon bun', 'Chocolate bar', 'Crisps', 'Biscuits', 'Burger', 'Pizza', 'Flavoured latte', 'Glass of wine', 'Ice cream'].map(n => [n]);
-const CARD_TYPES = [...SLOT_IDS, 'Extra'];
+const CARD_TYPES = ['Pre-workout', 'Breakfast', 'Meal', 'Snack', 'Extra'];
+// Meal cards can be cooked for lunch or dinner. Older Lunch/Dinner cards become Meal.
+const cardType = slot => ['Lunch', 'Dinner'].includes(slot) ? 'Meal' : slot;
+const isMeal = c => c && c.slot === 'Meal';
+function migrateCards() { for (const c of S.cards) c.slot = cardType(c.slot); for (const k of ['Lunch', 'Dinner']) delete S.settings.fixed[k]; }
 const PLACES = ['Fridge', 'Freezer', 'Cupboard', 'Spice rack', 'Household'];
 const SHOPS = ['Lidl', 'IKI', 'Maxima', 'Other'];
 const FULL = [['finished', 'Finished'], ['left', 'Left some'], ['toofull', 'Too full'], ['hungry', 'Still hungry']];
@@ -136,7 +140,7 @@ function seedCards() {
   mk('Eggs, peas & parmesan', 'Snack', [{ foodId: k('egg'), g: 100 }, { foodId: k('peas'), g: 80 }, { foodId: k('parmesan'), g: 10 }], 4);
   mk('Chicken thigh soup', 'Dinner', [{ foodId: k('chicken-thigh'), g: 150 }, { foodId: k('napa'), g: 150 }, { foodId: k('ginger'), g: 5 }, { foodId: k('garlic'), g: 5 }, { foodId: k('gochujang'), g: 10 }, { foodId: k('soy-sauce'), g: 10 }], 4, { jonas: true });
   S.settings.fixed = { 'Pre-workout': pre.id, Snack: snk.id };
-  save();
+  migrateCards(); save();
 }
 
 // ---------- learned portion size ----------
@@ -999,9 +1003,9 @@ function importCards(list) {
       if (f) items.push({ foodId: f.id, g });
     }
     if (!items.length) { skipped++; continue; }
-    const slot = CARD_TYPES.includes(c.slot) ? c.slot : 'Dinner';
+    const slot = CARD_TYPES.includes(cardType(c.slot)) ? cardType(c.slot) : 'Meal';
     const note = [c.note, Array.isArray(c.steps) ? c.steps.join(' ') : c.steps].filter(Boolean).join(' · ');
-    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && ['Lunch', 'Dinner'].includes(slot), jonasKcal: num(c.jonasKcal) || 0, note };
+    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, note };
     if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }
   return { added, updated, skipped, newFoods };
@@ -1245,7 +1249,7 @@ BIND.log = v => {
   $$('[data-full]', v).forEach(b => b.onclick = () => { const [slot, k] = b.dataset.full.split('|'); const dd = S.day[UI.day] ||= {}; dd.full ||= {}; dd.full[slot] = dd.full[slot] === k ? undefined : k; save(); render(); });
 };
 function pickForSlot(slot) {
-  const cards = S.cards.filter(c => c.slot === slot).sort((a, b) => (b.stars || 0) - (a.stars || 0));
+  const cards = S.cards.filter(c => c.slot === cardType(slot)).sort((a, b) => (b.stars || 0) - (a.stars || 0));
   const body = dialog(`<h2>Add to ${slot}</h2>
     ${cards.length ? `<h3>Cards</h3><ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} g</div></div><span>›</span></li>`).join('')}</ul>` : ''}
     <h3>Food</h3><input name="q" placeholder="Search foods" autocomplete="off"><div id="sres"></div><div id="sshop"></div>
@@ -1288,7 +1292,7 @@ function logCardDialog(c, slot) {
     <ul class="list">${c.items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(f.name)}</div><span class="muted">${amountText(f, i.g)}</span></li>` : ''; }).join('')}</ul>
     <p class="muted">${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(cardGrams(c))} g</p>
     <label>Portion</label><select name="mult"><option value="0.5">Half</option><option value="0.75">Three quarters</option><option value="1" selected>Full</option><option value="1.25">A bit more</option></select>
-    ${slotSelect(slot || (c.slot !== 'Extra' ? c.slot : nowSlot()))}`, b => {
+    ${slotSelect(slot || (SLOT_IDS.includes(c.slot) ? c.slot : nowSlot()))}`, b => {
     const m = num(b.mult.value);
     addLog({ slot: b.slot.value, card: c.id, name: c.name + (m !== 1 ? ` ×${m}` : ''), g: cardGrams(c) * m, kcal: t.kcal * m, p: t.p * m, c: t.c * m, f: t.f * m, fib: t.fib * m });
     UI.pendingSlot = null; toast('Logged ✓');
@@ -1448,8 +1452,8 @@ function foodDialog(f, logAfter = false, onSaved) {
 VIEWS.cards = () => {
   const groups = CARD_TYPES.map(t => [t, S.cards.filter(c => c.slot === t).sort((a, b) => (b.stars || 0) - (a.stars || 0) || a.name.localeCompare(b.name))]);
   const recipes = S.foods.filter(f => f.kind === 'recipe');
-  return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Dinner and lunch cards can include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
-  ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
+  return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Meals can be cooked for lunch or dinner and include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
+  ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
     ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
     ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
@@ -1457,7 +1461,7 @@ VIEWS.cards = () => {
 };
 BIND.cards = v => {
   $('#pasteCards', v).onclick = pasteCardsDialog;
-  $('#newCard', v).onclick = () => cardDialog({ items: [], stars: 3, slot: 'Dinner' });
+  $('#newCard', v).onclick = () => cardDialog({ items: [], stars: 3, slot: 'Meal' });
   $$('[data-edit]', v).forEach(li => li.onclick = () => cardDialog(cardById(li.dataset.edit)));
   $('#newRec', v).onclick = () => recipeDialog({ items: [] });
   $$('[data-rec]', v).forEach(li => li.onclick = () => recipeDialog(foodById(li.dataset.rec)));
@@ -1479,7 +1483,7 @@ function bindItems(body, ex, onChange) {
   wire(); onChange();
 }
 const readItems = body => $$('.item', body).map(r => ({ foodId: $('select', r).value, g: num($('input', r).value) })).filter(i => i.foodId && i.g > 0);
-const jonasFactor = c => { const t = cardTotals(c).kcal; if (!c.jonas || !t) return 0; return (c.jonasKcal || (c.slot === 'Lunch' ? S.settings.jonasLunch : S.settings.jonasDinner)) / t; };
+const jonasFactor = c => { const t = cardTotals(c).kcal; if (!c.jonas || !t) return 0; return (c.jonasKcal || S.settings.jonasDinner) / t; };
 
 function cardDialog(c) {
   const isNew = !c.id;
@@ -1490,22 +1494,22 @@ function cardDialog(c) {
     <h3>Your portion</h3>${itemsEditor(c.items || [])}
     <p class="muted" id="sum"></p>
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
-      <label>Jonas portion kcal (empty = ${S.settings.jonasDinner} dinner / ${S.settings.jonasLunch} lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"></div>
-    <label class="row tick"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
+      <label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"></div>
+    <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
     <label>Note (optional)</label><input name="note" value="${esc(c.note || '')}">
     ${isNew ? '' : '<p class="row gap"><button class="mini" id="dupCard">Duplicate</button><button class="del mini" id="delCard">Delete card</button></p>'}`, b => {
     const items = readItems(b); if (!b.name.value.trim() || !items.length) { toast('Add a name and foods'); return false; }
     const o = isNew ? { id: uid() } : c;
-    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && ['Lunch', 'Dinner'].includes(b.slot.value), jonasKcal: num(b.jk.value) || 0, note: b.note.value.trim() });
+    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, note: b.note.value.trim() });
     if (isNew) S.cards.push(o);
     for (const k in S.settings.fixed) if (S.settings.fixed[k] === o.id) delete S.settings.fixed[k];
-    if (b.fixed.checked) S.settings.fixed[o.slot] = o.id;
+    if (b.fixed.checked && o.slot !== 'Meal') S.settings.fixed[o.slot] = o.id;
   });
   const upd = () => {
     const items = readItems(body), t = itemsTotals(items);
     const tmp = { items, jonas: body.jonas.checked, jonasKcal: num(body.jk.value), slot: body.slot.value }, k = jonasFactor(tmp);
     $('#sum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g` + (k ? ` · Jonas ×${r1(k)}` : '');
-    $('#jbox', body).classList.toggle('hidden', !['Lunch', 'Dinner'].includes(body.slot.value));
+    $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', 'Extra'].includes(body.slot.value));
   };
   bindItems(body, null, upd); body.slot.onchange = upd; body.jonas.onchange = upd; body.jk.oninput = upd;
   const del = $('#delCard', body);
@@ -1656,7 +1660,7 @@ function shuffleWeek() {
   const days = Array.from({ length: 5 }, (_, i) => addDays(UI.week, i));
   const used = new Set(S.cards.filter(c => usedBetween(c, addDays(UI.week, -7), addDays(UI.week, -1))).map(c => c.id));
   const brk = pickCard(S.cards.filter(c => c.slot === 'Breakfast'), { usedSet: used });
-  const dinners = S.cards.filter(c => c.slot === 'Dinner');
+  const dinners = S.cards.filter(isMeal);
   const sun = addDays(UI.week, -1);
   let prev = isCooked(sun, 'Dinner') || mealCards(sun, 'Dinner').length ? mealCards(sun, 'Dinner') : [];
   const fixedP = ['Pre-workout', 'Snack'].reduce((a, s) => a + (cardById(S.settings.fixed[s]) ? cardTotals(cardById(S.settings.fixed[s])).p : 0), 0);
@@ -1665,7 +1669,7 @@ function shuffleWeek() {
     if (brk && !p.cooked.Breakfast) { p.meals.Breakfast = [brk.id]; p.who.Breakfast = WHO_DEFAULT.Breakfast.slice(); }
     if (!p.cooked.Lunch) {
       if (prev.length) { p.meals.Lunch = prev.map(c => c.id); p.left.Lunch = true; }
-      else { const lc = S.cards.filter(c => c.slot === 'Lunch'), l = pickCard(lc.length ? lc : dinners, { usedSet: used }); p.meals.Lunch = l ? [l.id] : []; p.left.Lunch = false; }
+      else { const l = pickCard(dinners, { usedSet: used }); p.meals.Lunch = l ? [l.id] : []; p.left.Lunch = false; }
       p.who.Lunch = WHO_DEFAULT.Lunch.slice();
     }
     if (!p.cooked.Dinner) {
@@ -1679,13 +1683,13 @@ function shuffleWeek() {
   save(); render(); toast('Shuffled 🎲 Tap any meal to change it.');
 }
 function suggest(slot, day) {
-  const s = S.cards.filter(c => c.slot === slot || (slot === 'Lunch' && c.slot === 'Dinner'));
+  const s = S.cards.filter(c => c.slot === cardType(slot));
   return s.map(c => {
     const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean);
     const need = ings.filter(f => !pantryHas(f.id));
     const have = ings.length ? (ings.length - need.length) / ings.length : 0;
     const recentUse = usedBetween(c, addDays(day, -6), addDays(day, -1)) ? 1 : 0;
-    return { c, need, score: have * 3 + (c.stars || 0) * 0.6 - recentUse * 0.8 + (c.slot === slot ? 0.5 : 0) };
+    return { c, need, score: have * 3 + (c.stars || 0) * 0.6 - recentUse * 0.8 };
   }).sort((a, b) => b.score - a.score);
 }
 function dayTotals(day) { return sumM(SLOT_IDS.flatMap(s => myCards(day, s)).map(cardTotals)); }
@@ -1698,7 +1702,7 @@ VIEWS.plan = () => {
   ${days.map((d, i) => { const p = S.plan[d] || {}, t = dayTotals(d), wknd = i > 4;
     return `<div class="card ${wknd ? 'weekend' : ''} ${d === today() ? 'is-today' : ''}"><div class="row"><h2 class="grow">${DOW(d)} <span class="muted small">${parseDay(d).getDate()}</span></h2><span class="muted small ${Math.abs(t.kcal - s.kcal) < 150 ? 'good' : ''}">${r0(t.kcal)} / ${s.kcal} kcal · P ${r0(t.p)}</span></div>
       ${PLAN_SLOTS.map(slot => { const cs = mealCards(d, slot), cooked = isCooked(d, slot), w = whoOf(d, slot), left = (p.left || {})[slot];
-        const whoTxt = `${w.includes('me') ? 'Me' : ''}${w.length > 1 ? ' + ' : ''}${w.includes('j') ? 'Jonas' : ''}`;
+        const whoTxt = `${w.includes('me') ? 'Esther' : ''}${w.length > 1 ? ' + ' : ''}${w.includes('j') ? 'Jonas' : ''}`;
         return `<div class="row pslot"><span class="slot w">${slot}</span>${cs.length ? `<button class="grow pcard" data-pick="${d}|${slot}">${cs.map(c => esc(c.name)).join(' + ')}<span class="muted small"> · ${left ? 'leftovers · ' : ''}${whoTxt}</span></button>${left ? (cooked ? '<span class="chip sm on">✓ Cooked</span>' : '') : `<button class="mini ${cooked ? 'on' : ''}" data-cook="${d}|${slot}">${cooked ? '✓ Cooked' : 'Cooked?'}</button>`}` : `<button class="grow pcard empty" data-pick="${d}|${slot}">${wknd ? 'Pick if you like' : '+ Choose'}</button>`}</div>`; }).join('')}
       ${(p.extras || []).length ? `<div class="muted small">Jonas extras: ${p.extras.map(id => esc((cardById(id) || {}).name)).join(', ')}</div>` : ''}
     </div>`; }).join('')}`;
@@ -1718,26 +1722,41 @@ BIND.plan = v => {
   $('#canMake', v).onclick = canMakeDialog;
   $('#shuffle', v).onclick = shuffleWeek;
 };
+function syncLeftFor(d) { const p = dayPlan(d), n = dayPlan(addDays(d, 1)); if (n.left.Lunch) { n.meals.Lunch = (p.meals.Dinner || []).slice(); n.who.Lunch = (p.who.Dinner || WHO_DEFAULT.Dinner).slice(); n.cooked.Lunch = false; } }
 function planPick(d, slot) {
   const p = dayPlan(d), list = suggest(slot, d), extras = S.cards.filter(c => c.slot === 'Extra');
   p.meals[slot] ||= []; p.who[slot] ||= WHO_DEFAULT[slot].slice();
   const prevDinner = mealCards(addDays(d, -1), 'Dinner');
+  const nd = addDays(d, 1), next = dayPlan(nd), main = slot !== 'Breakfast';
+  const both = slot === 'Dinner' && next.left.Lunch, cf = both ? 'both' : slot, w = p.who[slot];
+  const who = w.includes('me') && w.includes('j') ? 'both' : w.includes('j') ? 'j' : 'me';
   const body = dialog(`<h2>${slot} · ${fmtDay(d)}</h2>
-    <label>Who's eating?</label><div class="chips"><button class="chip ${p.who[slot].includes('me') ? 'on' : ''}" data-who="me">Me</button><button class="chip ${p.who[slot].includes('j') ? 'on' : ''}" data-who="j">Jonas</button></div>
+    ${main ? `<label>Cook for</label><div class="chips">${[['Lunch', 'Lunch'], ['Dinner', 'Dinner'], ['both', 'Both']].map(([k, l]) => `<button class="chip ${cf === k ? 'on' : ''}" data-cf="${k}">${l}</button>`).join('')}</div>
+    ${cf === 'both' ? '<p class="muted small">Cook once tonight: dinner plus tomorrow\'s lunch.</p>' : ''}
+    <label>For</label><div class="chips">${[['me', 'Esther'], ['j', 'Jonas'], ['both', 'Both']].map(([k, l]) => `<button class="chip ${who === k ? 'on' : ''}" data-for="${k}">${l}</button>`).join('')}</div>` : ''}
     ${slot === 'Lunch' && prevDinner.length ? `<div class="chips"><button class="chip ${p.left.Lunch ? 'on' : ''}" id="leftC">Leftovers: ${prevDinner.map(c => esc(c.name)).join(' + ')}</button></div>` : ''}
     <p class="muted small">Tap one or more cards. Best matches first: what's in your pantry, then your favourites.</p>
-    ${list.length ? `<ul class="list">${list.map(({ c, need }) => `<li data-pc="${c.id}" class="${p.meals[slot].includes(c.id) ? 'sel' : ''}"><div class="grow">${p.meals[slot].includes(c.id) ? '✓ ' : ''}${esc(c.name)} ${stars(c.stars)}<div class="muted small">${slot === 'Lunch' && c.slot === 'Dinner' ? 'dinner card · ' : ''}${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} · ${need.length ? 'need: ' + need.slice(0, 3).map(f => esc(sn(f))).join(', ') + (need.length > 3 ? '…' : '') : '✓ all in pantry'}</div></div></li>`).join('')}</ul>` : `<p class="muted">No ${slot.toLowerCase()} cards yet. Make one under Cards.</p>`}
+    ${list.length ? `<ul class="list">${list.map(({ c, need }) => `<li data-pc="${c.id}" class="${p.meals[slot].includes(c.id) ? 'sel' : ''}"><div class="grow">${p.meals[slot].includes(c.id) ? '✓ ' : ''}${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} · ${need.length ? 'need: ' + need.slice(0, 3).map(f => esc(sn(f))).join(', ') + (need.length > 3 ? '…' : '') : '✓ all in pantry'}</div></div></li>`).join('')}</ul>` : `<p class="muted">No ${slot.toLowerCase()} cards yet. Make one under Cards.</p>`}
     ${slot === 'Dinner' && extras.length ? `<h3>Jonas extras</h3><div class="chips">${extras.map(x => `<button class="chip ${(p.extras || []).includes(x.id) ? 'on' : ''}" data-ex="${x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
     ${p.meals[slot].length ? '<p><button class="del mini" id="clr">Clear this meal</button></p>' : ''}`, null);
-  const changed = () => { p.cooked[slot] = false; save(); render(); };
-  $$('[data-who]', body).forEach(b => b.onclick = e => { e.preventDefault(); const k = b.dataset.who, w = p.who[slot]; p.who[slot] = w.includes(k) ? w.filter(x => x !== k) : [...w, k]; b.classList.toggle('on'); save(); render(); });
+  // "Both" keeps tomorrow's lunch as leftovers of tonight's dinner
+  const syncLeft = () => { if (slot === 'Dinner' && next.left.Lunch) { next.meals.Lunch = p.meals.Dinner.slice(); next.who.Lunch = p.who.Dinner.slice(); next.cooked.Lunch = false; } };
+  const changed = () => { p.cooked[slot] = false; syncLeft(); save(); render(); };
+  $$('[data-for]', body).forEach(b => b.onclick = e => { e.preventDefault(); const k = b.dataset.for; p.who[slot] = k === 'both' ? ['me', 'j'] : [k]; changed(); planPick(d, slot); });
+  $$('[data-cf]', body).forEach(b => b.onclick = e => { e.preventDefault(); const k = b.dataset.cf;
+    if (k === cf) return;
+    if (k === 'Lunch') { if (slot === 'Dinner' && next.left.Lunch) { next.left.Lunch = false; next.meals.Lunch = []; } save(); render(); planPick(d, 'Lunch'); return; }
+    if (k === 'Dinner') { if (slot === 'Dinner') { next.left.Lunch = false; next.meals.Lunch = []; save(); render(); } planPick(d, 'Dinner'); return; }
+    next.left.Lunch = true; p.meals.Dinner ||= []; p.who.Dinner ||= WHO_DEFAULT.Dinner.slice();
+    if (slot === 'Dinner') changed(); else { syncLeftFor(d); save(); render(); }
+    planPick(d, 'Dinner'); });
   $$('[data-pc]', body).forEach(li => li.onclick = () => { const id = li.dataset.pc, m = p.meals[slot]; p.meals[slot] = m.includes(id) ? m.filter(x => x !== id) : [...m, id]; p.left[slot] = false; changed(); planPick(d, slot); });
   const lc = $('#leftC', body); if (lc) lc.onclick = e => { e.preventDefault(); p.left.Lunch = !p.left.Lunch; if (p.left.Lunch) p.meals.Lunch = prevDinner.map(c => c.id); changed(); planPick(d, slot); };
   $$('[data-ex]', body).forEach(b => b.onclick = e => { e.preventDefault(); p.extras ||= []; const id = b.dataset.ex; p.extras = p.extras.includes(id) ? p.extras.filter(x => x !== id) : [...p.extras, id]; b.classList.toggle('on'); save(); });
   const clr = $('#clr', body); if (clr) clr.onclick = e => { e.preventDefault(); p.meals[slot] = []; p.left[slot] = false; changed(); closeDlg(); };
 }
 function canMakeDialog() {
-  const rows = S.cards.filter(c => PLAN_SLOTS.includes(c.slot)).map(c => { const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean); return { c, need: ings.filter(f => !pantryHas(f.id)) }; })
+  const rows = S.cards.filter(c => ['Breakfast', 'Meal'].includes(c.slot)).map(c => { const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean); return { c, need: ings.filter(f => !pantryHas(f.id)) }; })
     .filter(x => x.need.length <= 2).sort((a, b) => a.need.length - b.need.length || (b.c.stars || 0) - (a.c.stars || 0));
   dialog(`<h2>What can I make now?</h2>${rows.length ? `<ul class="list">${rows.map(({ c, need }) => `<li><div class="grow">${esc(c.name)} ${stars(c.stars)}<div class="muted small">${c.slot} · ${need.length ? 'quick shop: ' + need.map(f => esc(f.name)).join(', ') : '✓ everything is here'}</div></div></li>`).join('')}</ul>` : '<p class="muted">Nothing is close yet. Add cards and fill your pantry.</p>'}`, null);
 }
@@ -1999,7 +2018,7 @@ function openSettings() {
 }
 
 // ---------- start ----------
-migratePlan(); save();
+migratePlan(); migrateCards(); save();
 ensureWakeGoal();
 render();
 syncFoodData();
