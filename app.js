@@ -265,7 +265,7 @@ function bars(tot, d = UI.day) {
 }
 function waterRow(day) {
   const w = (S.day[day] || {}).water || 0, n = S.settings.water, gl = S.settings.glassMl || 250;
-  return `<div class="row"><div class="grow"><div class="muted small">Water · ${gl} ml glasses · ${(w * gl).toLocaleString('en-GB')} of ${(S.settings.waterMl || n * gl).toLocaleString('en-GB')} ml</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${(w * gl).toLocaleString('en-GB')} ml</b></div>`;
+  return `<div class="row"><div class="grow"><div class="muted small">Water · ${gl / 1000} L a tap · goal ${(S.settings.waterMl || n * gl) / 1000} L</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${r1(w * gl / 1000)} L</b></div>`;
 }
 const bindWater = v => $$('[data-w]', v).forEach(b => b.onclick = () => { const dd = S.day[UI.day] ||= {}; const n = +b.dataset.w; dd.water = dd.water === n ? n - 1 : n; dd.waterAt = Date.now(); save(); render(); });
 function nextMeal() {
@@ -996,6 +996,19 @@ function photoEdit(pid) {
 // { kind:'organiser-cards', cards:[{ name, slot, stars, note, jonas, jonasKcal, items:[{ food, g, kcal, p, c, f, fib }] }] }
 // Foods are matched by name to ones already in the app; new ones are added with the per-100 g macros given.
 // A card whose name is already in the app is updated (so a tweaked card can be pasted again); its stars stay.
+// training plan pasted from Gemini (Settings → Paste data or Train). Exercises merge by id (sets/reps/cues updated, your
+// last weights kept); sessions replace one with the same name; week (optional) sets Mon..Sun morning/evening.
+function importTrain(d) {
+  const t = T(), slug = x => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  let ex = 0, ses = 0;
+  for (const e of d.ex || []) { if (!e.name) continue; const id = e.id || slug(e.name), old = t.ex.find(x => x.id === id || x.name.toLowerCase() === e.name.toLowerCase());
+    const o = { id: old ? old.id : id, name: e.name, group: GROUPS.includes(e.group) ? e.group : 'Core', sets: +e.sets || 3, reps: String(e.reps || '10'), cues: e.cues || '', src: e.src || 'own' };
+    if (old) Object.assign(old, o); else t.ex.push(o); ex++; }
+  for (const s of d.sessions || []) { if (!s.name) continue; const ids = (s.ex || []).map(x => { const e = t.ex.find(y => y.id === x || y.id === slug(x) || y.name.toLowerCase() === String(x).toLowerCase()); return e && e.id; }).filter(Boolean);
+    const old = t.sessions.find(x => x.name.toLowerCase() === s.name.toLowerCase()); if (old) old.ex = ids; else t.sessions.push({ id: uid(), name: s.name, src: s.src || 'own', ex: ids }); ses++; }
+  let wk = 0; for (const [k, v] of Object.entries(d.week || {})) { const i = DOWS.indexOf(String(k).slice(0, 3)); if (i < 0) continue; t.week[i] = { am: (v && v.am) || '', pm: (v && v.pm) || '' }; wk++; }
+  return { ex, ses, wk };
+}
 function importCards(list) {
   const low = x => (x || '').trim().toLowerCase();
   const live = S.foods.filter(f => !f.hidden), findFood = n => live.find(f => low(f.name) === low(n)) || live.filter(f => low(f.sname) === low(n)).sort((a, b) => (b.key ? 1 : 0) - (a.key ? 1 : 0))[0];
@@ -1995,7 +2008,7 @@ function wantedAlerts() {
     if (h >= 8 && h < 22) out.gap = { at, title: 'Time to eat', tag: 'alarm_clock', msg: `${S.settings.gapH} h since you last ate. Have something with protein.` }; } }
   if (a.on.water) { const dd = S.day[d0] || {}, w = dd.water || 0;
     if (w < S.settings.water) { let at = (dd.waterAt || atTime(d0, '08:00')) + 2 * 36e5; if (at < now + 6e4) at = Math.ceil((now + 6e4) / 18e5) * 18e5; const h = new Date(at).getHours();
-      if (h >= 8 && h < 21) out.water = { at, title: 'Water', tag: 'droplet', msg: `Time for a glass. ${w * (S.settings.glassMl || 250)} of ${S.settings.waterMl || S.settings.water * 250} ml so far.` }; } }
+      if (h >= 8 && h < 21) out.water = { at, title: 'Water', tag: 'droplet', msg: `Time for a glass. ${r1(w * (S.settings.glassMl || 250) / 1000)} of ${(S.settings.waterMl || S.settings.water * 250) / 1000} L so far.` }; } }
   if (a.on.eat) for (const d of [d0, addDays(d0, 1)]) for (const s of SLOTS.filter(x => DRINK_SLOTS.includes(x.id))) {
     if ((S.log[d] || []).some(e => e.slot === s.id) || skipOf(d, s.id)) continue;
     out[`eat-${d}-${s.id}`] = { at: atTime(d, s.time), title: 'Eating time', tag: 'fork_and_knife', msg: `${s.id} time. Protein first, small bites, slowly.` };
@@ -2058,8 +2071,8 @@ function openSettings() {
   const body = dialog(`<h2>Settings</h2>
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
-    <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water ml</label><input name="waterMl" inputmode="numeric" value="${s.waterMl || s.water * 250}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
-    <label>Glass size, ml (one water tap)</label><input name="glassMl" inputmode="numeric" value="${s.glassMl || 250}">
+    <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water L</label><input name="waterL" inputmode="decimal" value="${(s.waterMl || s.water * 250) / 1000}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
+    <label>Glass size, L (one water tap)</label><input name="glassL" inputmode="decimal" value="${(s.glassMl || 250) / 1000}">
     <label>Starting comfortable meal size, g (the app learns from your taps)</label><input name="portionStart" inputmode="numeric" value="${s.portionStart}">
     <h3>Jonas portions</h3>
     <div class="row"><div class="grow"><label>Dinner kcal</label><input name="jonasDinner" inputmode="numeric" value="${s.jonasDinner}"></div><div class="grow"><label>Lunch kcal</label><input name="jonasLunch" inputmode="numeric" value="${s.jonasLunch}"></div></div>
@@ -2070,7 +2083,8 @@ function openSettings() {
     <h3>Backup</h3><p class="muted small">Your data lives on this phone only. Download a backup now and then.</p>
     <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
     <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}.</p>`, b => {
-    for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'waterMl', 'glassMl', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k] || (k === 'glassMl' ? 250 : 0);
+    for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k];
+    s.waterMl = Math.round(num(b.waterL.value) * 1000) || s.waterMl; s.glassMl = Math.round(num(b.glassL.value) * 1000) || s.glassMl || 250;
     s.water = Math.max(1, Math.ceil(s.waterMl / s.glassMl)); // taps (glasses) to reach the ml goal
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }
   });
@@ -2084,6 +2098,8 @@ function openSettings() {
         const cards = blocks.flatMap(d => Array.isArray(d) ? d : d.kind === 'organiser-cards' ? d.cards || [] : []);
         if (cards.length) { const r = importCards(cards); cardsToast(r); go('cards'); return; }
         const d = blocks[0];
+        const tr = blocks.filter(x => x.kind === 'organiser-train');
+        if (tr.length) { const r = tr.map(importTrain).reduce((a, x) => ({ ex: a.ex + x.ex, ses: a.ses + x.ses, wk: a.wk + x.wk })); toast(`${r.ex} exercises · ${r.ses} sessions${r.wk ? ` · ${r.wk} days planned` : ''} ✓`); go('train'); return; }
         if (d.kind === 'organiser-goals' && d.goals) { const n = mergeGoals(d.goals); toast(n ? `${n} goals added or updated ✓` : 'Those goals are already in'); go('goals'); return; }
         if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
     }, 'Import'); };
