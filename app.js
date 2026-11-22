@@ -733,16 +733,50 @@ function reportDialog(mon = addDays(monday(today()), -7)) {
   $$('[data-rw]', body).forEach(b => b.onclick = e => { e.preventDefault(); reportDialog(addDays(mon, +b.dataset.rw)); });
 }
 
+// ---------- WAKE-UP ----------
+// S.body.wake = { day: 'HH:MM' }, target S.settings.wakeBy (default 07:00, 10 min grace).
+// Streak = on-time days in a row; today doesn't break it until it's logged late.
+const WAKE_GRACE = 10;
+const wakeBy = () => S.settings.wakeBy || '07:00';
+const mins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const onTime = d => { const t = (B().wake || {})[d]; return !!t && mins(t) <= mins(wakeBy()) + WAKE_GRACE; };
+function wakeStreak(to = today()) {
+  let d = to, n = 0;
+  if (!(B().wake || {})[d]) d = addDays(d, -1);
+  while (onTime(d)) { n++; d = addDays(d, -1); }
+  return n;
+}
+function ensureWakeGoal() {
+  const L = G().list; if (L.some(g => g.track === 'wake')) return;
+  L.push({ id: 'wake7', icon: '🌅', title: 'Wake up at 7:00', track: 'wake', start: 0, target: 21, unit: 'days', log: [],
+    s: 'Up by 7:00 every day', m: '21 days in a row, logged on Today', a: 'Phone across the room, bed by 23:00', r: 'Calm mornings, time for the gym and breakfast' });
+  save();
+}
+function wakeCard(d) {
+  const t = (B().wake || {})[d], st = wakeStreak(d), by = wakeBy();
+  if (!t) return d === today() ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}${st ? ` · 🔥 ${st} day streak` : ''}</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNow">I'm up</button><button class="mini ghost" id="wakeSet">Set time</button></div></div>` : '';
+  const ok = onTime(d);
+  return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}</div><div>🌅 ${t} ${ok ? '✓' : '<span class="muted small">late</span>'} · ${st >= 21 ? '🏆 21 days!' : `🔥 ${st}/21`}</div></div><button class="mini ghost" id="wakeSet">Edit</button></div></div>`;
+}
+function bindWake(v, d) {
+  const w = () => (B().wake ||= {});
+  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); save(); render(); toast(onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : 'Logged. Tomorrow is a new start'); };
+  const e = $('#wakeSet', v); if (e) e.onclick = () => dialog(`<h2>Woke up</h2><label>Time</label><input type="time" name="t" value="${w()[d] || wakeBy()}"><label>Goal time</label><input type="time" name="by" value="${wakeBy()}">${w()[d] ? '<p><button class="mini del" id="wakeDel">Remove</button></p>' : ''}`, f => {
+    if (f.t.value) w()[d] = f.t.value; if (f.by.value) S.settings.wakeBy = f.by.value; ensureWakeGoal(); });
+  const del = $('#wakeDel'); if (del) del.onclick = ev => { ev.preventDefault(); delete w()[d]; save(); closeDlg(); render(); };
+}
+
 // ---------- GOALS ----------
 // S.goals = { list:[goal], board:[{id,img,cap,goal,done}] }
 // goal = { id, icon, title, s, m, a, r, due, track:'weight'|'smoke'|'manual'|'check', start, target, unit, log:[{d,v}], checks:[names], ticks:{'YYYY-MM':[i]}, done, sort }
 // No points: progress is the reward (flags on the bar, streaks, how far you've come, photos).
 const G = () => { const g = S.goals ||= {}; g.list ||= []; g.board ||= []; return g; };
-const TRACKS = { weight: 'Weight (reads Body)', smoke: 'Smoke-free days (reads Body)', manual: 'A number I log', check: 'Monthly checklist' };
+const TRACKS = { weight: 'Weight (reads Body)', smoke: 'Smoke-free days (reads Body)', manual: 'A number I log', check: 'Monthly checklist', wake: 'Wake-up streak (reads Today)' };
 const ym = d => d.slice(0, 7);
 function goalNow(g) {
   if (g.track === 'weight') { const ds = Object.keys(B().weights).sort(), last = ds[ds.length - 1]; return last ? r1(avgW(last) || B().weights[last]) : null; }
   if (g.track === 'smoke') return B().smoke ? daysBetween(B().smoke.since, today()) : null;
+  if (g.track === 'wake') return wakeStreak();
   if (g.track === 'check') { const n = (g.checks || []).length; if (!n) return null; const t = g.ticks || {}, m = Object.keys(t).sort().pop(); return m ? Math.round(t[m].length / n * 100) : 0; }
   const l = (g.log || []).slice().sort((a, b) => a.d.localeCompare(b.d)); return l.length ? l[l.length - 1].v : null;
 }
@@ -760,6 +794,7 @@ function goalPct(g) {
 function goalFlags(g) {
   const a = goalStart(g), b = goalTarget(g); if (a == null || b == null || a === b) return [];
   if (g.track === 'weight') { const out = [], dir = b < a ? -1 : 1; for (let k = 2; k < Math.abs(b - a); k += 2) out.push(k); return out.map(k => ({ v: r1(a + dir * k), p: k / Math.abs(b - a), label: `${dir < 0 ? '−' : '+'}${k} kg (${r1(a + dir * k)})` })); }
+  if (g.track === 'wake') return [7, 14].filter(x => x < b).map((x, i) => ({ v: x, p: x / b, label: `${i + 1} week${i ? 's' : ''}` }));
   return [.25, .5, .75].map(p => { const v = r1(a + (b - a) * p); return { v, p, label: g.track === 'check' || g.unit === '%' ? v + '%' : v + (g.unit ? ' ' + g.unit : '') }; });
 }
 // weeks in a row with something logged (manual / checklist goals)
@@ -778,7 +813,8 @@ function goalLine(g) {
     const lost = r1(a - c), left = r1(c - b);
     bits.push(`<b>${c} kg</b> (7-day avg)`, lost > 0 ? `−${lost} kg so far` : 'Starting line', left > 0 ? `${left} to go` : 'Target reached 🎉');
     if (g.due && left > 0) { const wks = Math.max(1, daysBetween(today(), g.due) / 7); bits.push(`~${r1(left / wks)} kg/week needed`); }
-  } else if (g.track === 'smoke') bits.push(`<b>${c} days</b> smoke-free`, `best ${Math.max(B().smoke.best || 0, c)}`);
+  } else if (g.track === 'wake') bits.push(`<b>${c} day${c === 1 ? '' : 's'}</b> in a row up by ${wakeBy()}`, `target ${b}`);
+  else if (g.track === 'smoke') bits.push(`<b>${c} days</b> smoke-free`, `best ${Math.max(B().smoke.best || 0, c)}`);
   else if (g.track === 'check') bits.push(`<b>${c}%</b> this month's test`);
   else bits.push(`<b>${c}${u}</b> now`, `started at ${a}${u}`, `target ${b}${u}`);
   return bits.join(' · ');
@@ -974,6 +1010,7 @@ VIEWS.today = () => {
   const ws = warnings(d), pl = portionLimit();
   return `${dayBar()}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
+  ${wakeCard(d)}
   <div class="card">${bars(tot)}</div>
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
@@ -993,7 +1030,7 @@ function mealSummary(d) {
     return `<li><div class="grow">${s.id}<div class="muted small">${s.time}${t.kcal ? ` · ${r0(t.kcal)} kcal · P ${r0(t.p)} g` : ''}</div></div>${f ? `<span class="chip sm">${FULL.find(x => x[0] === f)[1]}</span>` : ''}${t.kcal ? '<span class="ok">✓</span>' : ''}</li>`; }).join('')}${(() => { const u = sumM(es.filter(e => e.slot === UNPL)); return u.kcal ? `<li><div class="grow">Unplanned<div class="muted small">${r0(u.kcal)} kcal</div></div></li>` : ''; })()}</ul>`;
 }
 BIND.today = v => {
-  bindDayBar(v); bindWater(v); bindCat(v, UI.day);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
   const orp = $('#openRep', v); if (orp) orp.onclick = () => reportDialog();
@@ -1835,6 +1872,7 @@ function openSettings() {
 
 // ---------- start ----------
 migratePlan(); save();
+ensureWakeGoal();
 render();
 syncFoodData();
 loadTrainSeed();
