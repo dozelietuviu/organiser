@@ -1808,14 +1808,24 @@ function canMakeDialog() {
 }
 
 // ---------- SHOPPING ----------
-function shoppingNeeds() {
+// days the Shop list covers: this week = the next 7 days from today (so on Sunday it already shows next week's meals),
+// another week = that week's 7 days
+const shopDays = () => UI.week === monday(today()) ? Array.from({ length: 7 }, (_, i) => addDays(today(), i))
+  : UI.week < monday(today()) ? [] : Array.from({ length: 7 }, (_, i) => addDays(UI.week, i));
+// emergency = only what one day needs: its breakfast, a lunch that isn't leftovers, its dinner
+// (plus tomorrow's lunch if that's tonight's leftovers), and the set snacks
+function shoppingNeeds(days = shopDays(), emergency = false) {
   const need = {}; // foodId -> grams
   const add = (c, mult) => { for (const i of c.items) need[i.foodId] = (need[i.foodId] || 0) + i.g * mult; };
-  const from = UI.week < monday(today()) ? UI.week : (UI.week === monday(today()) ? today() : UI.week);
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(UI.week, i); if (d < from) continue;
-    const p = S.plan[d]; if (!p) continue;
-    for (const slot of PLAN_SLOTS) { if (isCooked(d, slot)) continue; for (const c of mealCards(d, slot)) add(c, portions(d, slot, c)); if (slot === 'Dinner') for (const id of p.extras || []) { const x = cardById(id); x && add(x, 1); } }
+  for (const d of days) {
+    const p = S.plan[d] || {};
+    for (const slot of PLAN_SLOTS) {
+      if (isCooked(d, slot) || (emergency && slot === 'Lunch' && (p.left || {}).Lunch)) continue;
+      for (const c of mealCards(d, slot)) add(c, portions(d, slot, c));
+      if (slot === 'Dinner') { for (const id of p.extras || []) { const x = cardById(id); x && add(x, 1); }
+        const n = addDays(d, 1), np = S.plan[n] || {};
+        if (emergency && (np.left || {}).Lunch && !isCooked(n, 'Lunch')) for (const c of mealCards(n, 'Lunch')) add(c, portions(n, 'Lunch', c)); }
+    }
     for (const slot of ['Pre-workout', 'Snack']) { const c = cardById(S.settings.fixed[slot]); if (c) add(c, 1); }
   }
   // cooked foods (e.g. cooked buckwheat) are bought dry: convert, after using what's already cooked in the pantry
@@ -1864,7 +1874,8 @@ VIEWS.shop = () => {
   const total = items.reduce((a, x) => a + (x.cost || 0), 0) + xTotal, missing = items.filter(x => !x.cost).length;
   const ticked = S.bought[UI.week] || {};
   return `<div class="row daybar"><button class="mini" data-wk="-7">‹</button><div class="grow center">Week of ${fmtDay(UI.week)}</div><button class="mini" data-wk="7">›</button></div>
-  <p class="muted small">From the meals you've planned (your portions + Jonas's), minus what's in the pantry.</p>
+  <p class="muted small">${UI.week === monday(today()) ? 'The next 7 days' : 'This week'} of planned meals (your portions + Jonas's), minus what's in the pantry.</p>
+  <div class="row gap"><span class="muted small grow">🚨 Emergency shop</span><button class="mini" data-emg="0">Today</button><button class="mini" data-emg="1">Tomorrow</button></div>
   ${byShop.length ? byShop.map(([s, l]) => { const st = l.reduce((a, x) => a + (x.cost || 0), 0);
     return `<div class="card"><div class="row"><h2 class="grow">${s}</h2><span class="muted">${st ? '≈ ' + eur(st) : ''}</span></div><ul class="list">${l.map(x => `<li class="${ticked[x.f.id] ? 'done' : ''}"><input type="checkbox" data-buy="${x.f.id}" ${ticked[x.f.id] ? 'checked' : ''}><div class="grow">${esc(sn(x.f))}<div class="muted small">${x.packs ? `${x.packs} × ${x.f.packG} g` : amountText(x.f, x.g)}${x.cost ? ' · ≈ ' + eur(x.cost) : ''}</div></div></li>`).join('')}</ul></div>`; }).join('')
     : '<div class="card"><p class="muted">Nothing to buy. Plan some meals first, or your pantry already covers them.</p></div>'}
@@ -1878,7 +1889,15 @@ VIEWS.shop = () => {
     ${missing ? `<div class="muted small right">${missing} item${missing > 1 ? 's have' : ' has'} no price yet.<br>Send me your receipts monthly.</div>` : ''}</div>
     ${Object.values(ticked).some(Boolean) ? '<button class="primary" id="putAway">Put ticked items in the pantry</button>' : ''}</div>`;
 };
+function emergencyDialog(d) {
+  const items = shoppingNeeds([d], true), total = items.reduce((a, x) => a + (x.cost || 0), 0);
+  const byShop = SHOPS.map(s => [s, items.filter(x => (x.f.shop || 'Lidl') === s)]).filter(([, l]) => l.length);
+  const meals = PLAN_SLOTS.map(sl => [sl, mealCards(d, sl)]).filter(([, l]) => l.length).map(([sl, l]) => `${sl}: ${l.map(c => esc(c.name)).join(' + ')}`).join(' · ');
+  dialog(`<h2>🚨 Shop for ${d === today() ? 'today' : 'tomorrow'}</h2><p class="muted small">${meals || 'Nothing planned that day.'}</p>
+    ${byShop.length ? byShop.map(([s, l]) => `<h3>${s}</h3><ul class="list">${l.map(x => `<li><div class="grow">${esc(sn(x.f))}<div class="muted small">${r0(x.g)} g needed${x.packs ? ` · ${x.packs} pack${x.packs > 1 ? 's' : ''}` : ''}</div></div><span class="muted">${x.cost ? eur(x.cost) : ''}</span></li>`).join('')}</ul>`).join('') + `<p class="right"><b>≈ ${eur(total)}</b></p>` : '<p>Your pantry already covers it ✓</p>'}`, null);
+}
 BIND.shop = v => {
+  $$('[data-emg]', v).forEach(b => b.onclick = () => emergencyDialog(addDays(today(), +b.dataset.emg)));
   $$('[data-wk]', v).forEach(b => b.onclick = () => { UI.week = addDays(UI.week, +b.dataset.wk); render(); });
   $$('[data-buy]', v).forEach(c => c.onchange = () => { const t = S.bought[UI.week] ||= {}; t[c.dataset.buy] = c.checked; save(); render(); });
   const addX = (name, extra = {}) => { S.extras ||= []; const ex = extra.key && S.extras.find(x => xName(x) === name); if (ex) { S.extras = S.extras.filter(x => x !== ex); toast('Taken off'); } else S.extras.push(Object.assign({ id: uid(), name, qty: 1, cat: 'Misc' }, extra)); save(); render(); };
