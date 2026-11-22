@@ -1494,7 +1494,7 @@ function cardDialog(c) {
     <h3>Your portion</h3>${itemsEditor(c.items || [])}
     <p class="muted" id="sum"></p>
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
-      <label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"></div>
+      <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div></div>
     <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
     <label>Note (optional)</label><input name="note" value="${esc(c.note || '')}">
     ${isNew ? '' : '<p class="row gap"><button class="mini" id="dupCard">Duplicate</button><button class="del mini" id="delCard">Delete card</button></p>'}`, b => {
@@ -1508,7 +1508,9 @@ function cardDialog(c) {
   const upd = () => {
     const items = readItems(body), t = itemsTotals(items);
     const tmp = { items, jonas: body.jonas.checked, jonasKcal: num(body.jk.value), slot: body.slot.value }, k = jonasFactor(tmp);
-    $('#sum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g` + (k ? ` · Jonas ×${r1(k)}` : '');
+    $('#sum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g` ;
+    $('#jkbox', body).classList.toggle('hidden', !body.jonas.checked);
+    $('#jsum', body).textContent = k ? `Jonas gets about ${r0(t.kcal * k)} kcal (${r1(k)}× your portion, about ${r0(items.reduce((a, i) => a + i.g, 0) * k)} g). In Plan, set For: Jonas or Both to cook it and add it to the shopping list.` : '';
     $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', 'Extra'].includes(body.slot.value));
   };
   bindItems(body, null, upd); body.slot.onchange = upd; body.jonas.onchange = upd; body.jk.oninput = upd;
