@@ -38,7 +38,7 @@ const SLOT_IDS = SLOTS.map(s => s.id);
 const PLAN_SLOTS = ['Breakfast', 'Lunch', 'Dinner'];
 // unplanned eating: logged with a reason so patterns can be spotted (no guilt, just info)
 const UNPL = 'Unplanned';
-const SKIP = [['full', 'Still full'], ['nothungry', 'Not hungry'], ['busy', 'Busy / not a good time']];
+const SKIP = [['full', 'Still full'], ['nothungry', 'Not hungry'], ['busy', 'Busy / not a good time'], ['asleep', '😴 Still asleep']];
 const skipOf = (d, slot) => ((S.day[d] || {}).skip || {})[slot];
 function skipDialog(slot) {
   const body = dialog(`<h2>Skip ${slot.toLowerCase()}?</h2><p class="muted small">Why? It helps spot patterns.</p>
@@ -758,12 +758,24 @@ function wakeCard(d) {
   const ok = onTime(d);
   return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}</div><div>🌅 ${t} ${ok ? '✓' : '<span class="muted small">late</span>'} · ${st >= 21 ? '🏆 21 days!' : `🔥 ${st}/21`}</div></div><button class="mini ghost" id="wakeSet">Edit</button></div></div>`;
 }
+// meals whose time was before you woke up are marked skipped ("Still asleep"); moving the wake time earlier undoes it
+function wakeSkips(d) {
+  const t = (B().wake || {})[d]; if (!t) return [];
+  const dd = S.day[d] ||= {}, sk = dd.skip ||= {}, out = [];
+  for (const sl of SLOTS) {
+    // breakfast moves to when you wake, unless lunch is under 2 h away
+    const before = sl.id === 'Breakfast' ? mins(SLOTS.find(x => x.id === 'Lunch').time) - mins(t) < 120 : mins(sl.time) < mins(t), eaten = (S.log[d] || []).some(e => e.slot === sl.id);
+    if (before && !eaten && !sk[sl.id]) { sk[sl.id] = 'asleep'; out.push(sl.id); }
+    if (!before && sk[sl.id] === 'asleep') delete sk[sl.id];
+  }
+  return out;
+}
 function bindWake(v, d) {
   const w = () => (B().wake ||= {});
-  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); save(); render(); toast(onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : 'Logged. Tomorrow is a new start'); };
+  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); const sk = wakeSkips(d); save(); render(); toast(onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : `Logged${sk.length ? '. Skipped ' + sk.join(', ') : ''}. Tomorrow is a new start`); };
   const e = $('#wakeSet', v); if (e) e.onclick = () => dialog(`<h2>Woke up</h2><label>Time</label><input type="time" name="t" value="${w()[d] || wakeBy()}"><label>Goal time</label><input type="time" name="by" value="${wakeBy()}">${w()[d] ? '<p><button class="mini del" id="wakeDel">Remove</button></p>' : ''}`, f => {
-    if (f.t.value) w()[d] = f.t.value; if (f.by.value) S.settings.wakeBy = f.by.value; ensureWakeGoal(); });
-  const del = $('#wakeDel'); if (del) del.onclick = ev => { ev.preventDefault(); delete w()[d]; save(); closeDlg(); render(); };
+    if (f.t.value) w()[d] = f.t.value; if (f.by.value) S.settings.wakeBy = f.by.value; ensureWakeGoal(); const sk = wakeSkips(d); if (sk.length) toast('Skipped ' + sk.join(', ') + ' (asleep)'); });
+  const del = $('#wakeDel'); if (del) del.onclick = ev => { ev.preventDefault(); delete w()[d]; const sk = (S.day[d] || {}).skip || {}; for (const k of Object.keys(sk)) if (sk[k] === 'asleep') delete sk[k]; save(); closeDlg(); render(); };
 }
 
 // ---------- GOALS ----------
