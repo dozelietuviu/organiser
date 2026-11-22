@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-22c",
+ "updated": "2026-11-22d",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -2220,6 +2220,114 @@
     {
      "food": "Hard cheese, aged 12 months",
      "g": 8
+    }
+   ]
+  },
+  {
+   "key": "snk-chickenbox",
+   "name": "Chicken tzatziki snack box",
+   "slot": "Snack",
+   "stars": 4,
+   "jonas": false,
+   "note": "Office box, prep 3 on Sunday or Tuesday: bake or pan-fry the chicken, slice it, add cucumber and cherry tomatoes. Dip in a small pot: yoghurt, dill, a little garlic, salt. Fridge 3 days, eat cold.",
+   "items": [
+    {
+     "food": "Chicken fillet XXL, raw (Vištienos filė)",
+     "g": 90
+    },
+    {
+     "food": "Long cucumber",
+     "g": 80
+    },
+    {
+     "food": "Cherry tomatoes",
+     "g": 60
+    },
+    {
+     "food": "Greek yoghurt 2%",
+     "g": 40
+    },
+    {
+     "food": "Dill (Krapai)",
+     "g": 2
+    }
+   ]
+  },
+  {
+   "key": "snk-tunapot",
+   "name": "Tuna sweetcorn pot + rice cake",
+   "slot": "Snack",
+   "stars": 4,
+   "jonas": false,
+   "note": "Office pot: tuna mixed with yoghurt, sweetcorn and chopped pickles, pepper. Rice cake packed separately so it stays crunchy. Fridge 2 days.",
+   "items": [
+    {
+     "food": "Tuna in water, drained",
+     "g": 80
+    },
+    {
+     "food": "Greek yoghurt 2%",
+     "g": 30
+    },
+    {
+     "food": "Canned sweetcorn",
+     "g": 30
+    },
+    {
+     "food": "Pickled cucumbers",
+     "g": 20
+    },
+    {
+     "food": "Rice cakes",
+     "g": 8
+    }
+   ]
+  },
+  {
+   "key": "snk-varske",
+   "name": "Savoury cottage cheese pot",
+   "slot": "Snack",
+   "stars": 3,
+   "jonas": false,
+   "note": "Grab a pot of cottage cheese grains and add a box of cherry tomatoes and cucumber with dill, salt and pepper. Nothing to cook.",
+   "items": [
+    {
+     "food": "Cottage cheese grains (Varškė grūdeliais)",
+     "g": 180
+    },
+    {
+     "food": "Cherry tomatoes",
+     "g": 50
+    },
+    {
+     "food": "Long cucumber",
+     "g": 50
+    },
+    {
+     "food": "Dill (Krapai)",
+     "g": 2
+    }
+   ]
+  },
+  {
+   "key": "snk-eggham",
+   "name": "Egg & ham protein box",
+   "slot": "Snack",
+   "stars": 3,
+   "jonas": false,
+   "note": "Boil 6-8 eggs on Sunday (9 min), peel, fridge up to 4 days. Box: 2 eggs, 2 slices of ham rolled up, cucumber sticks, salt and pepper.",
+   "items": [
+    {
+     "food": "Eggs ML (Kiaušiniai)",
+     "g": 100
+    },
+    {
+     "food": "Cooked pork ham, sliced (Kumpis)",
+     "g": 40
+    },
+    {
+     "food": "Long cucumber",
+     "g": 60
     }
    ]
   }
