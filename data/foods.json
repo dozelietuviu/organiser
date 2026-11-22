@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-22a",
+ "updated": "2026-11-22b",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -2084,10 +2084,122 @@
    "cat": "Food",
    "su": "g",
    "suG": 1
+  },
+  {
+   "key": "nori",
+   "name": "Nori sheets",
+   "sname": "Nori",
+   "kcal": 330,
+   "p": 41,
+   "c": 40,
+   "f": 3,
+   "fib": 33,
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "packG": 11,
+   "price": 1.99,
+   "cat": "Food",
+   "su": "g",
+   "suG": 1
+  },
+  {
+   "key": "rice-cakes",
+   "name": "Rice cakes",
+   "sname": "Rice cakes",
+   "kcal": 387,
+   "p": 8,
+   "c": 81,
+   "f": 2.8,
+   "fib": 3.5,
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "unit": "cake",
+   "unitG": 8,
+   "packG": 130,
+   "price": 0.99,
+   "cat": "Food",
+   "su": "g",
+   "suG": 1
   }
  ],
  "removed": [
   "kefir-yog",
   "bifido-yog"
+ ],
+ "cards": [
+  {
+   "key": "pre-onigiri",
+   "name": "Tuna onigiri",
+   "slot": "Pre-workout",
+   "stars": 4,
+   "jonas": false,
+   "note": "Grab and go: wrap in cling film, fridge up to 2 days. Make 4-6 at once: mix tuna, a little mayo and soy; fill a ball of cooked rice, squeeze into a triangle, wrap a strip of nori just before eating so it stays crisp.",
+   "items": [
+    {
+     "food": "Rice, white cooked",
+     "g": 75
+    },
+    {
+     "food": "Tuna in water, drained",
+     "g": 30
+    },
+    {
+     "food": "Hellmann's mayonnaise",
+     "g": 3
+    },
+    {
+     "food": "Soy sauce",
+     "g": 3
+    },
+    {
+     "food": "Nori sheets",
+     "g": 2
+    }
+   ]
+  },
+  {
+   "key": "pre-ricecake",
+   "name": "PB banana rice-cake sandwich",
+   "slot": "Pre-workout",
+   "stars": 3,
+   "jonas": false,
+   "note": "Grab and go: 2 rice cakes with a thin layer of peanut butter and banana slices in between. Wrap in foil. Best made the night before.",
+   "items": [
+    {
+     "food": "Rice cakes",
+     "g": 16
+    },
+    {
+     "food": "Peanut butter",
+     "g": 8
+    },
+    {
+     "food": "Banana",
+     "g": 40
+    }
+   ]
+  },
+  {
+   "key": "pre-oatbites",
+   "name": "Banana protein oat bites (2)",
+   "slot": "Pre-workout",
+   "stars": 4,
+   "jonas": false,
+   "note": "Batch of 20 bites: mash 300 g banana, mix in 200 g oats and 80 g protein powder (splash of milk if dry). Roll into 20 balls, bake 15 min at 180°C. Fridge 5 days or freeze. 2 bites = 1 serving.",
+   "items": [
+    {
+     "food": "Oats",
+     "g": 20
+    },
+    {
+     "food": "Banana",
+     "g": 30
+    },
+    {
+     "food": "Protein shake powder (check label)",
+     "g": 8
+    }
+   ]
+  }
  ]
 }

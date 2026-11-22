@@ -127,6 +127,10 @@ async function syncFoodData() {
     S.regulars = j.regulars || [];
     S.dataUpdated = j.updated; save();
     if (firstRun) seedCards();
+    // cards Claude adds for you: added once by key, never overwrite a card with the same name
+    S.cardsAdded ||= {};
+    for (const c of j.cards || []) { if (S.cardsAdded[c.key]) continue; S.cardsAdded[c.key] = 1; if (!S.cards.some(x => x.name.toLowerCase() === c.name.toLowerCase())) importCards([c]); }
+    save();
     render();
   } catch {}
 }
