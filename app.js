@@ -1454,10 +1454,48 @@ function foodDialog(f, logAfter = false, onSaved) {
 }
 
 // ---------- CARDS + recipes ----------
+// ---------- CARD BALANCE CHECK (Cards tab) ----------
+// Rules from the targets: a meal is 380-480 kcal, 30 g+ protein, 6 g+ fibre, max 400 g; a snack 20 g+ protein;
+// pre-workout light (under 180 kcal). Shuffle needs about 10 meals so a week never repeats last week.
+const PROT_NAMES = { chicken: 'chicken', beef: 'beef', pork: 'pork', fish: 'fish', egg: 'eggs', dairy: 'cottage cheese / yoghurt', veg: 'veggie (tofu, lentils, beans)' };
+function cardReview() {
+  const by = t => S.cards.filter(c => c.slot === t), meals = by('Meal'), tips = [], fixes = [];
+  const T = c => cardTotals(c), G = c => cardGrams(c);
+  if (meals.length < 10) tips.push(`Add ${10 - meals.length} more meal${10 - meals.length > 1 ? 's' : ''}. Shuffle needs about 10 so a week never repeats last week (you have ${meals.length}).`);
+  const groups = {}; for (const c of meals) { const g = protGroup(c); groups[g] = (groups[g] || 0) + 1; }
+  const missing = ['chicken', 'beef', 'fish', 'veg'].filter(g => !groups[g]);
+  if (missing.length) tips.push(`No ${missing.map(g => PROT_NAMES[g]).join(', ')} meal yet. Shuffle avoids the same meat two nights running, so more variety helps.`);
+  const top = Object.entries(groups).sort((a, b) => b[1] - a[1])[0];
+  if (top && meals.length >= 4 && top[1] / meals.length > 0.5) tips.push(`${top[1]} of ${meals.length} meals are ${PROT_NAMES[top[0]] || top[0]}. Add a different protein.`);
+  for (const c of meals) { const t = T(c), g = G(c), w = [];
+    if (t.p < 30) w.push(`${r0(t.p)} g protein (aim 30+)`);
+    if (t.kcal > 520) w.push(`${r0(t.kcal)} kcal (aim 380-480)`); else if (t.kcal < 330) w.push(`only ${r0(t.kcal)} kcal`);
+    if (g > 400) w.push(`${r0(g)} g (over your 400 g)`);
+    if (t.fib < 6) w.push(`${r1(t.fib)} g fibre (aim 6+)`);
+    if (w.length) fixes.push([c, w]); }
+  for (const c of by('Snack')) { const t = T(c); if (t.p < 20 && c.id !== S.settings.fixed.Snack && !/nut mix/i.test(c.name)) fixes.push([c, [`${r0(t.p)} g protein (snacks aim 20+)`]]); }
+  for (const c of by('Pre-workout')) { const t = T(c); if (t.kcal > 180) fixes.push([c, [`${r0(t.kcal)} kcal (pre-workout aim under 180)`]]); }
+  if (by('Breakfast').length < 2) tips.push('Only one breakfast. Shuffle uses the same one all week. Add a second for variety if you want it.');
+  if (by('Snack').length < 3) tips.push('Add a few more snack cards with 20 g+ protein.');
+  if (!meals.some(c => /soup/i.test(c.name))) tips.push('No soup in Meals. Soups are gentle on the sleeve for late dinners.');
+  const pmsOk = meals.filter(c => T(c).fib >= 8 && T(c).p >= 30).length;
+  if (pmsOk < 2) tips.push('Add 2 extra-filling meals (8 g+ fibre, 30 g+ protein) for the PMS week when you are hungrier.');
+  return { tips, fixes, groups, n: meals.length };
+}
+function reviewCard() {
+  const r = cardReview(), cnt = r.tips.length + r.fixes.length;
+  const mix = Object.entries(r.groups).map(([g, n]) => `${PROT_NAMES[g] || g} ${n}`).join(' · ');
+  return `<details class="card"><summary>🔍 Balance check ${cnt ? `<span class="muted small">· ${cnt} note${cnt > 1 ? 's' : ''}</span>` : '<span class="muted small">· all good ✓</span>'}</summary>
+    <p class="muted small">${r.n} meal${r.n === 1 ? "" : "s"}${mix ? ': ' + mix : ''}</p>
+    ${r.tips.length ? `<h3>To add</h3><ul class="list">${r.tips.map(t => `<li><div class="grow small">${t}</div></li>`).join('')}</ul>` : ''}
+    ${r.fixes.length ? `<h3>To adjust</h3><ul class="list">${r.fixes.map(([c, w]) => `<li data-edit="${c.id}"><div class="grow">${esc(c.name)}<div class="muted small">${w.join(' · ')}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}
+  </details>`;
+}
 VIEWS.cards = () => {
   const groups = CARD_TYPES.map(t => [t, S.cards.filter(c => c.slot === t).sort((a, b) => (b.stars || 0) - (a.stars || 0) || a.name.localeCompare(b.name))]);
   const recipes = S.foods.filter(f => f.kind === 'recipe');
   return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Meals can be cooked for lunch or dinner and include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
+  ${reviewCard()}
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
     ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
