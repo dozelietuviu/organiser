@@ -1249,7 +1249,8 @@ BIND.log = v => {
   $$('[data-full]', v).forEach(b => b.onclick = () => { const [slot, k] = b.dataset.full.split('|'); const dd = S.day[UI.day] ||= {}; dd.full ||= {}; dd.full[slot] = dd.full[slot] === k ? undefined : k; save(); render(); });
 };
 function pickForSlot(slot) {
-  const cards = S.cards.filter(c => c.slot === cardType(slot)).sort((a, b) => (b.stars || 0) - (a.stars || 0));
+  // cards for this meal first, then snack cards (toppings like the nut mix go with any meal)
+  const cards = S.cards.filter(c => c.slot === cardType(slot) || c.slot === 'Snack').sort((a, b) => (b.slot === cardType(slot)) - (a.slot === cardType(slot)) || (b.stars || 0) - (a.stars || 0));
   const body = dialog(`<h2>Add to ${slot}</h2>
     ${cards.length ? `<h3>Cards</h3><ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} g</div></div><span>›</span></li>`).join('')}</ul>` : ''}
     <h3>Food</h3><input name="q" placeholder="Search foods" autocomplete="off"><div id="sres"></div><div id="sshop"></div>
