@@ -63,7 +63,9 @@ label.tick input { width: 18px; height: 18px; }
 .tabs { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: rgba(9, 27, 39, .96); backdrop-filter: blur(8px);
   border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
 .tabs button { flex: 1; background: none; border: 0; border-radius: 0; padding: 8px 0 10px; font-size: .72rem; color: var(--muted); }
-.tabs button span { display: block; font-size: 1.2rem; }
+.tabs button span { display: block; font-size: 1.2rem; height: 26px; }
+.tabs button span svg { display: block; margin: 0 auto 2px; }
+.tabs button.on svg { filter: drop-shadow(0 0 6px rgba(94, 214, 196, .55)); }
 .tabs button.on { color: var(--accent); }
 
 .seg { display: flex; gap: 4px; margin-bottom: 12px; background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 4px; }

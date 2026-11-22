@@ -56,7 +56,10 @@ const WHY_TIP = {
   hungry: 'Too long between meals. Keep gaps under 5 hours and make the meal before more filling.',
 };
 const UNPL_PRESETS = ['Slice of cake', 'Donut', 'Cinnamon bun', 'Chocolate bar', 'Crisps', 'Biscuits', 'Burger', 'Pizza', 'Flavoured latte', 'Glass of wine', 'Ice cream'].map(n => [n]);
-const CARD_TYPES = ['Pre-workout', 'Breakfast', 'Meal', 'Snack', 'Extra'];
+const CARD_TYPES = ['Pre-workout', 'Breakfast', 'Meal', 'Snack', 'Extra', 'Dessert'];
+const JONAS_ONLY = ['Extra', 'Dessert'];
+// cook days with time for 60+ min cards (Tue WFH, Thu evening)
+const LONG_DAYS = [2, 4];
 // Meal cards can be cooked for lunch or dinner. Older Lunch/Dinner cards become Meal.
 const cardType = slot => ['Lunch', 'Dinner'].includes(slot) ? 'Meal' : slot;
 const isMeal = c => c && c.slot === 'Meal';
@@ -261,8 +264,8 @@ function bars(tot, d = UI.day) {
     <div class="macros">${bar('Protein', tot.p, s.p, 'g')}${bar('Carbs', tot.c, s.c, 'g')}${bar('Fat', tot.f, s.f, 'g')}${bar('Fibre', tot.fib, s.fib, 'g')}</div>`;
 }
 function waterRow(day) {
-  const w = (S.day[day] || {}).water || 0, n = S.settings.water;
-  return `<div class="row"><div class="grow"><div class="muted small">Water · 250 ml glasses · ${r1(w * .25)} of ${r1(n * .25)} L</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${w}/${n}</b></div>`;
+  const w = (S.day[day] || {}).water || 0, n = S.settings.water, gl = S.settings.glassMl || 250;
+  return `<div class="row"><div class="grow"><div class="muted small">Water · ${gl} ml glasses · ${(w * gl).toLocaleString('en-GB')} of ${(S.settings.waterMl || n * gl).toLocaleString('en-GB')} ml</div><div class="drops">${Array.from({ length: n }, (_, i) => `<button class="drop ${i < w ? 'on' : ''}" data-w="${i + 1}" aria-label="glass ${i + 1}"></button>`).join('')}</div></div><b>${(w * gl).toLocaleString('en-GB')} ml</b></div>`;
 }
 const bindWater = v => $$('[data-w]', v).forEach(b => b.onclick = () => { const dd = S.day[UI.day] ||= {}; const n = +b.dataset.w; dd.water = dd.water === n ? n - 1 : n; dd.waterAt = Date.now(); save(); render(); });
 function nextMeal() {
@@ -1010,7 +1013,7 @@ function importCards(list) {
     if (!items.length) { skipped++; continue; }
     const slot = CARD_TYPES.includes(cardType(c.slot)) ? cardType(c.slot) : 'Meal';
     const note = [c.note, Array.isArray(c.steps) ? c.steps.join(' ') : c.steps].filter(Boolean).join(' · ');
-    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, note };
+    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || num(c.prepMin) >= 60, note };
     if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }
   return { added, updated, skipped, newFoods };
@@ -1497,8 +1500,8 @@ VIEWS.cards = () => {
   const recipes = S.foods.filter(f => f.kind === 'recipe');
   return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Meals can be cooked for lunch or dinner and include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
   ${reviewCard()}
-  ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
-    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
+  ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Dessert' ? 'Desserts <span class="muted small">· Jonas</span>' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
+    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''}${c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
     ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
@@ -1540,11 +1543,12 @@ function cardDialog(c) {
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
       <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div></div>
     <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
+    <label class="row tick"><input type="checkbox" name="long" ${c.long ? 'checked' : ''}> ⏱ Takes 60+ min (shuffle only puts it on Tue or Thu)</label>
     <label>Note (optional)</label><input name="note" value="${esc(c.note || '')}">
     ${isNew ? '' : '<p class="row gap"><button class="mini" id="dupCard">Duplicate</button><button class="del mini" id="delCard">Delete card</button></p>'}`, b => {
     const items = readItems(b); if (!b.name.value.trim() || !items.length) { toast('Add a name and foods'); return false; }
     const o = isNew ? { id: uid() } : c;
-    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, note: b.note.value.trim() });
+    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, long: b.long.checked, note: b.note.value.trim() });
     if (isNew) S.cards.push(o);
     for (const k in S.settings.fixed) if (S.settings.fixed[k] === o.id) delete S.settings.fixed[k];
     if (b.fixed.checked && o.slot !== 'Meal') S.settings.fixed[o.slot] = o.id;
@@ -1555,7 +1559,7 @@ function cardDialog(c) {
     $('#sum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g` ;
     $('#jkbox', body).classList.toggle('hidden', !body.jonas.checked);
     $('#jsum', body).textContent = k ? `Jonas gets about ${r0(t.kcal * k)} kcal (${r1(k)}× your portion, about ${r0(items.reduce((a, i) => a + i.g, 0) * k)} g). In Plan, set For: Jonas or Both to cook it and add it to the shopping list.` : '';
-    $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', 'Extra'].includes(body.slot.value));
+    $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', ...JONAS_ONLY].includes(body.slot.value));
   };
   bindItems(body, null, upd); body.slot.onchange = upd; body.jonas.onchange = upd; body.jk.oninput = upd;
   const del = $('#delCard', body);
@@ -1707,6 +1711,8 @@ function shuffleWeek() {
   const used = new Set(S.cards.filter(c => usedBetween(c, addDays(UI.week, -7), addDays(UI.week, -1))).map(c => c.id));
   const brk = pickCard(S.cards.filter(c => c.slot === 'Breakfast'), { usedSet: used });
   const dinners = S.cards.filter(isMeal);
+  // 60+ min cards only on Tue/Thu; other days get quick ones (or anything if there are no quick ones)
+  const fits = d => { if (LONG_DAYS.includes(parseDay(d).getDay())) return dinners; const q = dinners.filter(c => !c.long); return q.length ? q : dinners; };
   const sun = addDays(UI.week, -1);
   let prev = isCooked(sun, 'Dinner') || mealCards(sun, 'Dinner').length ? mealCards(sun, 'Dinner') : [];
   const fixedP = ['Pre-workout', 'Snack'].reduce((a, s) => a + (cardById(S.settings.fixed[s]) ? cardTotals(cardById(S.settings.fixed[s])).p : 0), 0);
@@ -1715,12 +1721,12 @@ function shuffleWeek() {
     if (brk && !p.cooked.Breakfast) { p.meals.Breakfast = [brk.id]; p.who.Breakfast = WHO_DEFAULT.Breakfast.slice(); }
     if (!p.cooked.Lunch) {
       if (prev.length) { p.meals.Lunch = prev.map(c => c.id); p.left.Lunch = true; }
-      else { const l = pickCard(dinners, { usedSet: used }); p.meals.Lunch = l ? [l.id] : []; p.left.Lunch = false; }
+      else { const l = pickCard(fits(d), { usedSet: used }); p.meals.Lunch = l ? [l.id] : []; p.left.Lunch = false; }
       p.who.Lunch = WHO_DEFAULT.Lunch.slice();
     }
     if (!p.cooked.Dinner) {
       const have = (brk ? cardTotals(brk).p : 0) + mealCards(d, 'Lunch').reduce((a, c) => a + cardTotals(c).p, 0) + fixedP;
-      const c = pickCard(dinners, { prevProt: prev[0] && protGroup(prev[0]), usedSet: used, needP: S.settings.p - have });
+      const c = pickCard(fits(d), { prevProt: prev[0] && protGroup(prev[0]), usedSet: used, needP: S.settings.p - have });
       p.meals.Dinner = c ? [c.id] : []; p.who.Dinner = WHO_DEFAULT.Dinner.slice();
       if (c) used.add(c.id);
     }
@@ -1770,7 +1776,7 @@ BIND.plan = v => {
 };
 function syncLeftFor(d) { const p = dayPlan(d), n = dayPlan(addDays(d, 1)); if (n.left.Lunch) { n.meals.Lunch = (p.meals.Dinner || []).slice(); n.who.Lunch = (p.who.Dinner || WHO_DEFAULT.Dinner).slice(); n.cooked.Lunch = false; } }
 function planPick(d, slot) {
-  const p = dayPlan(d), list = suggest(slot, d), extras = S.cards.filter(c => c.slot === 'Extra');
+  const p = dayPlan(d), list = suggest(slot, d), extras = S.cards.filter(c => JONAS_ONLY.includes(c.slot)).sort((a, b) => a.slot.localeCompare(b.slot));
   p.meals[slot] ||= []; p.who[slot] ||= WHO_DEFAULT[slot].slice();
   const prevDinner = mealCards(addDays(d, -1), 'Dinner');
   const nd = addDays(d, 1), next = dayPlan(nd), main = slot !== 'Breakfast';
@@ -1783,7 +1789,7 @@ function planPick(d, slot) {
     ${slot === 'Lunch' && prevDinner.length ? `<div class="chips"><button class="chip ${p.left.Lunch ? 'on' : ''}" id="leftC">Leftovers: ${prevDinner.map(c => esc(c.name)).join(' + ')}</button></div>` : ''}
     <p class="muted small">Tap one or more cards. Best matches first: what's in your pantry, then your favourites.</p>
     ${list.length ? `<ul class="list">${list.map(({ c, need }) => `<li data-pc="${c.id}" class="${p.meals[slot].includes(c.id) ? 'sel' : ''}"><div class="grow">${p.meals[slot].includes(c.id) ? '✓ ' : ''}${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} · ${need.length ? 'need: ' + need.slice(0, 3).map(f => esc(sn(f))).join(', ') + (need.length > 3 ? '…' : '') : '✓ all in pantry'}</div></div></li>`).join('')}</ul>` : `<p class="muted">No ${slot.toLowerCase()} cards yet. Make one under Cards.</p>`}
-    ${slot === 'Dinner' && extras.length ? `<h3>Jonas extras</h3><div class="chips">${extras.map(x => `<button class="chip ${(p.extras || []).includes(x.id) ? 'on' : ''}" data-ex="${x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+    ${slot === 'Dinner' && extras.length ? `<h3>Jonas extras & desserts</h3><div class="chips">${extras.map(x => `<button class="chip ${(p.extras || []).includes(x.id) ? 'on' : ''}" data-ex="${x.id}">${esc(x.name)}</button>`).join('')}</div>` : ''}
     ${p.meals[slot].length ? '<p><button class="del mini" id="clr">Clear this meal</button></p>' : ''}`, null);
   // "Both" keeps tomorrow's lunch as leftovers of tonight's dinner
   const syncLeft = () => { if (slot === 'Dinner' && next.left.Lunch) { next.meals.Lunch = p.meals.Dinner.slice(); next.who.Lunch = p.who.Dinner.slice(); next.cooked.Lunch = false; } };
@@ -1989,7 +1995,7 @@ function wantedAlerts() {
     if (h >= 8 && h < 22) out.gap = { at, title: 'Time to eat', tag: 'alarm_clock', msg: `${S.settings.gapH} h since you last ate. Have something with protein.` }; } }
   if (a.on.water) { const dd = S.day[d0] || {}, w = dd.water || 0;
     if (w < S.settings.water) { let at = (dd.waterAt || atTime(d0, '08:00')) + 2 * 36e5; if (at < now + 6e4) at = Math.ceil((now + 6e4) / 18e5) * 18e5; const h = new Date(at).getHours();
-      if (h >= 8 && h < 21) out.water = { at, title: 'Water', tag: 'droplet', msg: `Time for a glass. ${w} of ${S.settings.water} so far.` }; } }
+      if (h >= 8 && h < 21) out.water = { at, title: 'Water', tag: 'droplet', msg: `Time for a glass. ${w * (S.settings.glassMl || 250)} of ${S.settings.waterMl || S.settings.water * 250} ml so far.` }; } }
   if (a.on.eat) for (const d of [d0, addDays(d0, 1)]) for (const s of SLOTS.filter(x => DRINK_SLOTS.includes(x.id))) {
     if ((S.log[d] || []).some(e => e.slot === s.id) || skipOf(d, s.id)) continue;
     out[`eat-${d}-${s.id}`] = { at: atTime(d, s.time), title: 'Eating time', tag: 'fork_and_knife', msg: `${s.id} time. Protein first, small bites, slowly.` };
@@ -2052,7 +2058,8 @@ function openSettings() {
   const body = dialog(`<h2>Settings</h2>
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
-    <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water</label><input name="water" inputmode="numeric" value="${s.water}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
+    <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water ml</label><input name="waterMl" inputmode="numeric" value="${s.waterMl || s.water * 250}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
+    <label>Glass size, ml (one water tap)</label><input name="glassMl" inputmode="numeric" value="${s.glassMl || 250}">
     <label>Starting comfortable meal size, g (the app learns from your taps)</label><input name="portionStart" inputmode="numeric" value="${s.portionStart}">
     <h3>Jonas portions</h3>
     <div class="row"><div class="grow"><label>Dinner kcal</label><input name="jonasDinner" inputmode="numeric" value="${s.jonasDinner}"></div><div class="grow"><label>Lunch kcal</label><input name="jonasLunch" inputmode="numeric" value="${s.jonasLunch}"></div></div>
@@ -2063,7 +2070,8 @@ function openSettings() {
     <h3>Backup</h3><p class="muted small">Your data lives on this phone only. Download a backup now and then.</p>
     <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
     <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}.</p>`, b => {
-    for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'water', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k];
+    for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'waterMl', 'glassMl', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k] || (k === 'glassMl' ? 250 : 0);
+    s.water = Math.max(1, Math.ceil(s.waterMl / s.glassMl)); // taps (glasses) to reach the ml goal
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }
   });
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
@@ -2085,6 +2093,7 @@ function openSettings() {
 // ---------- start ----------
 // mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
+if (!S.settings.waterMl) { S.settings.glassMl ||= 250; S.settings.waterMl = (S.settings.water || 12) * S.settings.glassMl; }
 migratePlan(); migrateCards(); save();
 ensureWakeGoal();
 render();
