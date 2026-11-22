@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-22b",
+ "updated": "2026-11-22c",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -2180,23 +2180,45 @@
    ]
   },
   {
-   "key": "pre-oatbites",
-   "name": "Banana protein oat bites (2)",
+   "key": "pre-yogjar",
+   "name": "Greek yoghurt honey raspberry jar",
    "slot": "Pre-workout",
    "stars": 4,
    "jonas": false,
-   "note": "Batch of 20 bites: mash 300 g banana, mix in 200 g oats and 80 g protein powder (splash of milk if dry). Roll into 20 balls, bake 15 min at 180°C. Fridge 5 days or freeze. 2 bites = 1 serving.",
+   "note": "Grab and go: make 3-4 small jars on Sunday. Frozen raspberries at the bottom, yoghurt on top, honey drizzled over. Lid on, fridge up to 3 days; the berries thaw into a sauce. Take a spoon.",
    "items": [
     {
-     "food": "Oats",
+     "food": "Greek yoghurt 2%",
+     "g": 130
+    },
+    {
+     "food": "Honey",
+     "g": 7
+    },
+    {
+     "food": "Raspberries, frozen",
+     "g": 40
+    }
+   ]
+  },
+  {
+   "key": "pre-hamcake",
+   "name": "Ham & cheese rice-cake sandwich",
+   "slot": "Pre-workout",
+   "stars": 3,
+   "jonas": false,
+   "note": "Grab and go: 1 slice of ham and a thin slice of hard cheese between 2 rice cakes. Wrap in foil, make it the night before. Fridge 1 day.",
+   "items": [
+    {
+     "food": "Rice cakes",
+     "g": 16
+    },
+    {
+     "food": "Cooked pork ham, sliced (Kumpis)",
      "g": 20
     },
     {
-     "food": "Banana",
-     "g": 30
-    },
-    {
-     "food": "Protein shake powder (check label)",
+     "food": "Hard cheese, aged 12 months",
      "g": 8
     }
    ]
