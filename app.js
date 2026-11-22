@@ -983,13 +983,14 @@ function photoEdit(pid) {
 // bulk meal cards (from Gemini or Claude) pasted in Settings → Paste data.
 // { kind:'organiser-cards', cards:[{ name, slot, stars, note, jonas, jonasKcal, items:[{ food, g, kcal, p, c, f, fib }] }] }
 // Foods are matched by name to ones already in the app; new ones are added with the per-100 g macros given.
-// A card whose name is already in the app is skipped.
+// A card whose name is already in the app is updated (so a tweaked card can be pasted again); its stars stay.
 function importCards(list) {
   const low = x => (x || '').trim().toLowerCase();
   const live = S.foods.filter(f => !f.hidden), findFood = n => live.find(f => low(f.name) === low(n)) || live.filter(f => low(f.sname) === low(n)).sort((a, b) => (b.key ? 1 : 0) - (a.key ? 1 : 0))[0];
-  let added = 0, skipped = 0, newFoods = 0;
+  let added = 0, updated = 0, skipped = 0, newFoods = 0;
   for (const c of list || []) {
-    if (!c || !c.name || S.cards.some(x => low(x.name) === low(c.name))) { skipped++; continue; }
+    if (!c || !c.name) { skipped++; continue; }
+    const old = S.cards.find(x => low(x.name) === low(c.name));
     const items = [];
     for (const it of c.items || []) {
       const n = it.food || it.name, g = num(it.g); if (!n || !g) continue;
@@ -1000,10 +1001,19 @@ function importCards(list) {
     if (!items.length) { skipped++; continue; }
     const slot = CARD_TYPES.includes(c.slot) ? c.slot : 'Dinner';
     const note = [c.note, Array.isArray(c.steps) ? c.steps.join(' ') : c.steps].filter(Boolean).join(' · ');
-    S.cards.push({ id: uid(), name: c.name.trim(), slot, stars: Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && ['Lunch', 'Dinner'].includes(slot), jonasKcal: num(c.jonasKcal) || 0, note });
-    added++;
+    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && ['Lunch', 'Dinner'].includes(slot), jonasKcal: num(c.jonasKcal) || 0, note };
+    if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }
-  return { added, skipped, newFoods };
+  return { added, updated, skipped, newFoods };
+}
+const cardsToast = r => toast([r.added && `${r.added} card${r.added > 1 ? 's' : ''} added`, r.updated && `${r.updated} updated`, r.skipped && `${r.skipped} skipped`, r.newFoods && `${r.newFoods} new foods`].filter(Boolean).join(' · ') + ' ✓');
+// quick paste on the Cards tab: stays on Cards so you can paste the next one straight away
+function pasteCardsDialog() {
+  const b = dialog(`<h2>Paste meal cards</h2><p class="muted small">Paste the JSON from Gemini. Pasting a card again with the same name updates it.</p><textarea name="t" rows="8"></textarea>`, f => {
+    try { const cards = parsePasted(f.t.value).flatMap(d => Array.isArray(d) ? d : d.cards || []); if (!cards.length) throw 0; cardsToast(importCards(cards)); }
+    catch { toast('That text didn\'t work. Copy the whole JSON block.'); return false; }
+  }, 'Import');
+  b.t.focus();
 }
 // Gemini often wraps JSON in ``` fences, and you may paste several blocks at once
 function parsePasted(t) {
@@ -1438,7 +1448,7 @@ function foodDialog(f, logAfter = false, onSaved) {
 VIEWS.cards = () => {
   const groups = CARD_TYPES.map(t => [t, S.cards.filter(c => c.slot === t).sort((a, b) => (b.stars || 0) - (a.stars || 0) || a.name.localeCompare(b.name))]);
   const recipes = S.foods.filter(f => f.kind === 'recipe');
-  return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Dinner and lunch cards can include a Jonas portion.</p><button class="primary mini" id="newCard">+ Card</button></div></div>
+  return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Dinner and lunch cards can include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
     ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
@@ -1446,6 +1456,7 @@ VIEWS.cards = () => {
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
 };
 BIND.cards = v => {
+  $('#pasteCards', v).onclick = pasteCardsDialog;
   $('#newCard', v).onclick = () => cardDialog({ items: [], stars: 3, slot: 'Dinner' });
   $$('[data-edit]', v).forEach(li => li.onclick = () => cardDialog(cardById(li.dataset.edit)));
   $('#newRec', v).onclick = () => recipeDialog({ items: [] });
@@ -1979,7 +1990,7 @@ function openSettings() {
     const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude or Gemini sent you (meal cards, goals, body data). Several blocks at once is fine.</p><textarea name="t" rows="8"></textarea>`, f => {
       try { const blocks = parsePasted(f.t.value);
         const cards = blocks.flatMap(d => Array.isArray(d) ? d : d.kind === 'organiser-cards' ? d.cards || [] : []);
-        if (cards.length) { const r = importCards(cards); toast(`${r.added} meal cards added${r.skipped ? `, ${r.skipped} skipped (already in)` : ''}${r.newFoods ? ` · ${r.newFoods} new foods` : ''} ✓`); go('cards'); return; }
+        if (cards.length) { const r = importCards(cards); cardsToast(r); go('cards'); return; }
         const d = blocks[0];
         if (d.kind === 'organiser-goals' && d.goals) { const n = mergeGoals(d.goals); toast(n ? `${n} goals added or updated ✓` : 'Those goals are already in'); go('goals'); return; }
         if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
