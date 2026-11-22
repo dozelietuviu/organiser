@@ -980,6 +980,37 @@ function photoEdit(pid) {
   $$('[data-mv]', body).forEach(b => b.onclick = e => { e.preventDefault(); const bd = G().board, i = bd.indexOf(x), j = i + +b.dataset.mv; if (j < 0 || j >= bd.length) return; bd.splice(i, 1); bd.splice(j, 0, x); save(); render(); toast('Moved'); });
   const del = $('#phDel', body); del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.board = G().board.filter(y => y !== x); save(); closeDlg(); render(); };
 }
+// bulk meal cards (from Gemini or Claude) pasted in Settings → Paste data.
+// { kind:'organiser-cards', cards:[{ name, slot, stars, note, jonas, jonasKcal, items:[{ food, g, kcal, p, c, f, fib }] }] }
+// Foods are matched by name to ones already in the app; new ones are added with the per-100 g macros given.
+// A card whose name is already in the app is skipped.
+function importCards(list) {
+  const low = x => (x || '').trim().toLowerCase();
+  const live = S.foods.filter(f => !f.hidden), findFood = n => live.find(f => low(f.name) === low(n)) || live.filter(f => low(f.sname) === low(n)).sort((a, b) => (b.key ? 1 : 0) - (a.key ? 1 : 0))[0];
+  let added = 0, skipped = 0, newFoods = 0;
+  for (const c of list || []) {
+    if (!c || !c.name || S.cards.some(x => low(x.name) === low(c.name))) { skipped++; continue; }
+    const items = [];
+    for (const it of c.items || []) {
+      const n = it.food || it.name, g = num(it.g); if (!n || !g) continue;
+      let f = findFood(n);
+      if (!f && it.kcal != null) { f = { id: uid(), kind: 'food', name: n.trim(), brand: '', kcal: num(it.kcal), p: num(it.p), c: num(it.c), f: num(it.f), fib: num(it.fib), unit: '', unitG: 0, shop: it.shop || 'Lidl', place: it.place || 'Cupboard', src: 'import' }; S.foods.push(f); newFoods++; }
+      if (f) items.push({ foodId: f.id, g });
+    }
+    if (!items.length) { skipped++; continue; }
+    const slot = CARD_TYPES.includes(c.slot) ? c.slot : 'Dinner';
+    const note = [c.note, Array.isArray(c.steps) ? c.steps.join(' ') : c.steps].filter(Boolean).join(' · ');
+    S.cards.push({ id: uid(), name: c.name.trim(), slot, stars: Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && ['Lunch', 'Dinner'].includes(slot), jonasKcal: num(c.jonasKcal) || 0, note });
+    added++;
+  }
+  return { added, skipped, newFoods };
+}
+// Gemini often wraps JSON in ``` fences, and you may paste several blocks at once
+function parsePasted(t) {
+  t = t.replace(/```(json)?/gi, '').trim();
+  try { return [JSON.parse(t)]; } catch {}
+  return JSON.parse('[' + t.replace(/}\s*{/g, '},{') + ']');
+}
 // private goals import (Settings → Paste data): adds goals by id, never overwrites ones already in the app
 // a goal marked replace:true updates the one with the same id (its progress log, ticks and achieved date are kept)
 function mergeGoals(list) { const L = G().list; let n = 0;
@@ -1945,8 +1976,11 @@ function openSettings() {
   $('#alerts', body).onclick = e => { e.preventDefault(); alertsDialog(); };
   $('#exp', body).onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = `organiser-backup-${today()}.json`; a.click(); };
   $('#paste', body).onclick = e => { e.preventDefault();
-    const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude sent you.</p><textarea name="t" rows="8"></textarea>`, f => {
-      try { const d = JSON.parse(f.t.value.trim());
+    const pb = dialog(`<h2>Paste data</h2><p class="muted small">Paste the text Claude or Gemini sent you (meal cards, goals, body data). Several blocks at once is fine.</p><textarea name="t" rows="8"></textarea>`, f => {
+      try { const blocks = parsePasted(f.t.value);
+        const cards = blocks.flatMap(d => Array.isArray(d) ? d : d.kind === 'organiser-cards' ? d.cards || [] : []);
+        if (cards.length) { const r = importCards(cards); toast(`${r.added} meal cards added${r.skipped ? `, ${r.skipped} skipped (already in)` : ''}${r.newFoods ? ` · ${r.newFoods} new foods` : ''} ✓`); go('cards'); return; }
+        const d = blocks[0];
         if (d.kind === 'organiser-goals' && d.goals) { const n = mergeGoals(d.goals); toast(n ? `${n} goals added or updated ✓` : 'Those goals are already in'); go('goals'); return; }
         if (d.kind !== 'organiser-body' || !d.body) throw 0; mergeBody(d.body); toast('Body data imported ✓'); } catch { toast('That text didn\'t work. Copy the whole block.'); return false; }
     }, 'Import'); };
