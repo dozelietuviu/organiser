@@ -74,7 +74,7 @@ function blank() {
     v: 2,
     settings: {
       kcal: 1750, p: 132, c: 158, f: 66, fib: 30, water: 12,
-      portionStart: 250, gapH: 6, minP: 20,
+      portionStart: 400, gapH: 6, minP: 20,
       jonasDinner: 900, jonasLunch: 800,
       sheetUrl: '', sheetSeen: '', offLT: true,
       fixed: {}, // slot -> card id (Pre-workout, Snack)
@@ -157,7 +157,8 @@ function portionLimit() {
   }
   if (fin.length + full.length < 3) return { g: S.settings.portionStart, learned: false };
   fin.sort((a, b) => a - b);
-  let g = fin.length ? fin[Math.floor(fin.length * 0.75)] : S.settings.portionStart;
+  // finished meals can raise the limit above your setting; only a Too full tap lowers it
+  let g = Math.max(S.settings.portionStart, fin.length ? fin[Math.floor(fin.length * 0.75)] : 0);
   if (full.length) g = Math.min(g, Math.min(...full) - 10);
   return { g: Math.max(120, r0(g)), learned: true, n: fin.length + full.length };
 }
@@ -2063,6 +2064,8 @@ function openSettings() {
 }
 
 // ---------- start ----------
+// mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
+if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
 migratePlan(); migrateCards(); save();
 ensureWakeGoal();
 render();
