@@ -55,7 +55,7 @@ const WHY_TIP = {
   bored: 'Try water or a short walk first, then see if you are still hungry.',
   hungry: 'Too long between meals. Keep gaps under 5 hours and make the meal before more filling.',
 };
-const UNPL_PRESETS = [['Slice of cake', 350], ['Donut', 280], ['Pastry / bun', 320], ['Chocolate bar', 230], ['Handful of crisps', 160], ['Biscuits (3)', 210], ['Fast-food meal', 900], ['Glass of wine', 120], ['Ice cream', 250]];
+const UNPL_PRESETS = ['Slice of cake', 'Donut', 'Cinnamon bun', 'Chocolate bar', 'Crisps', 'Biscuits', 'Burger', 'Pizza', 'Flavoured latte', 'Glass of wine', 'Ice cream'].map(n => [n]);
 const CARD_TYPES = [...SLOT_IDS, 'Extra'];
 const PLACES = ['Fridge', 'Freezer', 'Cupboard', 'Spice rack', 'Household'];
 const SHOPS = ['Lidl', 'IKI', 'Maxima', 'Other'];
@@ -753,6 +753,8 @@ function ensureWakeGoal() {
   save();
 }
 function wakeCard(d) {
+  const wt = (B().wake || {})[d], dd = S.day[d] ||= {};
+  if (wt && dd.wakeSkipFor !== wt) { wakeSkips(d); dd.wakeSkipFor = wt; save(); }
   const t = (B().wake || {})[d], st = wakeStreak(d), by = wakeBy();
   if (!t) return d === today() ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}${st ? ` · 🔥 ${st} day streak` : ''}</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNow">I'm up</button><button class="mini ghost" id="wakeSet">Set time</button></div></div>` : '';
   const ok = onTime(d);
@@ -1085,22 +1087,85 @@ VIEWS.log = () => {
 function unplCard(es) {
   const list = es.filter(e => e.slot === UNPL), t = sumM(list);
   return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">Unplanned</span> <span class="muted small">cake, snacks on the go…</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal' : ''}</span><button class="mini" id="unplAdd">+</button></div>
-    ${list.length ? `<ul class="list">${list.map(e => `<li style="flex-wrap:wrap"><div class="grow">${esc(e.name)}<div class="muted small">${r0(e.kcal)} kcal${e.p ? ' · P ' + r1(e.p) : ''}</div></div><button class="mini del" data-del="${e.id}">✕</button>
+    ${list.length ? `<ul class="list">${list.map(e => `<li style="flex-wrap:wrap"><div class="grow" data-uedit="${e.id}">${esc(e.name)}<div class="muted small">${e.est ? '≈ ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)}${e.c || e.f ? '' : ' · <u>tap to estimate</u>'}</div></div><button class="mini del" data-del="${e.id}">✕</button>
       <div class="chips" style="width:100%">${WHY.map(([k, l]) => `<button class="chip sm ${e.why === k ? 'on' : ''}" data-why="${e.id}|${k}">${l}</button>`).join('')}</div></li>`).join('')}</ul>` : '<p class="muted small">Ate something you didn\'t plan? Log it here. It counts in your day, and the reason helps spot patterns.</p>'}</div>`;
 }
-function unplDialog() {
-  const body = dialog(`<h2>Unplanned food</h2>
-    <div class="chips">${UNPL_PRESETS.map(([n, k]) => `<button class="chip sm" data-pre="${esc(n)}|${k}">${esc(n)} <span class="muted">${k}</span></button>`).join('')}</div>
-    <label>What was it?</label><input name="name" placeholder="e.g. slice of cake at work">
-    <div class="row"><div class="grow"><label>kcal (a guess is fine)</label><input name="kcal" inputmode="decimal"></div><div class="grow"><label>Protein g (optional)</label><input name="p" inputmode="decimal"></div></div>
-    <label>Why?</label><div class="chips">${WHY.map(([k, l]) => `<button class="chip sm" data-w2="${k}">${l}</button>`).join('')}</div>
-    <p><button class="mini" id="uSearch">Or find it in your foods / scan it</button></p>`, b => {
-    const kcal = num(b.kcal.value); if (!b.name.value.trim() || !kcal) { toast('Add a name and kcal'); return false; }
-    addLog({ slot: UNPL, name: b.name.value.trim(), g: 0, kcal, p: num(b.p.value), c: 0, f: 0, fib: 0, why: body.dataset.why || '' }); toast('Logged ✓');
-  }, 'Log it');
-  $$('[data-pre]', body).forEach(c => c.onclick = e => { e.preventDefault(); const [n, k] = c.dataset.pre.split('|'); body.name.value = n; body.kcal.value = k; });
-  $$('[data-w2]', body).forEach(c => c.onclick = e => { e.preventDefault(); body.dataset.why = c.dataset.w2; $$('[data-w2]', body).forEach(x => x.classList.toggle('on', x === c)); });
-  $('#uSearch', body).onclick = e => { e.preventDefault(); pickForSlot(UNPL); };
+// rough estimates for unplanned food: typical portion with kcal and macros (P, C, F, fibre).
+// Matched on words in the name; Small / Normal / Big scales it. Not exact, just better than nothing.
+const ESTIMATES = [
+  [/banana ?bread/, 'Banana bread, slice', 300, 5, 45, 11, 2],
+  [/cheese ?cake/, 'Cheesecake, slice', 400, 7, 32, 27, 0],
+  [/cake|torte|tort/, 'Cake, slice', 380, 5, 50, 18, 1],
+  [/brownie/, 'Brownie', 280, 3, 35, 15, 1],
+  [/muffin/, 'Muffin', 400, 6, 50, 20, 1],
+  [/do(ugh)?nut|spurg/, 'Donut', 300, 4, 35, 16, 1],
+  [/croissant/, 'Croissant', 250, 5, 26, 14, 1],
+  [/cinnamon|bun|bandel|pastry|danish/, 'Sweet bun / pastry', 350, 6, 50, 14, 2],
+  [/cookie|biscuit|sausain/, 'Biscuits (3)', 150, 2, 20, 7, 1],
+  [/šakot|sakot/, 'Šakotis, piece', 230, 4, 24, 13, 0],
+  [/sūrel|surel/, 'Sūrelis', 160, 4, 14, 10, 0],
+  [/chocolate bar|snickers|mars|twix|kitkat/, 'Chocolate bar', 250, 3, 30, 13, 1],
+  [/chocolate|šokolad|sokolad/, 'Chocolate, 4 squares', 220, 3, 22, 14, 3],
+  [/sweets|candy|gummy|saldain/, 'Sweets, handful', 160, 1, 38, 0, 0],
+  [/ice ?cream|ledai/, 'Ice cream, scoop or cone', 220, 4, 26, 11, 0],
+  [/pancake|blyn/, 'Pancakes (3)', 350, 9, 50, 12, 2],
+  [/crisp|chips/, 'Crisps, handful', 160, 2, 15, 10, 1],
+  [/popcorn/, 'Popcorn, bowl', 200, 3, 22, 11, 4],
+  [/nuts|riešut|riesut/, 'Nuts, handful', 180, 6, 6, 16, 2],
+  [/fries|bulvyt/, 'Fries, medium', 340, 4, 44, 16, 4],
+  [/burger|mcdonald/, 'Burger', 550, 28, 45, 28, 3],
+  [/pizza/, 'Pizza, 2 slices', 600, 24, 70, 24, 4],
+  [/kebab|shawarma|doner|döner|wrap/, 'Kebab / wrap', 700, 35, 65, 32, 5],
+  [/kibin|čebure|cebure/, 'Kibinas / čeburekas', 520, 18, 50, 28, 2],
+  [/hot ?dog/, 'Hot dog', 300, 11, 25, 17, 1],
+  [/sushi/, 'Sushi, 8 pieces', 350, 12, 60, 6, 2],
+  [/sandwich|sumušt|sumust|baguette/, 'Sandwich', 450, 20, 45, 20, 3],
+  [/(pumpkin|spice|caramel|vanilla|syrup|flavou?r).*(latte|coffee)|latte.*(pumpkin|spice|caramel)/, 'Flavoured latte', 300, 10, 42, 10, 0],
+  [/latte|cappuc|flat white/, 'Latte / cappuccino', 150, 8, 13, 7, 0],
+  [/hot choc|kakava|cocoa/, 'Hot chocolate', 280, 8, 38, 10, 2],
+  [/frappe|milkshake|kokteil/, 'Milkshake / frappé', 450, 10, 65, 16, 0],
+  [/smoothie/, 'Smoothie', 250, 4, 55, 2, 4],
+  [/cola|soda|lemonade|fanta|sprite/, 'Soft drink, can', 140, 0, 35, 0, 0],
+  [/wine|vynas/, 'Wine, glass', 125, 0, 4, 0, 0],
+  [/beer|alus/, 'Beer, 0.5 l', 215, 2, 18, 0, 0],
+  [/cocktail|spritz|mojito/, 'Cocktail', 220, 0, 25, 0, 0],
+];
+// if nothing matches: split the kcal like a typical treat (sweet) or snack (savoury) or drink
+const SPLITS = { sweet: [.05, .55, .40], savoury: [.15, .40, .45], drink: [.10, .70, .20] };
+const SIZES = [['s', 'Small', .7], ['m', 'Normal', 1], ['l', 'Big', 1.4]];
+const findEstimate = name => ESTIMATES.find(([re]) => re.test((name || '').toLowerCase()));
+function unplDialog(entry) {
+  const e0 = entry || {};
+  const body = dialog(`<h2>${entry ? 'Edit unplanned food' : 'Unplanned food'}</h2>
+    ${entry ? '' : `<div class="chips">${UNPL_PRESETS.map(([n, k]) => `<button class="chip sm" data-pre="${esc(n)}">${esc(n)}</button>`).join('')}</div>`}
+    <label>What was it?</label><input name="name" value="${esc(e0.name || '')}" placeholder="e.g. banana bread, pumpkin latte" autocomplete="off">
+    <div class="note sm" id="uEst" hidden></div>
+    <div class="chips" id="uSize">${SIZES.map(([k, l]) => `<button class="chip sm ${k === 'm' ? 'on' : ''}" data-sz="${k}">${l}</button>`).join('')}</div>
+    <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${e0.kcal ? r0(e0.kcal) : ''}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${e0.p ? r1(e0.p) : ''}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${e0.c ? r1(e0.c) : ''}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${e0.f ? r1(e0.f) : ''}"></div></div>
+    <div class="row" id="uKind"><span class="muted small">If unknown, it was</span>${Object.keys(SPLITS).map(k => `<button class="chip sm ${k === 'sweet' ? 'on' : ''}" data-kind="${k}">${k}</button>`).join('')}</div>
+    ${entry ? '' : `<label>Why?</label><div class="chips">${WHY.map(([k, l]) => `<button class="chip sm" data-w2="${k}">${l}</button>`).join('')}</div>
+    <p><button class="mini" id="uSearch">Or find it in your foods / scan it</button></p>`}`, b => {
+    let kcal = num(b.kcal.value); if (!b.name.value.trim() || !kcal) { toast('Add a name and kcal'); return false; }
+    let p = num(b.p.value), c = num(b.c.value), f = num(b.f.value);
+    if (!c && !f) { const sp = SPLITS[body.dataset.kind || 'sweet']; p = p || r1(kcal * sp[0] / 4); c = r1(kcal * sp[1] / 4); f = r1(kcal * sp[2] / 9); }
+    const o = { name: b.name.value.trim(), kcal, p, c, f, fib: num(body.dataset.fib) || e0.fib || 0, est: true };
+    if (entry) { Object.assign(entry, o); toast('Updated ✓'); }
+    else { addLog(Object.assign({ slot: UNPL, g: 0, why: body.dataset.why || '' }, o)); toast('Logged ✓'); }
+  }, entry ? 'Save' : 'Log it');
+  let est = null, size = 1;
+  const fill = () => { if (!est) return; const [, , k, P, C, F, fib] = est;
+    body.kcal.value = r0(k * size); body.p.value = r1(P * size); body.c.value = r1(C * size); body.f.value = r1(F * size); body.dataset.fib = r1(fib * size); };
+  const look = (force) => { const m = findEstimate(body.name.value), box = $('#uEst', body);
+    if (m) { est = m; box.hidden = false; box.textContent = `≈ ${m[1]}: ${r0(m[2] * size)} kcal · P ${r0(m[3] * size)} · C ${r0(m[4] * size)} · F ${r0(m[5] * size)}. A rough guess: change the numbers if you know better.`; if (force || !body.kcal.value || body.kcal.dataset.auto) { fill(); body.kcal.dataset.auto = 1; } }
+    else { est = null; box.hidden = true; } };
+  body.name.oninput = () => look(false);
+  body.kcal.oninput = () => { delete body.kcal.dataset.auto; };
+  $$('[data-sz]', body).forEach(x => x.onclick = ev => { ev.preventDefault(); size = SIZES.find(z => z[0] === x.dataset.sz)[2]; $$('[data-sz]', body).forEach(y => y.classList.toggle('on', y === x)); look(true); });
+  $$('[data-kind]', body).forEach(x => x.onclick = ev => { ev.preventDefault(); body.dataset.kind = x.dataset.kind; $$('[data-kind]', body).forEach(y => y.classList.toggle('on', y === x)); });
+  $$('[data-pre]', body).forEach(x => x.onclick = ev => { ev.preventDefault(); body.name.value = x.dataset.pre; look(true); });
+  $$('[data-w2]', body).forEach(c => c.onclick = ev => { ev.preventDefault(); body.dataset.why = c.dataset.w2; $$('[data-w2]', body).forEach(x => x.classList.toggle('on', x === c)); });
+  const us = $('#uSearch', body); if (us) us.onclick = ev => { ev.preventDefault(); pickForSlot(UNPL); };
+  if (!entry) look(false);
 }
 function searchLocal(q) {
   q = q.trim().toLowerCase(); if (!q) return '';
@@ -1123,7 +1188,8 @@ BIND.log = v => {
   $('#newFood', v).onclick = () => foodDialog({}, true);
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
-  $('#unplAdd', v).onclick = unplDialog;
+  $('#unplAdd', v).onclick = () => unplDialog();
+  $$('[data-uedit]', v).forEach(x => x.onclick = () => { const e = (S.log[UI.day] || []).find(y => y.id === x.dataset.uedit); if (e) unplDialog(e); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = B().vit[UI.day] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-at]', v).forEach(b => b.onclick = () => {
