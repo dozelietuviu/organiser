@@ -1565,21 +1565,60 @@ function reviewCard() {
     ${r.fixes.length ? `<h3>To adjust</h3><ul class="list">${r.fixes.map(([c, w]) => `<li data-edit="${c.id}"><div class="grow">${esc(c.name)}<div class="muted small">${w.join(' · ')}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}
   </details>`;
 }
+// ---------- RECIPE VIEW (step 1) ----------
+// Upcoming cooks from the plan (next 7 days). A dinner that also covers tomorrow's leftover lunch is one cook.
+function upcomingCooks() {
+  const out = [];
+  for (let i = 0; i < 7; i++) { const d = addDays(today(), i), p = S.plan[d] || {};
+    for (const slot of PLAN_SLOTS) {
+      if (slot === 'Lunch' && (p.left || {}).Lunch) continue; // cooked with the dinner before
+      if (isCooked(d, slot)) continue;
+      for (const c of mealCards(d, slot)) {
+        const w = whoOf(d, slot), parts = [[d, slot, portions(d, slot, c), w]];
+        const n = addDays(d, 1), np = S.plan[n] || {};
+        if (slot === 'Dinner' && (np.left || {}).Lunch && mealCards(n, 'Lunch').some(x => x.id === c.id)) parts.push([n, 'Lunch', portions(n, 'Lunch', c), whoOf(n, 'Lunch')]);
+        out.push({ c, d, parts, mult: parts.reduce((a, x) => a + x[2], 0) });
+      } } }
+  return out;
+}
+const whoName = w => w.includes('me') && w.includes('j') ? 'you + Jonas' : w.includes('j') ? 'Jonas' : 'you';
+const cookLabel = k => k.parts.map(([d, sl, , w]) => `${DOW(d)} ${sl.toLowerCase()} (${whoName(w)})`).join(' + ');
+// read-only recipe card: ingredients scaled to what you're cooking, plus the method
+function recipeView(c, mult = 1, label = '') {
+  const t = cardTotals(c), jk = jonasPortion(c, 'Dinner');
+  const opts = [[mult, label || 'As planned'], [1, 'Just me'], [1 + jk, 'Me + Jonas']].filter((o, i, a) => a.findIndex(x => Math.abs(x[0] - o[0]) < .01) === i);
+  const show = m => `<ul class="list">${c.items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(sn(f))}</div><b>${amountText(f, r0(i.g * m))}</b></li>` : ''; }).join('')}</ul>
+    <p class="muted small">Total ${r0(cardGrams(c) * m)} g · that's ${r1(m)} × your portion. Your portion: ${r0(cardGrams(c))} g · ${r0(t.kcal)} kcal · P ${r0(t.p)}</p>`;
+  const body = dialog(`<h2>📖 ${esc(c.name)}</h2>${c.prep ? `<p class="muted small">⏱ ${c.prep} min</p>` : ''}
+    <div class="chips">${opts.map(([m, l], i) => `<button class="chip ${i ? '' : 'on'}" data-rm="${m}">${esc(l)}</button>`).join('')}</div>
+    <div id="rIng">${show(opts[0][0])}</div>
+    ${c.method ? `<h3>Method</h3><p style="white-space:pre-line">${esc(c.method)}</p>` : '<p class="muted small">No method yet. Add it on the card (✎).</p>'}
+    ${c.note ? `<p class="muted small">${esc(c.note)}</p>` : ''}`, null);
+  $$('[data-rm]', body).forEach(b => b.onclick = e => { e.preventDefault(); $$('[data-rm]', body).forEach(x => x.classList.toggle('on', x === b)); $('#rIng', body).innerHTML = show(+b.dataset.rm); });
+}
+function upcomingCard() {
+  const ks = upcomingCooks();
+  return `<div class="card"><div class="row"><h2 class="grow">Coming up</h2><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div>
+    ${ks.length ? `<ul class="list">${ks.map((k, i) => `<li data-upc="${i}"><div class="grow">${esc(k.c.name)}<div class="muted small">${cookLabel(k)}</div></div><span class="muted small">×${r1(k.mult)}</span><span>📖</span></li>`).join('')}</ul>`
+      : '<p class="muted small">Nothing planned for the next 7 days. Plan or shuffle the week, and the recipes show here.</p>'}</div>`;
+}
 VIEWS.cards = () => {
   const groups = CARD_TYPES.map(t => [t, S.cards.filter(c => c.slot === t).sort((a, b) => (b.stars || 0) - (a.stars || 0) || a.name.localeCompare(b.name))]);
   const recipes = S.foods.filter(f => f.kind === 'recipe');
-  return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Meals can be cooked for lunch or dinner and include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
+  return `${upcomingCard()}
   ${reviewCard()}
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Dessert' ? 'Desserts <span class="muted small">· Jonas</span>' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
-    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
+    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><button class="mini ghost" data-view="${c.id}">📖</button><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
     ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
 };
 BIND.cards = v => {
+  const ks = upcomingCooks(); $$('[data-upc]', v).forEach(li => li.onclick = () => { const k = ks[+li.dataset.upc]; recipeView(k.c, k.mult, cookLabel(k)); });
   $('#pasteCards', v).onclick = pasteCardsDialog;
   $('#newCard', v).onclick = () => cardDialog({ items: [], stars: 3, slot: 'Meal' });
   $$('[data-edit]', v).forEach(li => li.onclick = () => cardDialog(cardById(li.dataset.edit)));
+  $$('[data-view]', v).forEach(b => b.onclick = e => { e.stopPropagation(); recipeView(cardById(b.dataset.view)); });
   $('#newRec', v).onclick = () => recipeDialog({ items: [] });
   $$('[data-rec]', v).forEach(li => li.onclick = () => recipeDialog(foodById(li.dataset.rec)));
   $('#foods', v).onclick = foodsList;
@@ -1611,7 +1650,7 @@ function cardDialog(c) {
     <h3>Your portion</h3>${itemsEditor(c.items || [])}
     <p class="muted" id="sum"></p>
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
-      <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div></div>
+      <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div><div id="jcook"></div></div>
     <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
     <h3>Recipe</h3>
     <div class="row"><div class="grow"><label>Prep time, min</label><input name="prep" inputmode="numeric" value="${c.prep || ''}" placeholder="e.g. 25"></div></div>
@@ -1631,6 +1670,7 @@ function cardDialog(c) {
     const tmp = { items, jonas: body.jonas.checked, jonasKcal: num(body.jk.value), slot: body.slot.value }, k = jonasFactor(tmp);
     $('#sum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g` ;
     $('#jkbox', body).classList.toggle('hidden', !body.jonas.checked);
+    $('#jcook', body).innerHTML = k ? `<h3>Cooking for you + Jonas</h3><ul class="list">${items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow small">${esc(sn(f))}</div><span class="small">${amountText(f, r0(i.g * (1 + k)))}</span></li>` : ''; }).join('')}</ul>` : '';
     $('#jsum', body).textContent = k ? `Jonas gets about ${r0(t.kcal * k)} kcal (${r1(k)}× your portion, about ${r0(items.reduce((a, i) => a + i.g, 0) * k)} g). In Plan, set For: Jonas or Both to cook it and add it to the shopping list.` : '';
     $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', ...JONAS_ONLY].includes(body.slot.value));
   };
