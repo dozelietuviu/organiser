@@ -1192,7 +1192,7 @@ VIEWS.log = () => {
       ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
       ${lowP ? `<div class="note warn sm">Only ${r0(t.p)} g protein in this meal (aim for ${S.settings.minP} g+).</div>` : ''}
       ${list.length ? `<div class="chips">${FULL.map(([k, l]) => `<button class="chip sm feel ${(dd.full || {})[s.id] === k ? 'on' : ''}" data-full="${s.id}|${k}">${l}</button>`).join('')}</div>` : ''}
-      ${list.length ? vitChipsFor(d, s.id) : ''}
+      ${vitChipsFor(d, s.id)}
     </div>`;
   }).join('')}
   ${unplCard(es)}
