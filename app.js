@@ -1568,7 +1568,7 @@ function reviewCard() {
 // ---------- RECIPE VIEW (step 1) ----------
 // Upcoming cooks from the plan (next 7 days). A dinner that also covers tomorrow's leftover lunch is one cook.
 function upcomingCooks() {
-  const out = [];
+  const out = [], by = {}; // one row per card: repeats in the week merge into it
   for (let i = 0; i < 7; i++) { const d = addDays(today(), i), p = S.plan[d] || {};
     for (const slot of PLAN_SLOTS) {
       if (slot === 'Lunch' && (p.left || {}).Lunch) continue; // cooked with the dinner before
@@ -1577,12 +1577,14 @@ function upcomingCooks() {
         const w = whoOf(d, slot), parts = [[d, slot, portions(d, slot, c), w]];
         const n = addDays(d, 1), np = S.plan[n] || {};
         if (slot === 'Dinner' && (np.left || {}).Lunch && mealCards(n, 'Lunch').some(x => x.id === c.id)) parts.push([n, 'Lunch', portions(n, 'Lunch', c), whoOf(n, 'Lunch')]);
-        out.push({ c, d, parts, mult: parts.reduce((a, x) => a + x[2], 0) });
+        let k = by[c.id]; if (!k) { k = by[c.id] = { c, d, parts: [], mult: 0 }; out.push(k); }
+        k.parts.push(...parts); k.mult += parts.reduce((a, x) => a + x[2], 0);
       } } }
   return out;
 }
 const whoName = w => w.includes('me') && w.includes('j') ? 'you + Jonas' : w.includes('j') ? 'Jonas' : 'you';
-const cookLabel = k => k.parts.map(([d, sl, , w]) => `${DOW(d)} ${sl.toLowerCase()} (${whoName(w)})`).join(' + ');
+const cookLabel = k => { const g = {}; for (const [d, sl, , w] of k.parts) (g[sl.toLowerCase() + ' (' + whoName(w) + ')'] ||= []).push(DOW(d));
+  return Object.entries(g).map(([t, ds]) => `${ds.join(' + ')} ${t}`).join(' · '); };
 // read-only recipe card: ingredients scaled to what you're cooking, plus the method
 function recipeView(c, mult = 1, label = '') {
   const t = cardTotals(c), jk = jonasPortion(c, 'Dinner');
