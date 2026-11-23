@@ -768,9 +768,9 @@ function wakeCard(d) {
   const wt = (B().wake || {})[d], dd = S.day[d] ||= {};
   if (wt && dd.wakeSkipFor !== wt) { wakeSkips(d); dd.wakeSkipFor = wt; save(); }
   const t = (B().wake || {})[d], st = wakeStreak(d), by = wakeBy();
-  if (!t) return d === today() ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}${st ? ` · 🔥 ${st} day streak` : ''}</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNow">I'm up</button><button class="mini ghost" id="wakeSet">Set time</button></div></div>` : '';
+  if (!t) return d === today() ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}${st ? ` · <span class="fire">🔥</span> ${st} day streak` : ''}</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNow">I'm up</button><button class="mini ghost" id="wakeSet">Set time</button></div></div>` : '';
   const ok = onTime(d);
-  return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}</div><div>🌅 ${t} ${ok ? '✓' : '<span class="muted small">late</span>'} · ${st >= 21 ? '🏆 21 days!' : `🔥 ${st}/21`}</div></div><button class="mini ghost" id="wakeSet">Edit</button></div></div>`;
+  return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}</div><div>🌅 ${t} ${ok ? '✓' : '<span class="muted small">late</span>'} · ${st >= 21 ? '🏆 21 days!' : `<span class="fire">🔥</span> ${st}/21`}</div></div><button class="mini ghost" id="wakeSet">Edit</button></div></div>`;
 }
 // meals whose time was before you woke up are marked skipped ("Still asleep"); moving the wake time earlier undoes it
 function wakeSkips(d) {
@@ -862,7 +862,7 @@ function goalCard(g) {
     ${photo ? `<div class="polaroid small-p"><img src="${photo.mine || photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
     ${goalBar(g)}
     <div class="small">${goalLine(g)}</div>
-    ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · 🔥 ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small">🔥 ${st} weeks in a row</div>` : ''}
+    ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · <span class="fire">🔥</span> ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small"><span class="fire">🔥</span> ${st} weeks in a row</div>` : ''}
     ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">${new Date().toLocaleDateString('en-GB', { month: 'long' })} test, tap what you can do:</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
     ${smart.length ? `<details><summary class="muted small">SMART</summary>${smart.map(([k, t]) => `<div class="small"><b>${k}:</b> ${esc(t)}</div>`).join('')}</details>` : ''}
     ${g.done ? '' : `<div class="row gap">${g.track === 'manual' ? `<button class="mini" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
@@ -1042,8 +1042,8 @@ function importCards(list) {
     }
     if (!items.length) { skipped++; continue; }
     const slot = CARD_TYPES.includes(cardType(c.slot)) ? cardType(c.slot) : 'Meal';
-    const note = [c.note, Array.isArray(c.steps) ? c.steps.join(' ') : c.steps].filter(Boolean).join(' · ');
-    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || num(c.prepMin) >= 60, note };
+    const note = c.note || '', method = c.method || (Array.isArray(c.steps) ? c.steps.map((x, i) => `${i + 1}. ${x}`).join('\n') : c.steps || ''), prep = num(c.prepMin || c.prep) || 0;
+    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || prep >= 60, prep, method, note };
     if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }
   return { added, updated, skipped, newFoods };
@@ -1153,11 +1153,13 @@ VIEWS.log = () => {
     <div id="results"></div><div id="shopRes"></div></div>
   ${SLOTS.map(s => {
     const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pcs = myCards(d, s.id);
+    const planBtn = pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`;
+    const rest = list.length ? pcs.filter(pc => !list.some(e => e.card === pc.id)) : [];
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
     return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${list.length ? 'ate ' + hm(Math.min(...list.map(e => e.at))) : s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
-      ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small"><button class="linkish" data-at="${e.id}">${hm(e.at)}</button> · ${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>`
+      ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small"><button class="linkish" data-at="${e.id}">${hm(e.at)}</button> · ${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>${rest.map(planBtn).join('')}`
         : skipOf(d, s.id) ? `<div class="row gap"><span class="muted grow">Skipped · ${SKIP.find(x => x[0] === skipOf(d, s.id))[1]}</span><button class="mini ghost" data-unskip="${s.id}">Undo</button></div>`
-        : pcs.map(pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`).join('') + `<div class="right"><button class="mini ghost" data-skip="${s.id}">Skipped</button></div>`}
+        : pcs.map(planBtn).join('') + `<div class="right"><button class="mini ghost" data-skip="${s.id}">Skipped</button></div>`}
       ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
       ${lowP ? `<div class="note warn sm">Only ${r0(t.p)} g protein in this meal (aim for ${S.settings.minP} g+).</div>` : ''}
       ${list.length ? `<div class="chips">${FULL.map(([k, l]) => `<button class="chip sm feel ${(dd.full || {})[s.id] === k ? 'on' : ''}" data-full="${s.id}|${k}">${l}</button>`).join('')}</div>` : ''}
@@ -1330,6 +1332,7 @@ function logCardDialog(c, slot) {
   dialog(`<h2>🍱 ${esc(c.name)}</h2>
     <ul class="list">${c.items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(f.name)}</div><span class="muted">${amountText(f, i.g)}</span></li>` : ''; }).join('')}</ul>
     <p class="muted">${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(cardGrams(c))} g</p>
+    ${c.method ? `<details><summary class="muted small">📖 Method${c.prep ? ` · ${c.prep} min` : ''}</summary><p class="small" style="white-space:pre-line">${esc(c.method)}</p></details>` : ''}
     <label>Portion</label><select name="mult"><option value="0.5">Half</option><option value="0.75">Three quarters</option><option value="1" selected>Full</option><option value="1.25">A bit more</option></select>
     ${slotSelect(slot || (SLOT_IDS.includes(c.slot) ? c.slot : nowSlot()))}`, b => {
     const m = num(b.mult.value);
@@ -1531,7 +1534,7 @@ VIEWS.cards = () => {
   return `<div class="card"><div class="row"><p class="muted small grow">Your meals with set portions. Stars push favourites up in suggestions. Meals can be cooked for lunch or dinner and include a Jonas portion.</p><button class="mini" id="pasteCards">📋 Paste</button><button class="primary mini" id="newCard">+ Card</button></div></div>
   ${reviewCard()}
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Dessert' ? 'Desserts <span class="muted small">· Jonas</span>' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
-    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''}${c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
+    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
     ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
@@ -1573,12 +1576,15 @@ function cardDialog(c) {
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
       <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div></div>
     <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
+    <h3>Recipe</h3>
+    <div class="row"><div class="grow"><label>Prep time, min</label><input name="prep" inputmode="numeric" value="${c.prep || ''}" placeholder="e.g. 25"></div></div>
     <label class="row tick"><input type="checkbox" name="long" ${c.long ? 'checked' : ''}> ⏱ Takes 60+ min (shuffle only puts it on Tue or Thu)</label>
+    <label>Method</label><textarea name="method" rows="5" placeholder="1. Fry the chicken…&#10;2. …">${esc(c.method || '')}</textarea>
     <label>Note (optional)</label><input name="note" value="${esc(c.note || '')}">
     ${isNew ? '' : '<p class="row gap"><button class="mini" id="dupCard">Duplicate</button><button class="del mini" id="delCard">Delete card</button></p>'}`, b => {
     const items = readItems(b); if (!b.name.value.trim() || !items.length) { toast('Add a name and foods'); return false; }
     const o = isNew ? { id: uid() } : c;
-    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, long: b.long.checked, note: b.note.value.trim() });
+    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, prep: num(b.prep.value) || 0, long: b.long.checked || num(b.prep.value) >= 60, method: b.method.value.trim(), note: b.note.value.trim() });
     if (isNew) S.cards.push(o);
     for (const k in S.settings.fixed) if (S.settings.fixed[k] === o.id) delete S.settings.fixed[k];
     if (b.fixed.checked && o.slot !== 'Meal') S.settings.fixed[o.slot] = o.id;
