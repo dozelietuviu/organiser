@@ -151,23 +151,29 @@ function seedCards() {
 }
 
 // ---------- learned portion size ----------
+// Used only for the "over your comfortable X g" note. Starts at your setting.
+// Learns from Finished / Too full taps on main meals (breakfast, lunch, dinner) in the last 21 days, skipping
+// PMS and period days. Finished meals can raise it; it only drops after 2+ Too full meals (to just under the smaller one).
+function portionTaps() {
+  const out = [], from = addDays(today(), -21);
+  for (const [d, dd] of Object.entries(S.day)) { if (d < from) continue;
+    for (const [slot, v] of Object.entries(dd.full || {})) { if (!PLAN_SLOTS.includes(slot) || !['finished', 'toofull'].includes(v)) continue;
+      const g = (S.log[d] || []).filter(e => e.slot === slot).reduce((a, e) => a + (e.g || 0), 0); if (!g) continue;
+      const ci = S.body ? cycleInfo(d) : null, skip = isPMS(d) || (ci && ci.onPeriod);
+      out.push({ d, slot, v, g, skip }); } }
+  return out.sort((a, b) => a.d < b.d ? 1 : -1);
+}
 function portionLimit() {
-  const fin = [], full = [];
-  for (const [d, dd] of Object.entries(S.day)) for (const [slot, v] of Object.entries(dd.full || {})) {
-    const g = (S.log[d] || []).filter(e => e.slot === slot).reduce((a, e) => a + (e.g || 0), 0);
-    if (!g) continue;
-    if (v === 'finished') fin.push(g); if (v === 'toofull') full.push(g);
-  }
-  if (fin.length + full.length < 3) return { g: S.settings.portionStart, learned: false };
-  fin.sort((a, b) => a - b);
-  // finished meals can raise the limit above your setting; only a Too full tap lowers it
-  let g = Math.max(S.settings.portionStart, fin.length ? fin[Math.floor(fin.length * 0.75)] : 0);
-  if (full.length) g = Math.min(g, Math.min(...full) - 10);
-  return { g: Math.max(120, r0(g)), learned: true, n: fin.length + full.length };
+  const taps = portionTaps().filter(x => !x.skip), fin = taps.filter(x => x.v === 'finished').map(x => x.g).sort((a, b) => a - b), full = taps.filter(x => x.v === 'toofull').map(x => x.g).sort((a, b) => a - b);
+  let g = Math.max(S.settings.portionStart, fin.length >= 3 ? fin[Math.floor(fin.length * 0.75)] : 0);
+  if (full.length >= 2) g = Math.min(g, full[1] - 10);
+  return { g: Math.max(120, r0(g)), learned: fin.length >= 3 || full.length >= 2, n: taps.length };
 }
 
 // ---------- UI ----------
-const UI = { tab: 'today', day: today(), food: 'log', week: monday(today()), search: '' };
+// on Sat/Sun you plan the coming week, so Plan/Shop open on next week
+const planWeek = () => [0, 6].includes(new Date().getDay()) ? addDays(monday(today()), 7) : monday(today());
+const UI = { tab: 'today', day: today(), food: 'log', week: planWeek(), search: '' };
 const TITLES = { goals: 'Goals', train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
 const VIEWS = {}, BIND = {};
 const FOOD_TABS = ['log', 'plan', 'cards', 'pantry', 'shop'];
@@ -1153,7 +1159,9 @@ VIEWS.log = () => {
     <div id="results"></div><div id="shopRes"></div></div>
   ${SLOTS.map(s => {
     const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pcs = myCards(d, s.id);
-    const planBtn = pc => `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">Planned: <b>${esc(pc.name)}</b> · ${r0(cardTotals(pc).kcal)} kcal · tap to log</button>`;
+    const pkd = ((((S.plan[d] || {}).packed) || {})[s.id]) || {};
+    const planBtn = pc => { const pk = pkd[pc.id], k = pk ? itemsTotals(pc.items.map(i => ({ foodId: i.foodId, g: pk[i.foodId] ?? i.g }))).kcal : cardTotals(pc).kcal;
+      return `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">${pk ? '📦 Packed' : 'Planned'}: <b>${esc(pc.name)}</b> · ${r0(k)} kcal · tap to log</button>`; };
     const rest = list.length ? pcs.filter(pc => !list.some(e => e.card === pc.id)) : [];
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
     return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${list.length ? 'ate ' + hm(Math.min(...list.map(e => e.at))) : s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
@@ -1326,19 +1334,27 @@ function logFoodDialog(food, slot) {
   const upd = () => { const m = macroFor(food, grams(body)); $('#prev', body).textContent = `${r0(grams(body))} g = ${r0(m.kcal)} kcal · P ${r1(m.p)} · Fib ${r1(m.fib)}`; };
   body.amt.oninput = upd; body.unit.onchange = upd; upd();
 }
+// grams per ingredient can be changed (weighed). 📦 Packed saves them on the day's plan; logging later uses them.
 function logCardDialog(c, slot) {
   if (!c) return;
-  const t = cardTotals(c);
-  dialog(`<h2>🍱 ${esc(c.name)}</h2>
-    <ul class="list">${c.items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(f.name)}</div><span class="muted">${amountText(f, i.g)}</span></li>` : ''; }).join('')}</ul>
-    <p class="muted">${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(cardGrams(c))} g</p>
+  const day = UI.day, sl0 = slot || (SLOT_IDS.includes(c.slot) ? c.slot : nowSlot());
+  const pk = (((S.plan[day] || {}).packed || {})[sl0] || {})[c.id];
+  const base = c.items.map(i => ({ foodId: i.foodId, g: pk && pk[i.foodId] != null ? pk[i.foodId] : i.g }));
+  const body = dialog(`<h2>🍱 ${esc(c.name)}</h2>${pk ? '<p class="muted small">📦 Packed amounts</p>' : '<p class="muted small">Weighed it? Change the grams.</p>'}
+    <ul class="list">${base.map((i, n) => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(f.name)}</div><input class="gin" data-gi="${n}" inputmode="decimal" value="${r1(i.g)}"> g</li>` : ''; }).join('')}</ul>
+    <p class="muted" id="lsum"></p>
     ${c.method ? `<details><summary class="muted small">📖 Method${c.prep ? ` · ${c.prep} min` : ''}</summary><p class="small" style="white-space:pre-line">${esc(c.method)}</p></details>` : ''}
-    <label>Portion</label><select name="mult"><option value="0.5">Half</option><option value="0.75">Three quarters</option><option value="1" selected>Full</option><option value="1.25">A bit more</option></select>
-    ${slotSelect(slot || (SLOT_IDS.includes(c.slot) ? c.slot : nowSlot()))}`, b => {
-    const m = num(b.mult.value);
-    addLog({ slot: b.slot.value, card: c.id, name: c.name + (m !== 1 ? ` ×${m}` : ''), g: cardGrams(c) * m, kcal: t.kcal * m, p: t.p * m, c: t.c * m, f: t.f * m, fib: t.fib * m });
+    ${slotSelect(sl0)}
+    <p><button class="mini" id="packIt">📦 Save as packed (log later)</button></p>`, b => {
+    const it = items(), t = itemsTotals(it), g = it.reduce((a, x) => a + x.g, 0), changed = it.some((x, n) => Math.abs(x.g - c.items[n].g) > 0.4);
+    addLog({ slot: b.slot.value, card: c.id, name: c.name + (changed ? ' (weighed)' : ''), g, kcal: t.kcal, p: t.p, c: t.c, f: t.f, fib: t.fib, items: it });
+    const pd = (S.plan[day] || {}).packed; if (pd && pd[sl0]) delete pd[sl0][c.id];
     UI.pendingSlot = null; toast('Logged ✓');
   }, 'Log it');
+  const items = () => base.map((x, n) => ({ foodId: x.foodId, g: num(($(`[data-gi="${n}"]`, body) || {}).value) || 0 }));
+  const upd = () => { const it = items(), t = itemsTotals(it); $('#lsum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(it.reduce((a, x) => a + x.g, 0))} g`; };
+  $$('.gin', body).forEach(x => x.oninput = upd); upd();
+  $('#packIt', body).onclick = e => { e.preventDefault(); const p = dayPlan(day); p.packed ||= {}; const m = (p.packed[sl0] ||= {}); m[c.id] = Object.fromEntries(items().map(x => [x.foodId, x.g])); save(); closeDlg(); render(); toast('📦 Packed. Tap it to log when you eat'); };
 }
 
 // ---------- barcode + Open Food Facts ----------
@@ -1753,6 +1769,7 @@ function shuffleWeek() {
   let prev = isCooked(sun, 'Dinner') || mealCards(sun, 'Dinner').length ? mealCards(sun, 'Dinner') : [];
   const fixedP = ['Pre-workout', 'Snack'].reduce((a, s) => a + (cardById(S.settings.fixed[s]) ? cardTotals(cardById(S.settings.fixed[s])).p : 0), 0);
   for (const d of days) {
+    if (d < today()) continue; // never re-plan days that are over
     const p = dayPlan(d);
     if (brk && !p.cooked.Breakfast) { p.meals.Breakfast = [brk.id]; p.who.Breakfast = WHO_DEFAULT.Breakfast.slice(); }
     if (!p.cooked.Lunch) {
@@ -1786,6 +1803,7 @@ VIEWS.plan = () => {
   const days = Array.from({ length: 7 }, (_, i) => addDays(UI.week, i)), s = S.settings;
   return `<div class="row daybar"><button class="mini" data-wk="-7">‹</button><div class="grow center">Week of ${fmtDay(UI.week)}</div><button class="mini" data-wk="7">›</button></div>
   <div class="row gap"><button class="grow" id="canMake">What can I make now?</button><button class="grow primary" id="shuffle">🎲 Shuffle week</button></div>
+  ${days.some(d => !PLAN_SLOTS.some(sl => mealCards(d, sl).length) && PLAN_SLOTS.some(sl => mealCards(addDays(d, -7), sl).length)) ? '<button class="mini" id="copyWk">⧉ Fill empty days from last week\'s plan</button>' : ''}
   <p class="muted small">Shuffle picks one breakfast for the week and a different dinner each night, and the dinner becomes the next day's lunch. It goes for what's in your pantry first, then a different meat each night, nothing from last week, and your favourites.</p>
   ${days.map((d, i) => { const p = S.plan[d] || {}, t = dayTotals(d), wknd = i > 4;
     return `<div class="card ${wknd ? 'weekend' : ''} ${d === today() ? 'is-today' : ''}"><div class="row"><h2 class="grow">${DOW(d)} <span class="muted small">${parseDay(d).getDate()}</span></h2><span class="muted small ${Math.abs(t.kcal - s.kcal) < 150 ? 'good' : ''}">${r0(t.kcal)} / ${s.kcal} kcal · P ${r0(t.p)}</span></div>
@@ -1809,6 +1827,7 @@ BIND.plan = v => {
   });
   $('#canMake', v).onclick = canMakeDialog;
   $('#shuffle', v).onclick = shuffleWeek;
+  const cw = $('#copyWk', v); if (cw) cw.onclick = () => { for (let i = 0; i < 7; i++) { const from = S.plan[addDays(UI.week, i - 7)], to = addDays(UI.week, i); if (!from || PLAN_SLOTS.some(sl => mealCards(to, sl).length)) continue; const c = JSON.parse(JSON.stringify(from)); c.cooked = {}; delete c.packed; S.plan[addDays(UI.week, i)] = c; } save(); render(); toast('Copied ✓ Tap any meal to change it'); };
 };
 function syncLeftFor(d) { const p = dayPlan(d), n = dayPlan(addDays(d, 1)); if (n.left.Lunch) { n.meals.Lunch = (p.meals.Dinner || []).slice(); n.who.Lunch = (p.who.Dinner || WHO_DEFAULT.Dinner).slice(); n.cooked.Lunch = false; } }
 function planPick(d, slot) {
@@ -2097,6 +2116,8 @@ function openSettings() {
     <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water L</label><input name="waterL" inputmode="decimal" value="${(s.waterMl || s.water * 250) / 1000}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
     <label>Glass size, L (one water tap)</label><input name="glassL" inputmode="decimal" value="${(s.glassMl || 250) / 1000}">
     <label>Starting comfortable meal size, g (the app learns from your taps)</label><input name="portionStart" inputmode="numeric" value="${s.portionStart}">
+    <details><summary class="muted small">Comfortable size now: ${portionLimit().g} g · what it's learned from</summary><p class="muted small">Only the "over your comfortable size" note uses this. Main meals from the last 3 weeks count. PMS and period days are skipped. Too full only lowers it after 2 meals.</p>
+      <ul class="list">${portionTaps().map(x => `<li><div class="grow small">${fmtDay(x.d)} · ${x.slot} · ${r0(x.g)} g</div><span class="muted small">${x.v === 'toofull' ? 'Too full' : 'Finished'}${x.skip ? ' · skipped (cycle)' : ''}</span></li>`).join('') || '<li class="muted small">No taps yet.</li>'}</ul></details>
     <h3>Jonas portions</h3>
     <div class="row"><div class="grow"><label>Dinner kcal</label><input name="jonasDinner" inputmode="numeric" value="${s.jonasDinner}"></div><div class="grow"><label>Lunch kcal</label><input name="jonasLunch" inputmode="numeric" value="${s.jonasLunch}"></div></div>
     <h3>Trainer's Sheet</h3>
