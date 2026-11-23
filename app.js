@@ -112,7 +112,10 @@ async function squeezePhotos(retrySave) {
 // another open copy of the app (second tab, or the home-screen app + a browser tab) may have saved newer data:
 // always pick that up before showing or changing anything, so an old copy can't overwrite it
 function reloadS() { try { const x = JSON.parse(localStorage.getItem(KEY) || 'null'); if (x) { S = Object.assign(blank(), x); S.settings = Object.assign(blank().settings, S.settings); } } catch {} }
-addEventListener('storage', e => { if (e.key === KEY) { reloadS(); if (!$('#dlg').open) render(); } });
+// another open copy of the app saved. If a dialog is open here, wait: reloading now would swap the data under the
+// dialog, so its Save would change a copy that's thrown away (that's how Settings "didn't save" with 3 tabs open).
+let reloadLater = false;
+addEventListener('storage', e => { if (e.key !== KEY) return; if ($('#dlg').open) { reloadLater = true; return; } reloadS(); render(); });
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 
 const foodById = id => S.foods.find(f => f.id === id);
@@ -216,12 +219,13 @@ function dialog(html, onOk, okLabel = 'Save') {
   body.onsubmit = e => {
     if (e.submitter && e.submitter.value === 'ok' && onOk) {
       if (onOk(body) === false) { e.preventDefault(); return; }
-      save(); render();
+      reloadLater = false; save(); render();
     }
   };
   d.showModal(); return body;
 }
 const closeDlg = () => $('#dlg').open && $('#dlg').close();
+$('#dlg').addEventListener('close', () => { if (reloadLater) { reloadLater = false; reloadS(); render(); } });
 function confirmInline(btn) { if (btn.dataset.sure) return true; btn.dataset.sure = 1; btn.textContent = 'Tap again to confirm'; return false; }
 function dayBar() {
   return `<div class="row daybar"><button class="mini" data-day="-1">‹</button><div class="grow center">${UI.day === today() ? 'Today · ' : ''}${fmtDay(UI.day)}</div><button class="mini" data-day="1">›</button></div>`;
