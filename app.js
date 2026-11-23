@@ -91,7 +91,24 @@ try { S = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { S = null; }
 const firstRun = !S;
 S = Object.assign(blank(), S || {});
 S.settings = Object.assign(blank().settings, S.settings);
-const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+// the browser gives the app about 5 MB. If a save doesn't fit (usually too many big photos), say so loudly
+// instead of failing silently, and shrink the photos so the next save fits.
+let saveWarned = 0;
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); S._saveFail = false; }
+  catch (e) { if (Date.now() - saveWarned > 8000) { saveWarned = Date.now(); toast('⚠️ Not saved: the app\'s phone storage is full. Shrinking photos…'); } squeezePhotos(true); } };
+const storeSize = () => (localStorage.getItem(KEY) || '').length;
+// re-compress vision board photos (smaller + lighter JPEG). Runs once when storage is getting full, or after a failed save.
+let squeezing = false;
+async function squeezePhotos(retrySave) {
+  if (squeezing) return; squeezing = true;
+  const re = src => new Promise(ok => { if (!src || !src.startsWith('data:image')) return ok(src); const img = new Image();
+    img.onload = () => { const k = Math.min(1, 560 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); const out = c.toDataURL('image/jpeg', .6); ok(out.length < src.length ? out : src); };
+    img.onerror = () => ok(src); img.src = src; });
+  try { for (const x of (S.goals || {}).board || []) { x.img = await re(x.img); if (x.mine) x.mine = await re(x.mine); }
+    S.photosSqueezed = 1; localStorage.setItem(KEY, JSON.stringify(S)); if (retrySave) toast('Saved ✓ (photos made smaller)'); }
+  catch { toast('⚠️ Still full. Archive or remove a few vision board photos.'); }
+  squeezing = false;
+}
 // another open copy of the app (second tab, or the home-screen app + a browser tab) may have saved newer data:
 // always pick that up before showing or changing anything, so an old copy can't overwrite it
 function reloadS() { try { const x = JSON.parse(localStorage.getItem(KEY) || 'null'); if (x) { S = Object.assign(blank(), x); S.settings = Object.assign(blank().settings, S.settings); } } catch {} }
@@ -2126,7 +2143,7 @@ function openSettings() {
     <h3>Phone alerts</h3><button class="mini" id="alerts">🔔 Set up phone alerts</button>
     <h3>Backup</h3><p class="muted small">Your data lives on this phone only. Download a backup now and then.</p>
     <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
-    <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}.</p>`, b => {
+    <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}. Phone storage used: ${Math.round(storeSize() / 2.5e4)}% ${storeSize() > 2e6 ? '⚠️ nearly full, archive or remove some photos' : ''}</p>`, b => {
     for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k];
     s.waterMl = Math.round(num(b.waterL.value) * 1000) || s.waterMl; s.glassMl = Math.round(num(b.glassL.value) * 1000) || s.glassMl || 250;
     s.water = Math.max(1, Math.ceil(s.waterMl / s.glassMl)); // taps (glasses) to reach the ml goal
@@ -2155,6 +2172,7 @@ function openSettings() {
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
 if (!S.settings.waterMl) { S.settings.glassMl ||= 250; S.settings.waterMl = (S.settings.water || 12) * S.settings.glassMl; }
 migratePlan(); migrateCards(); save();
+if (!S.photosSqueezed && storeSize() > 1.6e6) squeezePhotos();
 ensureWakeGoal();
 render();
 syncFoodData();
