@@ -883,7 +883,7 @@ function goalLine(g) {
   } else if (g.track === 'habit') { const st = habitStreak(g); bits.push(`<b>${c} / ${b}${u}</b> ${g.per === 'day' ? 'today' : 'this week'}`, c >= b ? 'target hit ✓' : `${r1(b - c)}${u} to go`, st ? `<span class="fire">🔥</span> ${st} ${g.per === 'day' ? 'day' : 'week'}${st > 1 ? 's' : ''} in a row` : 'streak starts when you hit it'); }
   else if (g.track === 'wake') bits.push(`<b>${c} day${c === 1 ? '' : 's'}</b> in a row up by ${wakeBy()}`, `target ${b}`);
   else if (g.track === 'smoke') bits.push(`<b>${c} days</b> smoke-free`, `best ${Math.max(B().smoke.best || 0, c)}`);
-  else if (g.track === 'check') bits.push(`<b>${c}%</b> this month's test`);
+  else if (g.track === 'check') bits.push(`<b>${c}%</b> done this month`);
   else bits.push(`<b>${c}${u}</b> now`, `started at ${a}${u}`, `target ${b}${u}`);
   return bits.join(' · ');
 }
@@ -907,9 +907,9 @@ function goalCard(g) {
     ${g.track === 'habit' ? `<div class="hdots" title="last 7 ${g.per === 'day' ? 'days' : 'weeks'}">${habitDots(g)}<span class="muted small">last 7 ${g.per === 'day' ? 'days' : 'weeks'}</span></div>` : ''}
     ${(g.todos || []).length ? `<div class="muted small" style="margin-top:8px">To do (${g.todos.filter(t => t.done).length}/${g.todos.length})</div><ul class="list todo">${g.todos.map((t, i) => `<li data-gtodo="${g.id}|${i}" class="${t.done ? 'done' : ''}"><span>${t.done ? '☑' : '☐'}</span><div class="grow small">${esc(t.t)}</div>${t.done ? `<span class="muted small">${fmtDay(t.done)}</span>` : ''}</li>`).join('')}</ul>` : ''}
     ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · <span class="fire">🔥</span> ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small"><span class="fire">🔥</span> ${st} weeks in a row</div>` : ''}
-    ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">${new Date().toLocaleDateString('en-GB', { month: 'long' })} test, tap what you can do:</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
+    ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">Log ${new Date().toLocaleDateString('en-GB', { month: 'long' })}: tap what's done (starts fresh each month)</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
     ${smart.length ? `<details><summary class="muted small">SMART</summary>${smart.map(([k, t]) => `<div class="small"><b>${k}:</b> ${esc(t)}</div>`).join('')}</details>` : ''}
-    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
+    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : g.track === 'weight' ? '<button class="mini primary" data-gweigh="1">＋ Weigh in</button>' : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
   </div>`;
 }
 function farCard() {
@@ -968,6 +968,7 @@ BIND.goals = v => {
   $$('[data-gtick]', v).forEach(x => x.onclick = () => {
     const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
     t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); save(); render(); });
+  $$('[data-gweigh]', v).forEach(x => x.onclick = () => { const b = B(); dialog(`<h2>⚖ Weigh in</h2><div class="row"><div class="grow"><label>Weight (kg)</label><input name="w" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div><p class="muted small">Same as logging it on Body. The goal uses your 7-day average.</p>`, f => { const w = num(f.w.value), d = f.d.value || today(); if (!w) return false; b.weights[d] = w; b.start ||= { date: d, weight: w }; toast('Saved ✓'); }, 'Save'); });
   $$('[data-gtodo]', v).forEach(x => x.onclick = () => { const [id, i] = x.dataset.gtodo.split('|'), t = gById(id).todos[+i]; t.done = t.done ? undefined : today(); save(); render(); if (t.done) toast('Done ✓'); });
   $$('[data-vb]', v).forEach(x => x.onclick = () => photoEdit(x.dataset.vb));
   const ap = $('#affPlay', v); if (ap) ap.onclick = () => affirmations(true);
