@@ -821,15 +821,28 @@ function bindWake(v, d) {
 
 // ---------- GOALS ----------
 // S.goals = { list:[goal], board:[{id,img,cap,goal,done}] }
-// goal = { id, icon, title, s, m, a, r, due, track:'weight'|'smoke'|'manual'|'check', start, target, unit, log:[{d,v}], checks:[names], ticks:{'YYYY-MM':[i]}, done, sort }
+// goal = { id, icon, title, s, m, a, r, due, track:'weight'|'smoke'|'manual'|'check'|'habit', per:'day'|'week', start, target, unit, log:[{d,v}], checks:[names], ticks:{'YYYY-MM':[i]}, todos:[{t,done}], done, sort }
 // No points: progress is the reward (flags on the bar, streaks, how far you've come, photos).
 const G = () => { const g = S.goals ||= {}; g.list ||= []; g.board ||= []; return g; };
-const TRACKS = { weight: 'Weight (reads Body)', smoke: 'Smoke-free days (reads Body)', manual: 'A number I log', check: 'Monthly checklist', wake: 'Wake-up streak (reads Today)' };
+const TRACKS = { habit: 'Habit: an amount every day or week', manual: 'A number I log (saved €, %, score)', weight: 'Weight (reads Body)', check: 'Monthly checklist', smoke: 'Smoke-free days (reads Body)', wake: 'Wake-up streak (reads Today)' };
+const TRACK_HELP = { habit: 'Log what you did (minutes, questions). The bar fills each day or week; hitting the target builds the 🔥 streak.',
+  manual: 'Log the number as it is now (e.g. 450 € saved). The bar goes from Start to Target, with ⚑ flags at 25, 50 and 75%.',
+  weight: 'Reads your weigh-ins on Body (7-day average). A ⚑ flag every 2 kg.', check: 'A short test you tick each month. Each tick is its share of 100%.',
+  smoke: 'Counts days since your smoke-free date on Body.', wake: 'Counts mornings in a row you tapped "I\'m up" on time.' };
+// habit goals: amounts add up per day or per week (g.per). Streak = periods in a row the target was hit.
+const perKey = (g, d) => g.per === 'day' ? d : monday(d);
+const habitSum = (g, d = today()) => { const k = perKey(g, d); return r1((g.log || []).filter(x => perKey(g, x.d) === k).reduce((a, x) => a + x.v, 0)); };
+function habitStreak(g) { const step = g.per === 'day' ? 1 : 7; let d = today(), n = 0;
+  if (habitSum(g, d) < g.target) d = addDays(d, -step);
+  while (n < 400 && g.target && habitSum(g, d) >= g.target) { n++; d = addDays(d, -step); }
+  return n; }
+const habitDots = g => { const step = g.per === 'day' ? 1 : 7; return Array.from({ length: 7 }, (_, i) => { const d = addDays(today(), -step * (6 - i)), v = habitSum(g, d); return `<i class="${v >= g.target ? 'on' : v > 0 ? 'part' : ''}" title="${fmtDay(perKey(g, d))}: ${v}"></i>`; }).join(''); };
 const ym = d => d.slice(0, 7);
 function goalNow(g) {
   if (g.track === 'weight') { const ds = Object.keys(B().weights).sort(), last = ds[ds.length - 1]; return last ? r1(avgW(last) || B().weights[last]) : null; }
   if (g.track === 'smoke') return B().smoke ? daysBetween(B().smoke.since, today()) : null;
   if (g.track === 'wake') return wakeStreak();
+  if (g.track === 'habit') return habitSum(g);
   if (g.track === 'check') { const n = (g.checks || []).length; if (!n) return null; const t = g.ticks || {}, m = Object.keys(t).sort().pop(); return m ? Math.round(t[m].length / n * 100) : 0; }
   const l = (g.log || []).slice().sort((a, b) => a.d.localeCompare(b.d)); return l.length ? l[l.length - 1].v : null;
 }
@@ -847,12 +860,13 @@ function goalPct(g) {
 function goalFlags(g) {
   const a = goalStart(g), b = goalTarget(g); if (a == null || b == null || a === b) return [];
   if (g.track === 'weight') { const out = [], dir = b < a ? -1 : 1; for (let k = 2; k < Math.abs(b - a); k += 2) out.push(k); return out.map(k => ({ v: r1(a + dir * k), p: k / Math.abs(b - a), label: `${dir < 0 ? '−' : '+'}${k} kg (${r1(a + dir * k)})` })); }
+  if (g.track === 'habit') return [];
   if (g.track === 'wake') return [7, 14].filter(x => x < b).map((x, i) => ({ v: x, p: x / b, label: `${i + 1} week${i ? 's' : ''}` }));
   return [.25, .5, .75].map(p => { const v = r1(a + (b - a) * p); return { v, p, label: g.track === 'check' || g.unit === '%' ? v + '%' : v + (g.unit ? ' ' + g.unit : '') }; });
 }
 // weeks in a row with something logged (manual / checklist goals)
 function goalStreak(g) {
-  const ds = g.track === 'check' ? [] : (g.log || []).map(x => x.d); if (!ds.length) return 0;
+  const ds = ['check', 'habit'].includes(g.track) ? [] : (g.log || []).map(x => x.d); if (!ds.length) return 0;
   const wk = new Set(ds.map(monday)); let w = monday(today()), n = 0;
   if (!wk.has(w)) w = addDays(w, -7);
   while (wk.has(w)) { n++; w = addDays(w, -7); }
@@ -860,13 +874,14 @@ function goalStreak(g) {
 }
 function goalLine(g) {
   const c = goalNow(g), a = goalStart(g), b = goalTarget(g), u = g.unit ? (g.unit === '%' ? '' : ' ') + g.unit : '';
-  if (c == null) return g.track === 'weight' ? 'Log a weight on Body to start.' : g.track === 'smoke' ? 'Starts when you set a smoke-free date on Body.' : 'Nothing logged yet.';
+  if (c == null && g.track !== 'habit') return g.track === 'weight' ? 'Log a weight on Body to start.' : g.track === 'smoke' ? 'Starts when you set a smoke-free date on Body.' : 'Nothing logged yet.';
   const bits = [];
   if (g.track === 'weight') {
     const lost = r1(a - c), left = r1(c - b);
     bits.push(`<b>${c} kg</b> (7-day avg)`, lost > 0 ? `−${lost} kg so far` : 'Starting line', left > 0 ? `${left} to go` : 'Target reached 🎉');
     if (g.due && left > 0) { const wks = Math.max(1, daysBetween(today(), g.due) / 7); bits.push(`~${r1(left / wks)} kg/week needed`); }
-  } else if (g.track === 'wake') bits.push(`<b>${c} day${c === 1 ? '' : 's'}</b> in a row up by ${wakeBy()}`, `target ${b}`);
+  } else if (g.track === 'habit') { const st = habitStreak(g); bits.push(`<b>${c} / ${b}${u}</b> ${g.per === 'day' ? 'today' : 'this week'}`, c >= b ? 'target hit ✓' : `${r1(b - c)}${u} to go`, st ? `<span class="fire">🔥</span> ${st} ${g.per === 'day' ? 'day' : 'week'}${st > 1 ? 's' : ''} in a row` : 'streak starts when you hit it'); }
+  else if (g.track === 'wake') bits.push(`<b>${c} day${c === 1 ? '' : 's'}</b> in a row up by ${wakeBy()}`, `target ${b}`);
   else if (g.track === 'smoke') bits.push(`<b>${c} days</b> smoke-free`, `best ${Math.max(B().smoke.best || 0, c)}`);
   else if (g.track === 'check') bits.push(`<b>${c}%</b> this month's test`);
   else bits.push(`<b>${c}${u}</b> now`, `started at ${a}${u}`, `target ${b}${u}`);
@@ -889,10 +904,12 @@ function goalCard(g) {
     ${photo ? `<div class="polaroid small-p"><img src="${photo.mine || photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
     ${goalBar(g)}
     <div class="small">${goalLine(g)}</div>
+    ${g.track === 'habit' ? `<div class="hdots" title="last 7 ${g.per === 'day' ? 'days' : 'weeks'}">${habitDots(g)}<span class="muted small">last 7 ${g.per === 'day' ? 'days' : 'weeks'}</span></div>` : ''}
+    ${(g.todos || []).length ? `<div class="muted small" style="margin-top:8px">To do (${g.todos.filter(t => t.done).length}/${g.todos.length})</div><ul class="list todo">${g.todos.map((t, i) => `<li data-gtodo="${g.id}|${i}" class="${t.done ? 'done' : ''}"><span>${t.done ? '☑' : '☐'}</span><div class="grow small">${esc(t.t)}</div>${t.done ? `<span class="muted small">${fmtDay(t.done)}</span>` : ''}</li>`).join('')}</ul>` : ''}
     ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · <span class="fire">🔥</span> ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small"><span class="fire">🔥</span> ${st} weeks in a row</div>` : ''}
     ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">${new Date().toLocaleDateString('en-GB', { month: 'long' })} test, tap what you can do:</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
     ${smart.length ? `<details><summary class="muted small">SMART</summary>${smart.map(([k, t]) => `<div class="small"><b>${k}:</b> ${esc(t)}</div>`).join('')}</details>` : ''}
-    ${g.done ? '' : `<div class="row gap">${g.track === 'manual' ? `<button class="mini" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
+    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
   </div>`;
 }
 function farCard() {
@@ -951,6 +968,7 @@ BIND.goals = v => {
   $$('[data-gtick]', v).forEach(x => x.onclick = () => {
     const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
     t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); save(); render(); });
+  $$('[data-gtodo]', v).forEach(x => x.onclick = () => { const [id, i] = x.dataset.gtodo.split('|'), t = gById(id).todos[+i]; t.done = t.done ? undefined : today(); save(); render(); if (t.done) toast('Done ✓'); });
   $$('[data-vb]', v).forEach(x => x.onclick = () => photoEdit(x.dataset.vb));
   const ap = $('#affPlay', v); if (ap) ap.onclick = () => affirmations(true);
   $('#vbAdd', v).onchange = async e => { for (const f of e.target.files) await addPhoto(f, {}); render(); };
@@ -966,30 +984,40 @@ function goalEdit(id) {
     <label>Relevant: why it matters to you</label><textarea name="r" rows="2">${esc(g.r || '')}</textarea>
     <label>Time-bound: deadline</label><input type="date" name="due" value="${g.due || ''}">
     <label>Track progress by</label><select name="track">${Object.entries(TRACKS).map(([k, t]) => `<option value="${k}" ${g.track === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    <div class="grid3" id="nums"><div><label>Start</label><input name="start" inputmode="decimal" value="${g.start ?? ''}" placeholder="${g.track === 'weight' ? 'from Body' : '0'}"></div><div><label>Target</label><input name="target" inputmode="decimal" value="${g.target ?? ''}"></div><div><label>Unit</label><input name="unit" value="${esc(g.unit || '')}" placeholder="kg, %, min"></div></div>
+    <p class="muted small" id="thelp"></p>
+    <div id="perW"><label>Target is per</label><select name="per"><option value="week" ${g.per !== 'day' ? 'selected' : ''}>Week (Mon to Sun)</option><option value="day" ${g.per === 'day' ? 'selected' : ''}>Day</option></select></div>
+    <div class="grid3" id="nums"><div id="startW"><label>Start</label><input name="start" inputmode="decimal" value="${g.start ?? ''}" placeholder="${g.track === 'weight' ? 'from Body' : '0'}"></div><div><label>Target</label><input name="target" inputmode="decimal" value="${g.target ?? ''}"></div><div><label>Unit</label><input name="unit" value="${esc(g.unit || '')}" placeholder="kg, %, min"></div></div>
     <div id="cks"><label>Checklist (one per line; each one ticked = its share of 100%)</label><textarea name="checks" rows="4">${esc(ck)}</textarea></div>
+    <label>To do: one-off steps (one per line, tick them on the card)</label><textarea name="todos" rows="3" placeholder="e.g. Book the theory exam">${esc((g.todos || []).map(t => t.t).join('\n'))}</textarea>
     ${id ? `<div class="row gap">${g.done ? '<button class="mini" id="gReopen">Not achieved yet</button>' : ''}<button class="mini" id="gArch">${g.arch ? 'Unarchive' : '🗄 Archive'}</button><div class="grow"></div><button class="mini del" id="gDel">Delete goal</button></div>` : ''}`, f => {
     if (!f.title.value.trim()) { toast('Give it a name'); return false; }
     Object.assign(g, { icon: f.icon.value.trim() || '☆', title: f.title.value.trim(), s: f.s.value.trim(), m: f.m.value.trim(), a: f.a.value.trim(), r: f.r.value.trim(), due: f.due.value || undefined, track: f.track.value,
       start: f.start.value.trim() === '' ? undefined : num(f.start.value), target: f.target.value.trim() === '' ? undefined : num(f.target.value), unit: f.unit.value.trim() || undefined,
-      checks: f.checks.value.split('\n').map(x => x.trim()).filter(Boolean) });
+      checks: f.checks.value.split('\n').map(x => x.trim()).filter(Boolean), per: f.track.value === 'habit' ? f.per.value : undefined,
+      todos: f.todos.value.split('\n').map(x => x.trim()).filter(Boolean).map(t => ({ t, done: ((g.todos || []).find(o => o.t === t) || {}).done })) });
+    if (g.track === 'habit' && !g.target) { toast('Set a target, e.g. 450'); return false; }
     if (g.track === 'smoke' && g.unit == null) g.unit = 'days';
     if (!id) { g.id = uid(); g.log = []; G().list.push(g); }
   });
-  const sync = () => { const t = body.track.value; $('#cks', body).hidden = t !== 'check'; $('#nums', body).hidden = t === 'check'; };
+  const sync = () => { const t = body.track.value; $('#cks', body).hidden = t !== 'check'; $('#nums', body).hidden = t === 'check'; $('#perW', body).hidden = t !== 'habit'; $('#startW', body).hidden = t === 'habit'; $('#thelp', body).textContent = TRACK_HELP[t] || ''; };
   body.track.onchange = sync; sync();
   const del = $('#gDel', body); if (del) del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; S.goals.list = G().list.filter(x => x.id !== id); S.goals.board = G().board.filter(x => x.goal !== id || !x.done); save(); closeDlg(); render(); toast('Goal deleted'); };
   const ga = $('#gArch', body); if (ga) ga.onclick = e => { e.preventDefault(); g.arch = g.arch ? undefined : today(); save(); closeDlg(); render(); toast(g.arch ? 'Archived' : 'Back on your list'); };
   const ro = $('#gReopen', body); if (ro) ro.onclick = e => { e.preventDefault(); g.done = undefined; save(); closeDlg(); render(); };
 }
 function goalLog(id) {
-  const g = gById(id), hist = (g.log || []).slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 8);
+  const g = gById(id), hab = g.track === 'habit', hist = (g.log || []).slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 8);
+  const quick = !hab ? [] : g.unit === 'min' ? [15, 30, 45, 90] : [...new Set([r0(g.target / 4), r0(g.target / 2), r0(g.target)])].filter(x => x > 0);
   const body = dialog(`<h2>${esc(g.icon || '')} ${esc(g.title)}</h2>
-    <div class="row"><div class="grow"><label>Value${g.unit ? ' (' + esc(g.unit) + ')' : ''}</label><input name="v" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div>
+    ${hab ? `<p class="muted small">Adds to that day. ${g.per === 'day' ? 'Today' : 'This week'}: ${habitSum(g)} / ${g.target}${g.unit ? ' ' + esc(g.unit) : ''}</p><div class="chips">${quick.map(q => `<button class="chip" data-q="${q}">+${q}</button>`).join('')}</div>` : ''}
+    <div class="row"><div class="grow"><label>${hab ? 'Amount' : 'Value now'}${g.unit ? ' (' + esc(g.unit) + ')' : ''}</label><input name="v" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div>
     ${hist.length ? `<h3>Recent</h3>${hist.map(x => `<div class="row small"><span class="grow">${fmtDay(x.d)}</span><b>${x.v}${g.unit ? ' ' + esc(g.unit) : ''}</b><button class="mini ghost" data-lx="${x.d}">✕</button></div>`).join('')}` : ''}`, f => {
     if (f.v.value.trim() === '') return false;
-    g.log = (g.log || []).filter(x => x.d !== f.d.value); g.log.push({ d: f.d.value || today(), v: num(f.v.value) }); toast('Logged ✓');
+    const d = f.d.value || today(), v = num(f.v.value), old = (g.log || []).find(x => x.d === d);
+    g.log = (g.log || []).filter(x => x.d !== d); g.log.push({ d, v: hab ? r1((old ? old.v : 0) + v) : v });
+    toast(hab && habitSum(g) >= g.target ? 'Target hit 🔥' : 'Logged ✓');
   }, 'Log');
+  $$('[data-q]', body).forEach(b => b.onclick = e => { e.preventDefault(); body.v.value = b.dataset.q; body.requestSubmit($('button[value=ok]', body)); });
   $$('[data-lx]', body).forEach(x => x.onclick = e => { e.preventDefault(); g.log = g.log.filter(y => y.d !== x.dataset.lx); save(); x.parentElement.remove(); render(); });
 }
 function goalWin(id) {
