@@ -195,3 +195,4 @@ details > summary { cursor: pointer; }
 .hdots span { margin-left: 4px; }
 .list.todo li { cursor: pointer; padding: 6px 0; }
 .list.todo li.done .grow { text-decoration: line-through; opacity: .6; }
+[hidden] { display: none !important; }
