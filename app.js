@@ -123,8 +123,12 @@ const cardById = id => S.cards.find(c => c.id === id);
 const macroFor = (food, g) => ({ kcal: food.kcal * g / 100, p: food.p * g / 100, c: food.c * g / 100, f: food.f * g / 100, fib: (food.fib || 0) * g / 100 });
 const sumM = list => list.reduce((a, x) => ({ kcal: a.kcal + (x.kcal || 0), p: a.p + (x.p || 0), c: a.c + (x.c || 0), f: a.f + (x.f || 0), fib: a.fib + (x.fib || 0) }), { kcal: 0, p: 0, c: 0, f: 0, fib: 0 });
 const itemsTotals = items => sumM(items.map(i => { const f = foodById(i.foodId); return f ? macroFor(f, i.g) : {}; }));
-const cardTotals = c => itemsTotals(c.items);
-const cardGrams = c => c.items.reduce((a, i) => a + i.g, 0);
+// Plate card: items = your portion, each part weighed. Batch card (pie, soup): items = the WHOLE recipe,
+// batch = { serv, cookedG, left }: one serving = your portion; left = servings in the fridge/freezer.
+const isBatch = c => !!(c && c.batch && c.batch.serv > 0);
+const myItems = c => isBatch(c) ? c.items.map(i => ({ foodId: i.foodId, g: i.g / c.batch.serv })) : c.items;
+const cardTotals = c => itemsTotals(myItems(c));
+const cardGrams = c => isBatch(c) && c.batch.cookedG ? c.batch.cookedG / c.batch.serv : myItems(c).reduce((a, i) => a + i.g, 0);
 const amountText = (food, g) => food && food.unit && food.unitG && g % food.unitG === 0 ? `${g / food.unitG} ${food.unit}` : `${r0(g)} g`;
 
 // merge Claude-maintained food list (foods + prices)
@@ -1100,6 +1104,7 @@ function importCards(list) {
     const slot = CARD_TYPES.includes(cardType(c.slot)) ? cardType(c.slot) : 'Meal';
     const note = c.note || '', method = c.method || (Array.isArray(c.steps) ? c.steps.map((x, i) => `${i + 1}. ${x}`).join('\n') : c.steps || ''), prep = num(c.prepMin || c.prep) || 0;
     const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || prep >= 60, prep, method, note };
+    const sv = num(c.servings); o.batch = sv > 1 ? { serv: sv, cookedG: num(c.cookedG) || (old && old.batch ? old.batch.cookedG : 0) || 0, left: old && old.batch ? old.batch.left || 0 : 0 } : undefined;
     if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }
   return { added, updated, skipped, newFoods };
@@ -1210,7 +1215,7 @@ VIEWS.log = () => {
   ${SLOTS.map(s => {
     const list = es.filter(e => e.slot === s.id), t = sumM(list), g = list.reduce((a, e) => a + (e.g || 0), 0), pcs = myCards(d, s.id);
     const pkd = ((((S.plan[d] || {}).packed) || {})[s.id]) || {};
-    const planBtn = pc => { const pk = pkd[pc.id], k = pk ? itemsTotals(pc.items.map(i => ({ foodId: i.foodId, g: pk[i.foodId] ?? i.g }))).kcal : cardTotals(pc).kcal;
+    const planBtn = pc => { const pk = pkd[pc.id], k = pk ? itemsTotals(myItems(pc).map(i => ({ foodId: i.foodId, g: pk[i.foodId] ?? i.g }))).kcal : cardTotals(pc).kcal;
       return `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">${pk ? '📦 Packed' : 'Planned'}: <b>${esc(pc.name)}</b> · ${r0(k)} kcal · tap to log</button>`; };
     const rest = list.length ? pcs.filter(pc => !list.some(e => e.card === pc.id)) : [];
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
@@ -1385,13 +1390,38 @@ function logFoodDialog(food, slot) {
   body.amt.oninput = upd; body.unit.onchange = upd; upd();
 }
 // grams per ingredient can be changed (weighed). 📦 Packed saves them on the day's plan; logging later uses them.
+// batch card: log by servings (1 = 1/serv of the recipe) or by the weight on your plate (needs the cooked weight)
+function logBatchDialog(c, slot) {
+  const b = c.batch, sl0 = slot || nowSlot(), sg = b.cookedG ? b.cookedG / b.serv : 0;
+  const body = dialog(`<h2>🍲 ${esc(c.name)}</h2>
+    <div class="chips"><button class="chip ${sg ? '' : 'on'}" data-bm="s">By serving</button>${sg ? '<button class="chip on" data-bm="g">By plate weight</button>' : ''}</div>
+    <div id="bS" ${sg ? 'hidden' : ''}><label>Servings (the recipe makes ${b.serv})</label><input name="sv" inputmode="decimal" value="1"></div>
+    <div id="bG" ${sg ? '' : 'hidden'}><label>Weight on your plate, g</label><input name="pg" inputmode="decimal" value="${sg ? r0(sg) : ''}"><p class="muted small">Your serving is about ${r0(sg)} g. Weigh the plate empty first, or zero the scale with it on.</p></div>
+    ${sg ? '' : '<p class="muted small">Weigh the whole dish once after cooking and add it on the card (✎ → Cooked weight) to log by plate weight.</p>'}
+    <p class="muted" id="lsum"></p>
+    ${b.left ? `<label class="row tick"><input type="checkbox" name="fromStock"> 🧊 Took it from stock (${r1(b.left)} left), not from a planned cook</label>` : ''}
+    ${c.method ? `<details><summary class="muted small">📖 Method${c.prep ? ` · ${c.prep} min` : ''}</summary><p class="small" style="white-space:pre-line">${esc(c.method)}</p></details>` : ''}
+    ${slotSelect(sl0)}`, f => {
+    const k = frac(); if (!(k > 0)) { toast('Add the servings or grams'); return false; }
+    const it = c.items.map(i => ({ foodId: i.foodId, g: i.g * k })), t = itemsTotals(it), g = mode === 'g' ? num(f.pg.value) : sg ? sg * num(f.sv.value) : it.reduce((a, x) => a + x.g, 0);
+    addLog({ slot: f.slot.value, card: c.id, name: c.name + (mode === 'g' ? ` (${r0(g)} g)` : num(f.sv.value) !== 1 ? ` (${r1(num(f.sv.value))} servings)` : ''), g, kcal: t.kcal, p: t.p, c: t.c, f: t.f, fib: t.fib, items: it });
+    if (f.fromStock && f.fromStock.checked) b.left = Math.max(0, r1(b.left - k * b.serv));
+    UI.pendingSlot = null; toast('Logged ✓');
+  }, 'Log it');
+  let mode = sg ? 'g' : 's';
+  const frac = () => mode === 'g' ? num(body.pg.value) / b.cookedG : num(body.sv.value) / b.serv;
+  const upd = () => { const t = itemsTotals(c.items), k = frac() || 0; $('#lsum', body).textContent = `${r0(t.kcal * k)} kcal · P ${r0(t.p * k)} · C ${r0(t.c * k)} · F ${r0(t.f * k)} · Fib ${r0(t.fib * k)}`; };
+  $$('[data-bm]', body).forEach(x => x.onclick = e => { e.preventDefault(); mode = x.dataset.bm; $$('[data-bm]', body).forEach(y => y.classList.toggle('on', y === x)); $('#bS', body).hidden = mode !== 's'; $('#bG', body).hidden = mode !== 'g'; upd(); });
+  body.sv.oninput = upd; body.pg.oninput = upd; upd();
+}
 function logCardDialog(c, slot) {
   if (!c) return;
+  if (isBatch(c)) return logBatchDialog(c, slot);
   const day = UI.day, sl0 = slot || (SLOT_IDS.includes(c.slot) ? c.slot : nowSlot());
   const pk = (((S.plan[day] || {}).packed || {})[sl0] || {})[c.id];
   const base = c.items.map(i => ({ foodId: i.foodId, g: pk && pk[i.foodId] != null ? pk[i.foodId] : i.g }));
-  const body = dialog(`<h2>🍱 ${esc(c.name)}</h2>${pk ? '<p class="muted small">📦 Packed amounts</p>' : '<p class="muted small">Weighed it? Change the grams.</p>'}
-    <ul class="list">${base.map((i, n) => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(f.name)}</div><input class="gin" data-gi="${n}" inputmode="decimal" value="${r1(i.g)}"> g</li>` : ''; }).join('')}</ul>
+  const body = dialog(`<h2>🍱 ${esc(c.name)}</h2>${pk ? '<p class="muted small">📦 Packed amounts</p>' : '<p class="muted small">⚖ Bowl on the scale, zero it, then add each part until the scale reads the number on the right. Used more or less? Change the grams.</p>'}
+    <ul class="list">${base.map((i, n) => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(f.name)}</div><input class="gin" data-gi="${n}" inputmode="decimal" value="${r1(i.g)}"> g<span class="scl" data-sc="${n}"></span></li>` : ''; }).join('')}</ul>
     <p class="muted" id="lsum"></p>
     ${c.method ? `<details><summary class="muted small">📖 Method${c.prep ? ` · ${c.prep} min` : ''}</summary><p class="small" style="white-space:pre-line">${esc(c.method)}</p></details>` : ''}
     ${slotSelect(sl0)}
@@ -1402,7 +1432,7 @@ function logCardDialog(c, slot) {
     UI.pendingSlot = null; toast('Logged ✓');
   }, 'Log it');
   const items = () => base.map((x, n) => ({ foodId: x.foodId, g: num(($(`[data-gi="${n}"]`, body) || {}).value) || 0 }));
-  const upd = () => { const it = items(), t = itemsTotals(it); $('#lsum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(it.reduce((a, x) => a + x.g, 0))} g`; };
+  const upd = () => { const it = items(), t = itemsTotals(it); let run = 0; it.forEach((x, n) => { run += x.g; const e = $(`[data-sc="${n}"]`, body); if (e) e.textContent = '⚖ ' + r0(run); }); $('#lsum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(it.reduce((a, x) => a + x.g, 0))} g`; };
   $$('.gin', body).forEach(x => x.oninput = upd); upd();
   $('#packIt', body).onclick = e => { e.preventDefault(); const p = dayPlan(day); p.packed ||= {}; const m = (p.packed[sl0] ||= {}); m[c.id] = Object.fromEntries(items().map(x => [x.foodId, x.g])); save(); closeDlg(); render(); toast('📦 Packed. Tap it to log when you eat'); };
 }
@@ -1617,9 +1647,9 @@ const cookLabel = k => { const g = {}; for (const [d, sl, , w] of k.parts) (g[sl
 // read-only recipe card: ingredients scaled to what you're cooking, plus the method
 function recipeView(c, mult = 1, label = '') {
   const t = cardTotals(c), jk = jonasPortion(c, 'Dinner');
-  const opts = [[mult, label || 'As planned'], [1, 'Just me'], [1 + jk, 'Me + Jonas']].filter((o, i, a) => a.findIndex(x => Math.abs(x[0] - o[0]) < .01) === i);
-  const show = m => `<ul class="list">${c.items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(sn(f))}</div><b>${amountText(f, r0(i.g * m))}</b></li>` : ''; }).join('')}</ul>
-    <p class="muted small">Total ${r0(cardGrams(c) * m)} g · that's ${r1(m)} × your portion. Your portion: ${r0(cardGrams(c))} g · ${r0(t.kcal)} kcal · P ${r0(t.p)}</p>`;
+  const bt = isBatch(c), opts = [...(bt ? [[c.batch.serv, `Whole recipe (${c.batch.serv} servings)`]] : []), [mult, label || 'As planned'], [1, bt ? '1 serving' : 'Just me'], [1 + jk, 'Me + Jonas']].filter((o, i, a) => a.findIndex(x => Math.abs(x[0] - o[0]) < .01) === i);
+  const show = m => `<ul class="list">${myItems(c).map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow">${esc(sn(f))}</div><b>${amountText(f, r0(i.g * m))}</b></li>` : ''; }).join('')}</ul>
+    <p class="muted small">${bt ? `${r1(m)} of ${c.batch.serv} servings${c.batch.cookedG ? ` · about ${r0(cardGrams(c) * m)} g cooked` : ''}. One serving: ${c.batch.cookedG ? r0(cardGrams(c)) + ' g · ' : ''}${r0(t.kcal)} kcal · P ${r0(t.p)}${c.batch.left ? ` · 🧊 ${r1(c.batch.left)} in stock` : ''}` : `Total ${r0(cardGrams(c) * m)} g · that's ${r1(m)} × your portion. Your portion: ${r0(cardGrams(c))} g · ${r0(t.kcal)} kcal · P ${r0(t.p)}`}</p>`;
   const body = dialog(`<h2>📖 ${esc(c.name)}</h2>${c.prep ? `<p class="muted small">⏱ ${c.prep} min</p>` : ''}
     <div class="chips">${opts.map(([m, l], i) => `<button class="chip ${i ? '' : 'on'}" data-rm="${m}">${esc(l)}</button>`).join('')}</div>
     <div id="rIng">${show(opts[0][0])}</div>
@@ -1639,7 +1669,7 @@ VIEWS.cards = () => {
   return `${upcomingCard()}
   ${reviewCard()}
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Dessert' ? 'Desserts <span class="muted small">· Jonas</span>' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
-    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${r0(cardGrams(c))} g${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><button class="mini ghost" data-view="${c.id}">📖</button><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
+    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${isBatch(c) ? `🍲 ${c.batch.serv} servings${c.batch.cookedG ? ` of ${r0(cardGrams(c))} g` : ''}${c.batch.left ? ` · 🧊 ${r1(c.batch.left)} in stock` : ''}` : r0(cardGrams(c)) + ' g'}${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><button class="mini ghost" data-view="${c.id}">📖</button><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
     ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
@@ -1670,7 +1700,7 @@ function bindItems(body, ex, onChange) {
   wire(); onChange();
 }
 const readItems = body => $$('.item', body).map(r => ({ foodId: $('select', r).value, g: num($('input', r).value) })).filter(i => i.foodId && i.g > 0);
-const jonasFactor = c => { const t = cardTotals(c).kcal; if (!c.jonas || !t) return 0; return (c.jonasKcal || S.settings.jonasDinner) / t; };
+const jonasFactor = c => { const t = cardTotals(c).kcal; if (!c.jonas || !t) return 0; const k = (c.jonasKcal || S.settings.jonasDinner) / t; return isBatch(c) ? Math.max(.5, Math.round(k * 2) / 2) : k; };
 
 function cardDialog(c) {
   const isNew = !c.id;
@@ -1678,7 +1708,10 @@ function cardDialog(c) {
     <label>Name</label><input name="name" value="${esc(c.name || '')}" placeholder="e.g. Peanut chilli noodles">
     <div class="row"><div class="grow"><label>Meal</label><select name="slot">${CARD_TYPES.map(s => `<option ${s === c.slot ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div class="grow"><label>Stars</label><select name="stars">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${n === (c.stars || 3) ? 'selected' : ''}>${'★'.repeat(n)}</option>`).join('')}</select></div></div>
-    <h3>Your portion</h3>${itemsEditor(c.items || [])}
+    <label>Made as</label><select name="kind"><option value="plate" ${isBatch(c) ? '' : 'selected'}>🍽 Plate: weigh each part (bowls, breakfast)</option><option value="batch" ${isBatch(c) ? 'selected' : ''}>🍲 Batch: one dish in servings (pie, soup, stew)</option></select>
+    <div id="bbox"><div class="grid3"><div><label>Servings</label><input name="serv" inputmode="numeric" value="${isBatch(c) ? c.batch.serv : ''}" placeholder="8"></div><div><label>Cooked weight, g</label><input name="ckg" inputmode="decimal" value="${(c.batch || {}).cookedG || ''}" placeholder="weigh it"></div><div><label>🧊 In stock</label><input name="left" inputmode="decimal" value="${(c.batch || {}).left || ''}" placeholder="0"></div></div>
+      <p class="muted small">One serving = your portion. Weigh the whole dish once after cooking (minus the dish) so you can log by plate weight. In stock = servings left in the fridge or freezer; the plan and shopping list use these first.</p></div>
+    <h3 id="ihead">${isBatch(c) ? 'Whole recipe' : 'Your portion'}</h3>${itemsEditor(c.items || [])}
     <p class="muted" id="sum"></p>
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
       <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div><div id="jcook"></div></div>
@@ -1691,21 +1724,32 @@ function cardDialog(c) {
     ${isNew ? '' : '<p class="row gap"><button class="mini" id="dupCard">Duplicate</button><button class="del mini" id="delCard">Delete card</button></p>'}`, b => {
     const items = readItems(b); if (!b.name.value.trim() || !items.length) { toast('Add a name and foods'); return false; }
     const o = isNew ? { id: uid() } : c;
+    const bt = b.kind.value === 'batch' && num(b.serv.value) > 0;
+    if (b.kind.value === 'batch' && !bt) { toast('How many servings does it make?'); return false; }
+    o.batch = bt ? { serv: num(b.serv.value), cookedG: num(b.ckg.value) || 0, left: num(b.left.value) || 0 } : undefined;
     Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, prep: num(b.prep.value) || 0, long: b.long.checked || num(b.prep.value) >= 60, method: b.method.value.trim(), note: b.note.value.trim() });
     if (isNew) S.cards.push(o);
     for (const k in S.settings.fixed) if (S.settings.fixed[k] === o.id) delete S.settings.fixed[k];
     if (b.fixed.checked && o.slot !== 'Meal') S.settings.fixed[o.slot] = o.id;
   });
   const upd = () => {
-    const items = readItems(body), t = itemsTotals(items);
-    const tmp = { items, jonas: body.jonas.checked, jonasKcal: num(body.jk.value), slot: body.slot.value }, k = jonasFactor(tmp);
-    $('#sum', body).textContent = `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g` ;
+    const bt = body.kind.value === 'batch', sv = num(body.serv.value) || 0;
+    $('#bbox', body).hidden = !bt; $('#ihead', body).textContent = bt ? 'Whole recipe' : 'Your portion';
+    const all = readItems(body), items = bt && sv ? all.map(i => ({ foodId: i.foodId, g: i.g / sv })) : all, t = itemsTotals(items);
+    const tmp = { items: all, batch: bt && sv ? { serv: sv } : undefined, jonas: body.jonas.checked, jonasKcal: num(body.jk.value), slot: body.slot.value }, k = jonasFactor(tmp);
+    $('#sum', body).textContent = bt ? (sv ? `Per serving: ${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)}${num(body.ckg.value) ? ` · ${r0(num(body.ckg.value) / sv)} g cooked` : ''}. Whole recipe ${r0(t.kcal * sv)} kcal.` : 'Add the servings.') : `${r0(t.kcal)} kcal · P ${r0(t.p)} · C ${r0(t.c)} · F ${r0(t.f)} · Fib ${r0(t.fib)} · ${r0(items.reduce((a, i) => a + i.g, 0))} g`;
     $('#jkbox', body).classList.toggle('hidden', !body.jonas.checked);
-    $('#jcook', body).innerHTML = k ? `<h3>Cooking for you + Jonas</h3><ul class="list">${items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow small">${esc(sn(f))}</div><span class="small">${amountText(f, r0(i.g * (1 + k)))}</span></li>` : ''; }).join('')}</ul>` : '';
-    $('#jsum', body).textContent = k ? `Jonas gets about ${r0(t.kcal * k)} kcal (${r1(k)}× your portion, about ${r0(items.reduce((a, i) => a + i.g, 0) * k)} g). In Plan, set For: Jonas or Both to cook it and add it to the shopping list.` : '';
+    $('#jcook', body).innerHTML = k && !bt ? `<h3>Cooking for you + Jonas</h3><ul class="list">${items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow small">${esc(sn(f))}</div><span class="small">${amountText(f, r0(i.g * (1 + k)))}</span></li>` : ''; }).join('')}</ul>` : '';
+    $('#jsum', body).textContent = k && bt ? `Jonas gets about ${r1(k)} servings (${r0(t.kcal * k)} kcal).` : k ? `Jonas gets about ${r0(t.kcal * k)} kcal (${r1(k)}× your portion, about ${r0(items.reduce((a, i) => a + i.g, 0) * k)} g). In Plan, set For: Jonas or Both to cook it and add it to the shopping list.` : '';
     $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', ...JONAS_ONLY].includes(body.slot.value));
   };
-  bindItems(body, null, upd); body.slot.onchange = upd; body.jonas.onchange = upd; body.jk.oninput = upd;
+  bindItems(body, null, upd); body.slot.onchange = upd; body.jonas.onchange = upd; body.jk.oninput = upd; body.ckg.oninput = upd;
+  // switching Plate <-> Batch converts the amounts (your portion x servings = whole recipe) until you edit a gram yourself
+  let conv = null; const gIns = () => $$('#items input[name=g]', body);
+  body.kind.onchange = () => { if (body.kind.value === 'batch') { if (!num(body.serv.value)) body.serv.value = 4; conv = gIns().map(x => num(x.value)); gIns().forEach((x, n) => x.value = r1(conv[n] * num(body.serv.value))); }
+    else { const sv = num(body.serv.value) || 1; gIns().forEach(x => x.value = r1(num(x.value) / sv)); conv = null; } upd(); };
+  body.serv.oninput = () => { if (conv && num(body.serv.value)) gIns().forEach((x, n) => { if (conv[n] != null) x.value = r1(conv[n] * num(body.serv.value)); }); upd(); };
+  $('#items', body).addEventListener('input', e => { if (e.target.name === 'g') conv = null; });
   const del = $('#delCard', body);
   if (del) del.onclick = e => { e.preventDefault(); if (confirmInline(del)) { S.cards = S.cards.filter(x => x.id !== c.id); save(); closeDlg(); render(); } };
   const dup = $('#dupCard', body);
@@ -1819,9 +1863,14 @@ const isCooked = (d, slot) => !!((S.plan[d] || {}).cooked || {})[slot];
 // what I eat from a slot (my Today / my day totals)
 const myCards = (d, slot) => PLAN_SLOTS.includes(slot) ? (whoOf(d, slot).includes('me') ? mealCards(d, slot) : []) : [cardById(S.settings.fixed[slot])].filter(Boolean);
 // portions to cook for one card in a slot: my portion = the card, Jonas's = scaled to his kcal
-const jonasPortion = (c, slot) => { const t = cardTotals(c).kcal; if (!t) return 0; return (c.jonasKcal || (slot === 'Lunch' ? S.settings.jonasLunch : S.settings.jonasDinner)) / t; };
+const jonasPortion = (c, slot) => { const t = cardTotals(c).kcal; if (!t) return 0; const k = (c.jonasKcal || (slot === 'Lunch' ? S.settings.jonasLunch : S.settings.jonasDinner)) / t; return isBatch(c) ? Math.max(.5, Math.round(k * 2) / 2) : k; };
 const portions = (d, slot, c) => { const w = whoOf(d, slot); return (w.includes('me') ? 1 : 0) + (w.includes('j') ? jonasPortion(c, slot) : 0); };
+// servings of a batch card needed now -> whole batches to cook, given what's in stock
+const batchesFor = (c, mult, stock) => stock >= mult - .01 ? 0 : Math.ceil((mult - stock) / c.batch.serv - 1e-9);
 function useUp(card, mult = 1) {
+  if (isBatch(card)) { const b = card.batch, st = b.left || 0, n = batchesFor(card, mult, st);
+    for (const i of card.items) { const p = S.pantry[i.foodId]; if (!n || !p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * n); if (!p.qty) p.have = false; }
+    b.left = Math.max(0, r1(st + n * b.serv - mult)); return; }
   for (const i of card.items) { const p = S.pantry[i.foodId]; if (!p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * mult); if (!p.qty) p.have = false; }
 }
 // main protein of a card, for "don't repeat the same meat two dinners in a row"
@@ -1969,7 +2018,11 @@ const shopDays = () => UI.week === monday(today()) ? Array.from({ length: 7 }, (
 // (plus tomorrow's lunch if that's tonight's leftovers), and the set snacks
 function shoppingNeeds(days = shopDays(), emergency = false) {
   const need = {}; // foodId -> grams
-  const add = (c, mult) => { for (const i of c.items) need[i.foodId] = (need[i.foodId] || 0) + i.g * mult; };
+  const stock = {};
+  const add = (c, mult) => {
+    if (isBatch(c)) { const st = stock[c.id] ?? (c.batch.left || 0), n = batchesFor(c, mult, st); stock[c.id] = st + n * c.batch.serv - mult;
+      for (const i of c.items) need[i.foodId] = (need[i.foodId] || 0) + i.g * n; return; }
+    for (const i of c.items) need[i.foodId] = (need[i.foodId] || 0) + i.g * mult; };
   for (const d of days) {
     const p = S.plan[d] || {};
     for (const slot of PLAN_SLOTS) {

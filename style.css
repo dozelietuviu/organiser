@@ -196,3 +196,5 @@ details > summary { cursor: pointer; }
 .list.todo li { cursor: pointer; padding: 6px 0; }
 .list.todo li.done .grow { text-decoration: line-through; opacity: .6; }
 [hidden] { display: none !important; }
+
+.scl { min-width: 4.2em; text-align: right; margin-left: 6px; color: var(--accent); font-size: .85rem; }
