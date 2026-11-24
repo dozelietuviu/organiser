@@ -967,7 +967,7 @@ BIND.goals = v => {
   $$('[data-gwin]', v).forEach(x => x.onclick = () => goalWin(x.dataset.gwin));
   $$('[data-gtick]', v).forEach(x => x.onclick = () => {
     const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
-    t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); save(); render(); });
+    t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); S.goalsTouched = today(); save(); render(); });
   $$('[data-gweigh]', v).forEach(x => x.onclick = () => { const b = B(); dialog(`<h2>⚖ Weigh in</h2><div class="row"><div class="grow"><label>Weight (kg)</label><input name="w" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div><p class="muted small">Same as logging it on Body. The goal uses your 7-day average.</p>`, f => { const w = num(f.w.value), d = f.d.value || today(); if (!w) return false; b.weights[d] = w; b.start ||= { date: d, weight: w }; toast('Saved ✓'); }, 'Save'); });
   $$('[data-gtodo]', v).forEach(x => x.onclick = () => { const [id, i] = x.dataset.gtodo.split('|'), t = gById(id).todos[+i]; t.done = t.done ? undefined : today(); save(); render(); if (t.done) toast('Done ✓'); });
   $$('[data-vb]', v).forEach(x => x.onclick = () => photoEdit(x.dataset.vb));
@@ -2123,7 +2123,8 @@ async function sheetWatch() {
 // ("At:" = when), using a fixed sequence ID per alert so it can be moved or cancelled later.
 // Wording stays generic (no weights, no health details) because messages pass through ntfy's server.
 // S.alerts = { topic, on:{stop,drink,gap,water}, sent:{seq: unixSeconds} }
-const ALERT_KINDS = [['stop', '🚱 Stop drinking, 30 min before meals'], ['drink', '💧 Drink again, 30 min after eating'], ['gap', '⏰ Too long since you ate'], ['water', '💧 Water reminder when you\'re behind'], ['eat', '🍴 Eating time, at each meal time'], ['meal', '🍽 Log your meal, 15 min after meal time'], ['mood', '🔮 Mood + cycle heads-up (mood ones start once you have 2+ cycles of moods logged)']];
+const ALERT_KINDS = [['stop', '🚱 Stop drinking, 30 min before meals'], ['drink', '💧 Drink again, 30 min after eating'], ['gap', '⏰ Too long since you ate'], ['water', '💧 Water reminder when you\'re behind'], ['eat', '🍴 Eating time, at each meal time'], ['meal', '🍽 Log your meal, 15 min after meal time'], ['mood', '🔮 Mood + cycle heads-up (mood ones start once you have 2+ cycles of moods logged)'], ['goals', '🎯 Log your goals, 10 PM (skipped if you already logged one that day)']];
+const alOn = (a, k) => a.on[k] ?? (k === 'goals'); // goals reminder is on unless turned off
 const DRINK_SLOTS = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
 const AL = () => { const a = S.alerts ||= {}; a.on ||= {}; a.sent ||= {}; return a; };
 const atTime = (d, hhmm) => { const [h, m] = hhmm.split(':').map(Number); const x = parseDay(d); x.setHours(h, m, 0, 0); return x.getTime(); };
@@ -2156,6 +2157,10 @@ function wantedAlerts() {
     for (const f of (moodForecast(d) || []).filter(x => /past cycles/.test(x.why))) out[`mood-${d}-${f.k}`] = { at: atTime(d, '08:30'), title: f.k === 'stab' ? 'Mood forecast: storm' : 'Mood forecast: glow', tag: f.k === 'stab' ? 'knife' : 'sparkles', msg: f.msg };
     const ci = cycleInfo(d); if (ci && !ci.onPeriod && ci.toNext === 2) out[`cyc-${d}`] = { at: atTime(d, '09:00'), title: 'Cycle heads-up', tag: 'ribbon', msg: 'New cycle in about 2 days. Pack the essentials and plan cosy evenings.' };
   }
+  if (alOn(a, 'goals')) for (const d of [d0, addDays(d0, 1), addDays(d0, 2)]) {
+    const done = G().list.some(g => (g.log || []).some(x => x.d === d) || (g.todos || []).some(t => t.done === d)) || (d === d0 && S.goalsTouched === d0);
+    if (!done) out[`goals-${d}`] = { at: atTime(d, '22:00'), title: 'Goals check-in', tag: 'dart', msg: 'Log today: minutes, questions, ticks. Small steps count.', click: location.origin + location.pathname };
+  }
   for (const k of Object.keys(out)) if (out[k].at < now + 15e3 || out[k].at > now + 2.9 * 864e5) delete out[k];
   return out;
 }
@@ -2167,7 +2172,7 @@ async function syncAlerts() {
     const want = wantedAlerts(), base = `https://ntfy.sh/${a.topic}/`, now = Date.now() / 1000;
     for (const [seq, w] of Object.entries(want)) {
       const at = Math.round(w.at / 1000); if (a.sent[seq] === at) continue;
-      const r = await fetch(base + seq, { method: 'POST', body: w.msg, headers: { Title: w.title, Tags: w.tag, Priority: '5', At: String(at) } }).catch(() => ({ ok: false }));
+      const r = await fetch(base + seq, { method: 'POST', body: w.msg, headers: Object.assign({ Title: w.title, Tags: w.tag, Priority: '5', At: String(at) }, w.click ? { Click: w.click } : {}) }).catch(() => ({ ok: false }));
       if (r.ok) { a.sent[seq] = at; save(); }
     }
     for (const [seq, at] of Object.entries(a.sent)) {
@@ -2188,7 +2193,7 @@ function alertsDialog() {
     <div class="row"><input name="topic" class="grow" value="${esc(a.topic)}" readonly><button class="mini" id="alCopy">Copy</button></div>
     <ol class="small" start="2" style="padding-left:18px;margin:6px 0"><li>Tap <b>Send test</b> below. When it arrives, open the topic's settings in ntfy and allow pop-up notifications.</li></ol>
     <button class="mini" id="alTest">Send test</button>
-    <h3>Alerts</h3>${ALERT_KINDS.map(([k, l]) => `<label class="row tick"><input type="checkbox" name="${k}" ${a.on[k] ? 'checked' : ''}> ${l}</label>`).join('')}
+    <h3>Alerts</h3>${ALERT_KINDS.map(([k, l]) => `<label class="row tick"><input type="checkbox" name="${k}" ${alOn(a, k) ? 'checked' : ''}> ${l}</label>`).join('')}
     <p class="muted small">Keep the topic private: anyone who knows it could read the alerts. The texts are kept general on purpose.</p>`, f => {
     for (const [k] of ALERT_KINDS) a.on[k] = f[k].checked;
     alertSoon(); toast('Alerts updated ✓');
