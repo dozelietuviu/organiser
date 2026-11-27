@@ -1185,6 +1185,7 @@ VIEWS.today = () => {
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${wakeCard(d)}
   <div class="card compact" data-gofood>${barsLine(tot)}</div>
+  ${d === today() ? '<div class="row" style="margin:-4px 0 12px"><button class="mini" id="ateSmth">🍩 Ate something</button></div>' : ''}
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}
@@ -1197,6 +1198,7 @@ BIND.today = v => {
   bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindChores(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
+  const at = $('#ateSmth', v); if (at) at.onclick = () => quickUnpl();
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-lognext]', v).forEach(b => b.onclick = () => { const slot = b.dataset.lognext; logCardDialog(plannedCard(today(), slot), slot); });
@@ -1239,7 +1241,7 @@ function unplCard(es) {
   const list = es.filter(e => e.slot === UNPL), t = sumM(list);
   return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">Unplanned</span> <span class="muted small">cake, snacks on the go…</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal' : ''}</span><button class="mini" id="unplAdd">+</button></div>
     ${list.length ? `<ul class="list">${list.map(e => `<li style="flex-wrap:wrap"><div class="grow" data-uedit="${e.id}">${esc(e.name)}<div class="muted small">${e.est ? '≈ ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)}${e.c || e.f ? '' : ' · <u>tap to estimate</u>'}</div></div><button class="mini del" data-del="${e.id}">✕</button>
-      <div class="chips" style="width:100%">${WHY.map(([k, l]) => `<button class="chip sm ${e.why === k ? 'on' : ''}" data-why="${e.id}|${k}">${l}</button>`).join('')}</div></li>`).join('')}</ul>` : '<p class="muted small">Ate something you didn\'t plan? Log it here. It counts in your day, and the reason helps spot patterns.</p>'}</div>`;
+      <div class="chips" style="width:100%">${sizeChips(e)}${WHY.map(([k, l]) => `<button class="chip sm ${e.why === k ? 'on' : ''}" data-why="${e.id}|${k}">${l}</button>`).join('')}</div></li>`).join('')}</ul>` : '<p class="muted small">Ate something you didn\'t plan? Log it here. It counts in your day, and the reason helps spot patterns.</p>'}</div>`;
 }
 // rough estimates for unplanned food: typical portion with kcal and macros (P, C, F, fibre).
 // Matched on words in the name; Small / Normal / Big scales it. Not exact, just better than nothing.
@@ -1346,7 +1348,7 @@ BIND.log = v => {
   $('#newFood', v).onclick = () => foodDialog({}, true);
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
-  $('#unplAdd', v).onclick = () => unplDialog();
+  $('#unplAdd', v).onclick = () => quickUnpl(); bindSizeChips(v);
   $$('[data-uedit]', v).forEach(x => x.onclick = () => { const e = (S.log[UI.day] || []).find(y => y.id === x.dataset.uedit); if (e) unplDialog(e); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = B().vit[UI.day] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
@@ -1408,7 +1410,7 @@ function logBatchDialog(c, slot) {
   const b = c.batch, sl0 = slot || nowSlot(), sg = b.cookedG ? b.cookedG / b.serv : 0;
   const body = dialog(`<h2>🍲 ${esc(c.name)}</h2>
     <div class="chips"><button class="chip ${sg ? '' : 'on'}" data-bm="s">By serving</button>${sg ? '<button class="chip on" data-bm="g">By plate weight</button>' : ''}</div>
-    <div id="bS" ${sg ? 'hidden' : ''}><label>Servings (the recipe makes ${b.serv})</label><input name="sv" inputmode="decimal" value="1"></div>
+    <div id="bS" ${sg ? 'hidden' : ''}><label>Servings (the recipe makes ${b.serv})</label><div class="chips">${[['½', .5], ['1', 1], ['1½', 1.5], ['2', 2]].map(([l, n]) => `<button class="chip ${n === 1 ? 'on' : ''}" data-svq="${n}">${l}</button>`).join('')}</div><input name="sv" inputmode="decimal" value="1"></div>
     <div id="bG" ${sg ? '' : 'hidden'}><label>Weight on your plate, g</label><input name="pg" inputmode="decimal" value="${sg ? r0(sg) : ''}"><p class="muted small">Your serving is about ${r0(sg)} g. Weigh the plate empty first, or zero the scale with it on.</p></div>
     ${sg ? '' : '<p class="muted small">Weigh the whole dish once after cooking and add it on the card (✎ → Cooked weight) to log by plate weight.</p>'}
     <p class="muted" id="lsum"></p>
@@ -1425,11 +1427,13 @@ function logBatchDialog(c, slot) {
   const frac = () => mode === 'g' ? num(body.pg.value) / b.cookedG : num(body.sv.value) / b.serv;
   const upd = () => { const t = itemsTotals(c.items), k = frac() || 0; $('#lsum', body).textContent = `${r0(t.kcal * k)} kcal · P ${r0(t.p * k)} · C ${r0(t.c * k)} · F ${r0(t.f * k)} · Fib ${r0(t.fib * k)}`; };
   $$('[data-bm]', body).forEach(x => x.onclick = e => { e.preventDefault(); mode = x.dataset.bm; $$('[data-bm]', body).forEach(y => y.classList.toggle('on', y === x)); $('#bS', body).hidden = mode !== 's'; $('#bG', body).hidden = mode !== 'g'; upd(); });
+  $$('[data-svq]', body).forEach(x => x.onclick = e => { e.preventDefault(); body.sv.value = x.dataset.svq; $$('[data-svq]', body).forEach(y => y.classList.toggle('on', y === x)); upd(); });
   body.sv.oninput = upd; body.pg.oninput = upd; upd();
 }
 function logCardDialog(c, slot) {
   if (!c) return;
   if (isBatch(c)) return logBatchDialog(c, slot);
+  if (looksWhole(c)) return wholeAsk(c, () => logCardDialog(c, slot));
   const day = UI.day, sl0 = slot || (SLOT_IDS.includes(c.slot) ? c.slot : nowSlot());
   const pk = (((S.plan[day] || {}).packed || {})[sl0] || {})[c.id];
   const base = c.items.map(i => ({ foodId: i.foodId, g: pk && pk[i.foodId] != null ? pk[i.foodId] : i.g }));
@@ -1682,12 +1686,13 @@ VIEWS.cards = () => {
   return `${upcomingCard()}
   ${reviewCard()}
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Dessert' ? 'Desserts <span class="muted small">· Jonas</span>' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
-    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${isBatch(c) ? `🍲 ${c.batch.serv} servings${c.batch.cookedG ? ` of ${r0(cardGrams(c))} g` : ''}${c.batch.left ? ` · 🧊 ${r1(c.batch.left)} in stock` : ''}` : r0(cardGrams(c)) + ' g'}${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div></div><button class="mini ghost" data-view="${c.id}">📖</button><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
+    ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${isBatch(c) ? `🍲 ${c.batch.serv} servings${c.batch.cookedG ? ` of ${r0(cardGrams(c))} g` : ''}${c.batch.left ? ` · 🧊 ${r1(c.batch.left)} in stock` : ''}` : r0(cardGrams(c)) + ' g'}${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div>${looksWhole(c) ? `<button class="note warn sm wholebtn" data-whole="${c.id}">⚠️ Looks like a whole recipe. Tap to set servings</button>` : ''}</div><button class="mini ghost" data-view="${c.id}">📖</button><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
   <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
     ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
 };
 BIND.cards = v => {
+  $$('[data-whole]', v).forEach(b => b.onclick = e => { e.stopPropagation(); wholeAsk(cardById(b.dataset.whole)); });
   const ks = upcomingCooks(); $$('[data-upc]', v).forEach(li => li.onclick = () => { const k = ks[+li.dataset.upc]; recipeView(k.c, k.mult, cookLabel(k)); });
   $('#pasteCards', v).onclick = pasteCardsDialog;
   $('#newCard', v).onclick = () => cardDialog({ items: [], stars: 3, slot: 'Meal' });

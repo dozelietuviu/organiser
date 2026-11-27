@@ -207,3 +207,8 @@ details > summary { cursor: pointer; }
 .list li.chore.putoff { background: rgba(240, 140, 124, .1); border: 1px solid rgba(240, 140, 124, .45); border-radius: 12px; padding: 9px 10px; margin: 6px 0; }
 .chip.life { border-color: rgba(240, 140, 124, .55); color: #ffa392; }
 .list li.chore .chips { gap: 5px; } .list li.chore .chip.sm { padding: 4px 9px; font-size: .78rem; }
+/* quick unplanned log */
+.qgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 4px; }
+.qtile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px; border-radius: 12px; text-align: left; font-size: .82rem; line-height: 1.2; }
+.qsize { display: inline-flex; gap: 4px; margin-right: 6px; }
+.wholebtn { display: block; width: 100%; text-align: left; margin-top: 6px; }
