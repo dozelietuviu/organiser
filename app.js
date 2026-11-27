@@ -1317,10 +1317,17 @@ function unplDialog(entry) {
   const us = $('#uSearch', body); if (us) us.onclick = ev => { ev.preventDefault(); pickForSlot(UNPL); };
   if (!entry) look(false);
 }
+// lower case, Lithuanian accents ignored: "suris" finds "Sūris"
+const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function searchLocal(q) {
-  q = q.trim().toLowerCase(); if (!q) return '';
-  const words = q.split(/\s+/), hit = s => words.every(w => s.toLowerCase().includes(w));
-  const foods = S.foods.filter(f => f.kind !== 'item' && !f.hidden && hit(f.name + ' ' + (f.brand || ''))).slice(0, 20), cards = S.cards.filter(c => hit(c.name)).slice(0, 8);
+  q = fold(q).trim(); if (!q) return '';
+  const words = q.split(/\s+/), hit = s => words.every(w => fold(s).includes(w));
+  // best matches first: exact name, then name starts with it, then a word starts with it; recently logged foods win ties.
+  // (Before, the first 20 in list order were shown, so with many shop foods the right one often fell off the list.)
+  const recent = new Map(S.recent.map((id, i) => [id, i]));
+  const rank = (name, id) => { const n = fold(name); return (n === q ? 0 : n.startsWith(q) ? 1 : n.split(/[\s,(]+/).some(x => x.startsWith(words[0])) ? 2 : 3) * 100 + (recent.has(id) ? recent.get(id) : 50); };
+  const best = (list, n) => list.map(x => [rank(x.name, x.id), x]).sort((a, b) => a[0] - b[0]).slice(0, n).map(x => x[1]);
+  const foods = best(S.foods.filter(f => f.kind !== 'item' && !f.hidden && hit(f.name + ' ' + (f.sname || '') + ' ' + (f.brand || ''))), 20), cards = best(S.cards.filter(c => hit(c.name)), 8);
   if (!foods.length && !cards.length) return `<p class="muted small">Not in your foods yet.</p>`;
   return `<ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)}<div class="muted small">${c.slot} card · ${r0(cardTotals(c).kcal)} kcal</div></div><span>›</span></li>`).join('')}${foods.map(f => `<li data-food="${f.id}"><div class="grow">${f.kind === 'recipe' ? '🥣 ' : ''}${esc(f.name)}<div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g</div></div><span>›</span></li>`).join('')}</ul>`;
 }
@@ -2318,6 +2325,8 @@ loadTrainSeed();
 if (S.settings.sheetUrl) sheetWatch();
 affirmations();
 let lastDay = today();
-document.addEventListener('visibilitychange', () => { if (document.hidden) return; reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); affirmations(); });
+// coming back to the app: pick up newer data, but not under an open dialog (same reason as the 'storage' listener:
+// a card or food being edited would be saved to a copy that's thrown away). It reloads when the dialog closes.
+document.addEventListener('visibilitychange', () => { if (document.hidden) return; if ($('#dlg').open) { reloadLater = true; return; } reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); affirmations(); });
 setInterval(() => { if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); }, 5 * 60e3);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
