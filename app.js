@@ -2285,6 +2285,7 @@ function alertsDialog() {
 function openSettings() {
   const s = S.settings;
   const body = dialog(`<h2>Settings</h2>
+    ${modesBlock(s)}
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
     <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water L</label><input name="waterL" inputmode="decimal" value="${(s.waterMl || s.water * 250) / 1000}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
@@ -2302,10 +2303,12 @@ function openSettings() {
     <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
     <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}. Phone storage used: ${Math.round(storeSize() / 2.5e4)}% ${storeSize() > 2e6 ? '⚠️ nearly full, archive or remove some photos' : ''}</p>`, b => {
     for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k];
+    saveModes(b, s);
     s.waterMl = Math.round(num(b.waterL.value) * 1000) || s.waterMl; s.glassMl = Math.round(num(b.glassL.value) * 1000) || s.glassMl || 250;
     s.water = Math.max(1, Math.ceil(s.waterMl / s.glassMl)); // taps (glasses) to reach the ml goal
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }
   });
+  bindModes(body, s);
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
     try { const t = await checkSheet(); if (!t || !t.p) throw 0; applySplit(t); S.settings.sheetSeen = JSON.stringify(t); save(); closeDlg(); render(); toast(`P ${s.p} · C ${s.c} · F ${s.f} ✓`); } catch { toast('Couldn\'t read the Sheet. Is it shared by link?'); } };
   $('#alerts', body).onclick = e => { e.preventDefault(); alertsDialog(); };
