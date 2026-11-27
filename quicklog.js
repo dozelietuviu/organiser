@@ -72,3 +72,50 @@ function wholeAsk(c, then) {
   noEnterSubmit(body.sv); noEnterSubmit(body.ck);
   $('#wNo', body).onclick = e => { e.preventDefault(); c.wholeOk = true; save(); closeDlg(); if (then) then(); };
 }
+
+// ---------- 3) girls dinner: a plate of bits and pieces ----------
+// pick several foods (cheese, crackers, olives, grapes...), set each amount, see the total, log them all at once.
+// Each is logged as its own line (pantry and stats stay right), grouped under one plate name. Can be saved as a card.
+function girlsDinner(first, firstG, slot, keep) {
+  const items = keep ? keep.items : []; // { food, amt, unit: 'g' | 'u' }
+  const add = (f, g) => { if (!f || items.some(i => i.food.id === f.id)) return; const u = f.unit && f.unitG;
+    items.push({ food: f, amt: g ? (u && g % f.unitG === 0 ? g / f.unitG : g) : u ? 1 : 50, unit: g ? (u && g % f.unitG === 0 ? 'u' : 'g') : u ? 'u' : 'g' }); };
+  add(first, firstG);
+  const gOf = i => num(i.amt) * (i.unit === 'u' ? i.food.unitG : 1);
+  const body = dialog(`<h2>🧀 Girls dinner</h2><p class="muted small">Add everything on the plate, then log it in one go.</p>
+    <ul class="list" id="gdList"></ul><p id="gdSum"></p>
+    <input name="gq" placeholder="Add a food…" autocomplete="off" enterkeyhint="search"><div id="gdRes"></div><div id="gdShop"></div>
+    ${slotSelect(slot || UI.pendingSlot || nowSlot())}
+    <label>Name <span class="muted small">(optional)</span></label><input name="gname" placeholder="Girls dinner" value="${esc(keep ? keep.name : '')}">
+    <label class="row tick"><input type="checkbox" name="gcard" ${keep && keep.card ? 'checked' : ''}> Save as a card too</label>`, f => {
+    const ok = items.filter(i => gOf(i) > 0); if (!ok.length) { toast('Add at least one food'); return false; }
+    const name = f.gname.value.trim() || 'Girls dinner', plate = uid();
+    for (const i of ok) { addLog(Object.assign({ slot: f.slot.value, name: i.food.name, g: gOf(i), plate, plateName: name }, macroFor(i.food, gOf(i))));
+      S.recent = [i.food.id, ...S.recent.filter(x => x !== i.food.id)].slice(0, 12); }
+    if (f.gcard.checked) S.cards.push({ id: uid(), name, slot: ['Lunch', 'Dinner'].includes(f.slot.value) ? 'Meal' : f.slot.value === UNPL ? 'Snack' : f.slot.value, stars: 3, items: ok.map(i => ({ foodId: i.food.id, g: r0(gOf(i)) })) });
+    UI.pendingSlot = null; toast(`${name}: ${ok.length} foods logged ✓`);
+  }, 'Log all');
+  const list = $('#gdList', body), sum = $('#gdSum', body), res = $('#gdRes', body);
+  const total = () => { const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0 }; for (const i of items) { const m = macroFor(i.food, gOf(i)); for (const k in t) t[k] += m[k] || 0; } return t; };
+  const showSum = () => { const t = total(); sum.innerHTML = items.length ? `<b>${r0(t.kcal)} kcal</b> <span class="muted small">· P ${r1(t.p)} · C ${r1(t.c)} · F ${r1(t.f)} · Fib ${r1(t.fib)} · ${r0(items.reduce((a, i) => a + gOf(i), 0))} g</span>` : '<span class="muted small">Nothing on the plate yet.</span>'; };
+  const draw = () => {
+    list.innerHTML = items.map((i, n) => `<li><div class="grow">${esc(sn(i.food))}<div class="muted small" data-gk="${n}">${r0(macroFor(i.food, gOf(i)).kcal)} kcal</div></div>
+      <input data-ga="${n}" inputmode="decimal" value="${i.amt}" style="width:64px">
+      ${i.food.unit && i.food.unitG ? `<select data-gu="${n}" style="width:auto"><option value="g" ${i.unit === 'g' ? 'selected' : ''}>g</option><option value="u" ${i.unit === 'u' ? 'selected' : ''}>${esc(i.food.unit)}</option></select>` : '<span class="muted small">g</span>'}
+      <button class="mini ghost" data-gx="${n}" aria-label="Remove">✕</button></li>`).join('');
+    const live = n => { $(`[data-gk="${n}"]`, list).textContent = `${r0(macroFor(items[n].food, gOf(items[n])).kcal)} kcal`; showSum(); };
+    $$('[data-ga]', list).forEach(x => x.oninput = () => { items[+x.dataset.ga].amt = x.value; live(+x.dataset.ga); });
+    $$('[data-gu]', list).forEach(x => x.onchange = () => { const i = items[+x.dataset.gu]; i.unit = x.value; i.amt = x.value === 'u' ? 1 : i.food.unitG; draw(); });
+    $$('[data-gx]', list).forEach(x => x.onclick = e => { e.preventDefault(); items.splice(+x.dataset.gx, 1); draw(); });
+    showSum();
+  };
+  const pickFood = f => { add(f); body.gq.value = ''; res.innerHTML = ''; $('#gdShop', body).innerHTML = ''; draw(); };
+  // a shop pick with several brands opens its own little window, so the plate is reopened with everything kept
+  const shops = autoShops(body.gq, $('#gdShop', body), f => { const st = { items, name: body.gname.value, card: body.gcard.checked }, sl = body.slot.value, at = body.at.value;
+    closeDlg(); girlsDinner(f, 0, sl, st); const nb = $('#dlgBody'); if (nb.at) nb.at.value = at; });
+  body.gq.oninput = () => {
+    res.innerHTML = searchLocal(body.gq.value); $$('[data-card]', res).forEach(x => x.remove()); // foods only here
+    $$('[data-food]', res).forEach(x => x.onclick = e => { e.preventDefault(); pickFood(foodById(x.dataset.food)); }); shops();
+  };
+  noEnterSubmit(body.gq); draw();
+}

@@ -1217,7 +1217,7 @@ VIEWS.log = () => {
   ${warnings(d, 'log').map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${d === today() ? (() => { const last = lastAte(); return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
     <div class="grow right"><div class="muted small">Comfortable meal</div><div>${pl.g} g${pl.learned ? ' <span class="muted small">learned</span>' : ''}</div></div></div></div>`; })() : ''}
-  <div class="card"><div class="row"><input id="q" class="grow" placeholder="Search foods and cards" value="${esc(UI.search)}" autocomplete="off"></div>
+  <div class="card"><div class="row"><input id="q" class="grow" placeholder="Search foods and cards" value="${esc(UI.search)}" autocomplete="off"><button class="mini" id="gdOpen" title="Several foods at once">🧀 Plate</button></div>
     <div class="row wrap gap"><button id="scan">📷 Scan</button><button id="newFood">+ New food</button></div>
     ${recent.length ? `<div class="chips">${recent.map(f => `<button class="chip" data-food="${f.id}">${esc(f.name)}</button>`).join('')}</div>` : ''}
     <div id="results"></div><div id="shopRes"></div></div>
@@ -1352,7 +1352,7 @@ BIND.log = v => {
   $('#newFood', v).onclick = () => foodDialog({}, true);
   $$('[data-del]', v).forEach(b => b.onclick = () => { S.log[UI.day] = S.log[UI.day].filter(e => e.id !== b.dataset.del); save(); render(); });
   $$('[data-add]', v).forEach(b => b.onclick = () => pickForSlot(b.dataset.add));
-  $('#unplAdd', v).onclick = () => quickUnpl(); bindSizeChips(v);
+  $('#unplAdd', v).onclick = () => quickUnpl(); $('#gdOpen', v).onclick = () => girlsDinner(); bindSizeChips(v);
   $$('[data-uedit]', v).forEach(x => x.onclick = () => { const e = (S.log[UI.day] || []).find(y => y.id === x.dataset.uedit); if (e) unplDialog(e); });
   $$('[data-vit]', v).forEach(x => x.onclick = () => { const t = B().vit[UI.day] ||= {}; t[x.dataset.vit] = !t[x.dataset.vit]; save(); render(); });
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
@@ -1398,7 +1398,8 @@ function logFoodDialog(food, slot) {
     <div class="muted small">${food.brand ? esc(food.brand) + ' · ' : ''}per 100 g: ${r0(food.kcal)} kcal · P ${r1(food.p)} · C ${r1(food.c)} · F ${r1(food.f)} · Fib ${r1(food.fib)}</div>
     <div class="row"><div class="grow"><label>Amount</label><input name="amt" inputmode="decimal" value="${unit ? 1 : 100}"></div>
       <div class="grow"><label>Unit</label><select name="unit"><option value="g">grams</option>${unit ? `<option value="u" selected>${esc(food.unit)} (${food.unitG} g)</option>` : ''}</select></div></div>
-    ${slotSelect(slot || UI.pendingSlot || nowSlot())}<p class="muted" id="prev"></p>`, b => {
+    ${slotSelect(slot || UI.pendingSlot || nowSlot())}<p class="muted" id="prev"></p>
+    <p><button class="mini ghost" id="gdMore">🧀 Add more foods (girls dinner)</button></p>`, b => {
     const g = grams(b); if (!g) return false;
     addLog(Object.assign({ slot: b.slot.value, name: food.name, g }, macroFor(food, g)));
     S.recent = [food.id, ...S.recent.filter(x => x !== food.id)].slice(0, 12);
@@ -1407,6 +1408,7 @@ function logFoodDialog(food, slot) {
   const grams = b => num(b.amt.value) * (b.unit.value === 'u' ? food.unitG : 1);
   const upd = () => { const m = macroFor(food, grams(body)); $('#prev', body).textContent = `${r0(grams(body))} g = ${r0(m.kcal)} kcal · P ${r1(m.p)} · Fib ${r1(m.fib)}`; };
   body.amt.oninput = upd; body.unit.onchange = upd; upd();
+  $('#gdMore', body).onclick = e => { e.preventDefault(); const sl = body.slot.value, g = grams(body); closeDlg(); girlsDinner(food, g, sl); };
 }
 // grams per ingredient can be changed (weighed). 📦 Packed saves them on the day's plan; logging later uses them.
 // batch card: log by servings (1 = 1/serv of the recipe) or by the weight on your plate (needs the cooked weight)
