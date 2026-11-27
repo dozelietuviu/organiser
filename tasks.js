@@ -41,15 +41,18 @@ const CHORE_SEED = [
 const CH = () => (S.tasks ||= { list: [] });
 const dayDiff = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 864e5); // days from a to b
 // first start: due dates spread out so you don't get 35 chores on day one (short ones first)
+// chores that can't be put off ('Life happened' hidden): they stay on the list until done
+const MUST_DO = ['Scoop litter', 'Empty cat litter'];
 function seedChores() {
+  if (!S.tasksMust) { S.tasksMust = 1; for (const c of (S.tasks || {}).list || []) if (MUST_DO.includes(c.name)) c.must = true; }
   if (S.tasksSeeded) return; S.tasksSeeded = 1; const t = today();
   CHORE_SEED.forEach(([name, area, gap, set], i) => {
     const off = gap <= 1 ? 0 : (i * 5) % gap, due = addDays(t, off); // monthly+ chores spread over their whole gap
-    CH().list.push({ id: uid(), name, area, gap, fixed: set === 'fixed', labels: set === 'fixed' ? null : CHORE_SETS[set].slice(), due, last: addDays(due, -gap), log: [] });
+    CH().list.push({ id: uid(), name, area, gap, fixed: set === 'fixed', must: MUST_DO.includes(name), labels: set === 'fixed' ? null : CHORE_SETS[set].slice(), due, last: addDays(due, -gap), log: [] });
   });
   save();
 }
-const choreBtns = c => [...(c.fixed ? FIXED_BTNS : CHORE_KINDS.map((k, i) => [k, (c.labels || CHORE_SETS.clean)[i]])), LIFE];
+const choreBtns = c => [...(c.fixed ? FIXED_BTNS : CHORE_KINDS.map((k, i) => [k, (c.labels || CHORE_SETS.clean)[i]])), ...(c.must ? [] : [LIFE])];
 const pushDays = (c, k) => k === 'later' ? (c.fixed ? 1 : Math.max(1, Math.min(14, Math.round(gapOf(c) * 0.35)))) : gapOf(c);
 
 // ---- learning ----
@@ -169,13 +172,14 @@ function choreEdit(c) {
     <div class="row"><div class="grow"><label>Area</label><select name="area">${CHORE_AREAS.map(a => `<option ${a === (c.area || 'Flat') ? 'selected' : ''}>${a}</option>`).join('')}</select></div>
       <div class="grow"><label>${isNew ? 'Every … days' : 'Start gap, days'}</label><input name="gap" inputmode="numeric" value="${c.gap || 7}"></div></div>
     <label class="row tick"><input type="checkbox" name="fixed" ${c.fixed ? 'checked' : ''}> Fixed gap (bills, date night): don't learn, just Done / Skip</label>
+    <label class="row tick"><input type="checkbox" name="must" ${c.must ? 'checked' : ''}> Can't be put off: no "Life happened", it stays until done</label>
     <div id="chLbl" ${c.fixed ? 'hidden' : ''}><label>Button words</label>
       <select name="preset"><option value="">Pick a set…</option>${Object.entries(CHORE_SETS).map(([k, l]) => `<option value="${k}">${l.join(' / ')}</option>`).join('')}</select>
       <div class="grid4">${['Couldn\'t wait', 'Done', 'A bit early', 'Far too early'].map((h, i) => `<div><label class="small">${h}</label><input name="l${i}" value="${esc(labels[i])}"></div>`).join('')}</div></div>
     ${isNew ? '' : `<div class="row wrap gap" style="margin-top:10px"><button class="mini ghost" id="chOff">${c.off ? 'Resume' : 'Pause'}</button><button class="del mini" id="chDel">Delete chore</button></div>`}`, f => {
     const name = f.name.value.trim(), gap = Math.max(1, Math.round(num(f.gap.value))); if (!name) { toast('Add a name'); return false; }
     const o = isNew ? { id: uid(), log: [], due: today(), last: addDays(today(), -gap) } : c;
-    Object.assign(o, { name, area: f.area.value, gap, fixed: f.fixed.checked, labels: f.fixed.checked ? null : [0, 1, 2, 3].map(i => f['l' + i].value.trim() || CHORE_SETS.clean[i]) });
+    Object.assign(o, { name, area: f.area.value, gap, fixed: f.fixed.checked, must: f.must.checked, labels: f.fixed.checked ? null : [0, 1, 2, 3].map(i => f['l' + i].value.trim() || CHORE_SETS.clean[i]) });
     if (isNew) CH().list.push(o);
   });
   body.fixed.onchange = () => { $('#chLbl', body).hidden = body.fixed.checked; };
