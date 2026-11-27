@@ -97,7 +97,8 @@ function girlsDinner(first, firstG, slot, keep) {
   }, 'Log all');
   const list = $('#gdList', body), sum = $('#gdSum', body), res = $('#gdRes', body);
   const total = () => { const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0 }; for (const i of items) { const m = macroFor(i.food, gOf(i)); for (const k in t) t[k] += m[k] || 0; } return t; };
-  const showSum = () => { const t = total(); sum.innerHTML = items.length ? `<b>${r0(t.kcal)} kcal</b> <span class="muted small">· P ${r1(t.p)} · C ${r1(t.c)} · F ${r1(t.f)} · Fib ${r1(t.fib)} · ${r0(items.reduce((a, i) => a + gOf(i), 0))} g</span>` : '<span class="muted small">Nothing on the plate yet.</span>'; };
+  const showSum = () => { const t = total(), tg = items.reduce((a, i) => a + gOf(i), 0), lim = portionLimit().g, main = PLAN_SLOTS.includes(body.slot.value);
+    sum.innerHTML = items.length ? `<b>${r0(t.kcal)} kcal</b> <span class="muted small">· P ${r1(t.p)} · C ${r1(t.c)} · F ${r1(t.f)} · Fib ${r1(t.fib)} · ${r0(tg)} g</span>${main && tg > lim ? `<div class="note warn sm">${r0(tg)} g is more than your comfortable ${lim} g. Take some off the plate now; you can always go back.</div>` : ''}` : '<span class="muted small">Nothing on the plate yet.</span>'; };
   const draw = () => {
     list.innerHTML = items.map((i, n) => `<li><div class="grow">${esc(sn(i.food))}<div class="muted small" data-gk="${n}">${r0(macroFor(i.food, gOf(i)).kcal)} kcal</div></div>
       <input data-ga="${n}" inputmode="decimal" value="${i.amt}" style="width:64px">
@@ -117,5 +118,5 @@ function girlsDinner(first, firstG, slot, keep) {
     res.innerHTML = searchLocal(body.gq.value); $$('[data-card]', res).forEach(x => x.remove()); // foods only here
     $$('[data-food]', res).forEach(x => x.onclick = e => { e.preventDefault(); pickFood(foodById(x.dataset.food)); }); shops();
   };
-  noEnterSubmit(body.gq); draw();
+  body.slot.onchange = showSum; noEnterSubmit(body.gq); draw();
 }

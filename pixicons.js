@@ -76,14 +76,7 @@ const PX_ICONS = {
 "😣": "..oooooo..|.oyyyyyyo.|oyoyyyyoyo|oyyoyyoyyo|oyoyyyyoyo|oyyyyyyyyo|oyyoooyyyo|oyoyyyoyyo|.oyyyyyyo.|..oooooo..",
 "🚱": "..oooooo..|.or..b.ro.|or.r.b..ro|o..robo..o|o..obrbo.o|o..obbro.o|o...ooo.ro|or......ro|.or....ro.|..oooooo.."
 };
-const PX_TABS = {
-"today": ".....oo.......|....owwo......|.oo.owwo.oo...|owwoowwoowwo..|owwwoooowwwo..|.ooooyyyooo...|owwwoyyyowwwo.|owwwoyyyowwwo.|.ooooyyyooo...|owwwoooowwwo..|owwoowwoowwo..|.oo.owwo.oo...|....owwo......|.....oo.......",
-"food": ".........oo...|........ogo...|.......ogo....|......ogggo...|.....og..go...|....og....go..|...og.....go..|..oooo...oooo.|.orrrro.orrrro|orwrrrrorwrrrr|orrrrrrorrrrro|orrrrrrorrrrro|.orrrro.orrrro|..oooo...oooo.",
-"home": "......oo......|.....oppo.....|....oppppo....|...oppppppo...|..oppppppppo..|.oooooooooooo.|..owwwwwwwwo..|..owrrwwrrwo..|..owrrrrrrwo..|..owwrrrrwwo..|..owwwrrwwwo..|..ownnwwwwwo..|..ownnwwwwwo..|..oooooooooo..",
-"train": "..............|..............|.oo........oo.|ovvo......ovvo|ovvoo....oovvo|ovvvoooooovvvo|ovvvssssssvvvo|ovvvoooooovvvo|ovvoo....oovvo|ovvo......ovvo|.oo........oo.|..............|..............|..............",
-"body": "...o..o..o....|..opooppoop...|..opppppppo...|..oppppppppo..|..oppppppppo..|...oppppppo...|....oooooo....|......og......|..oo..og......|.oggo.og..oo..|..oggoog.oggo.|...ogggogggo..|.....oggo.....|......oo......",
-"goals": "......oo......|......oyo.....|.....oyyo.....|.....oyyyo....|oooooyyyyooooo|oyyyyyyyyyyyyo|.oyyyywyyyyyo.|..oyyyyyyyyo..|...oyyyyyyo...|..oyyyyyyyyo..|..oyyyooyyyo..|.oyyo...oyyyo.|.oyo.....oyo..|.oo.......oo.."
-};
+const PX_TABS = {"today": "....oo......|...o..o.....|.oo.oo.oo...|o..o..o..o..|o...oo...o..|.oooooooo...|o...oo...o..|o..o..o..o..|.oo.oo.oo...|...o..o.....|....oo......|............", "food": ".......oo...|......o.....|.....o.o....|....o...o...|...o....o...|.oo....oo...|o..o..o..o..|o..o..o..o..|o..o..o..o..|.oo....oo...|............|............", "home": ".....oo.....|....o..o....|...o....o...|..o......o..|.oooooooooo.|..o......o..|..o.o..o.o..|..o..oo..o..|..o......o..|..o.oo...o..|..oooooooo..|............", "train": "............|............|oo......oo..|oo......oo..|oo......oo..|oooooooooo..|oo......oo..|oo......oo..|oo......oo..|............|............|............", "body": "..o..o..o...|..oo.o.oo...|..o.ooo.o...|..o.....o...|...o...o....|....ooo.....|.....o......|.oo..o......|..oo.o..oo..|....oo.oo...|.....oo.....|............", "goals": ".....o......|....o.o.....|....o.o.....|oooo...oooo.|.o.......o..|..o.....o...|..o.....o...|.o...o...o..|.o..o.o..o..|o..o...o..o.|ooo.....ooo.|............"};
 PX_TABS.catface = '.d........d.|dpd......dpd|dppd....dppd|dddddddddddd|dddddddddddd|ddyyddddyydd|ddykddddykdd|dddddppddddd|lddddddddddd|.dddddddddd.|..dddddddd..|............';
 const pxCache = {};
 function pxSvg(art, cls = 'pxi') {
@@ -107,4 +100,4 @@ function pxEmoji(root) {
     n.replaceWith(...span.childNodes);
   }
 }
-function pxTabs() { document.querySelectorAll('.tabs button[data-tab]').forEach(b => { const a = PX_TABS[b.dataset.tab], s = b.querySelector('span'); if (a && s && !s.dataset.px) { s.innerHTML = pxSvg(a, 'pxtab'); s.dataset.px = 1; } }); }
+function pxTabs() { document.querySelectorAll('.tabs button[data-tab]').forEach(b => { const a = PX_TABS[b.dataset.tab], s = b.querySelector('span'); if (a && s && !s.dataset.px) { s.innerHTML = pxSvg(a, 'pxtab').replace('class="pxo"', 'fill="currentColor"'); s.dataset.px = 1; } }); }

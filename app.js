@@ -740,7 +740,9 @@ function weekReport(mon) {
   const whyC = {}; unpl.forEach(e => e.why && (whyC[e.why] = (whyC[e.why] || 0) + 1)); const topWhy = Object.entries(whyC).sort((a, b) => b[1] - a[1])[0];
   const hungry = days.reduce((a, d) => a + Object.values(((S.day[d] || {}).full) || {}).filter(x => x === 'hungry').length, 0);
   const busy = days.flatMap(d => Object.values(((S.day[d] || {}).skip) || {})).filter(r => r === 'busy').length;
+  const tooFull = days.flatMap(d => Object.entries(((S.day[d] || {}).full) || {}).filter(([, v]) => v === 'toofull').map(([sl]) => mealsOn(d).filter(e => e.slot === sl).reduce((a, e) => a + (e.g || 0), 0)));
   const patterns = [];
+  if (tooFull.length >= 2) patterns.push(`Too full ${tooFull.length} times, at about ${r0(tooFull.reduce((a, x) => a + x, 0) / tooFull.length)} g a meal. Your comfortable size is ${portionLimit().g} g: plate that much, stop, wait 20 minutes.`);
   if (busy >= 3) patterns.push(`Skipped ${busy} meals for being busy. Keep a shake or a protein snack within reach for those days.`);
   if (unpl.length >= 3) patterns.push(`${unpl.length} unplanned (${unplK} kcal).${topWhy && topWhy[1] >= 2 ? ` Mostly "${(WHY.find(w => w[0] === topWhy[0]) || [, topWhy[0]])[1]}": ${WHY_TIP[topWhy[0]] || ''}` : ''}`);
   const t = S.train || {}, sess = (t.logs || []).filter(l => days.includes(l.date));
@@ -841,7 +843,7 @@ function wakeSkips(d) {
 }
 function bindWake(v, d) {
   const w = () => (B().wake ||= {});
-  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); const sk = wakeSkips(d); save(); render(); toast(onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : `Logged${sk.length ? '. Skipped ' + sk.join(', ') : ''}. Tomorrow is a new start`); };
+  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); const sk = wakeSkips(d); save(); render(); if (d === today() && S.affDay !== today()) { S.affDay = today(); save(); setTimeout(() => affirmations(true), 700); } toast(onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : `Logged${sk.length ? '. Skipped ' + sk.join(', ') : ''}. Tomorrow is a new start`); };
   const e = $('#wakeSet', v); if (e) e.onclick = () => dialog(`<h2>Woke up</h2><label>Time</label><input type="time" name="t" value="${w()[d] || wakeBy()}"><label>Goal time</label><input type="time" name="by" value="${wakeBy()}">${w()[d] ? '<p><button class="mini del" id="wakeDel">Remove</button></p>' : ''}`, f => {
     if (f.t.value) w()[d] = f.t.value; if (f.by.value) S.settings.wakeBy = f.by.value; ensureWakeGoal(); const sk = wakeSkips(d); if (sk.length) toast('Skipped ' + sk.join(', ') + ' (asleep)'); });
   const del = $('#wakeDel'); if (del) del.onclick = ev => { ev.preventDefault(); delete w()[d]; const sk = (S.day[d] || {}).skip || {}; for (const k of Object.keys(sk)) if (sk[k] === 'asleep') delete sk[k]; save(); closeDlg(); render(); };
@@ -959,7 +961,7 @@ const polaroid = (x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:$
 // ---------- MORNING AFFIRMATIONS ----------
 // First open of the day before 10:00: the vision board slides up as a carousel (swipe), caption = affirmation.
 // Also on the Goals board with ▶. Shown once a day (S.affDay).
-// morning affirmations: old-school pop-up windows piled on the screen; close each one with ✕ (say it out loud first)
+// morning affirmations: old-school pop-up windows piled on the screen, shown when you tap "I'm up"; close each one with ✕ (say it out loud first)
 function affirmations(force) {
   const list = G().board.filter(x => !x.arch && (x.mine || x.img));
   if (!list.length || $('#aff')) return;
@@ -1018,6 +1020,8 @@ function goalEdit(id) {
     <label>Achievable: why it's realistic</label><textarea name="a" rows="2">${esc(g.a || '')}</textarea>
     <label>Relevant: why it matters to you</label><textarea name="r" rows="2">${esc(g.r || '')}</textarea>
     <label>Time-bound: deadline</label><input type="date" name="due" value="${g.due || ''}">
+    <label>Check in</label><select name="cadence"><option value="">Automatic (${({ day: 'daily', week: 'weekly', month: 'monthly' })[cadence(g)]})</option>${[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']].map(([k, l]) => `<option value="${k}" ${g.cadence === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <p class="muted small">How often "Did nothing" and the recommit warning look at this goal.</p>
     <label>Track progress by</label><select name="track">${Object.entries(TRACKS).map(([k, t]) => `<option value="${k}" ${g.track === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <p class="muted small" id="thelp"></p>
     <div id="perW"><label>Target is per</label><select name="per"><option value="week" ${g.per !== 'day' ? 'selected' : ''}>Week (Mon to Sun)</option><option value="day" ${g.per === 'day' ? 'selected' : ''}>Day</option></select></div>
@@ -1028,7 +1032,7 @@ function goalEdit(id) {
     if (!f.title.value.trim()) { toast('Give it a name'); return false; }
     Object.assign(g, { icon: f.icon.value.trim() || '☆', title: f.title.value.trim(), s: f.s.value.trim(), m: f.m.value.trim(), a: f.a.value.trim(), r: f.r.value.trim(), due: f.due.value || undefined, track: f.track.value,
       start: f.start.value.trim() === '' ? undefined : num(f.start.value), target: f.target.value.trim() === '' ? undefined : num(f.target.value), unit: f.unit.value.trim() || undefined,
-      checks: f.checks.value.split('\n').map(x => x.trim()).filter(Boolean), per: f.track.value === 'habit' ? f.per.value : undefined,
+      checks: f.checks.value.split('\n').map(x => x.trim()).filter(Boolean), per: f.track.value === 'habit' ? f.per.value : undefined, cadence: f.cadence.value || undefined,
       todos: f.todos.value.split('\n').map(x => x.trim()).filter(Boolean).map(t => ({ t, done: ((g.todos || []).find(o => o.t === t) || {}).done })) });
     if (g.track === 'habit' && !g.target) { toast('Set a target, e.g. 450'); return false; }
     if (g.track === 'smoke' && g.unit == null) g.unit = 'days';
@@ -1253,7 +1257,8 @@ VIEWS.log = () => {
       ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small"><button class="linkish" data-at="${e.id}">${hm(e.at)}</button> · ${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>${rest.map(planBtn).join('')}`
         : skipOf(d, s.id) ? `<div class="row gap"><span class="muted grow">Skipped · ${SKIP.find(x => x[0] === skipOf(d, s.id))[1]}</span><button class="mini ghost" data-unskip="${s.id}">Undo</button></div>`
         : pcs.map(planBtn).join('') + `<div class="right"><button class="mini ghost" data-skip="${s.id}">Skipped</button></div>`}
-      ${over ? `<div class="note warn sm">${r0(g)} g is over your comfortable ${pl.g} g. Eat slowly and stop when you feel full.</div>` : ''}
+      ${over && !(dd.full || {})[s.id] ? `<p class="muted small">${r0(g)} g, more than your usual ${pl.g} g. How did it feel? Your taps teach the app your real comfortable size.</p>`
+        : over && (dd.full || {})[s.id] === 'toofull' ? `<div class="note info sm">Too full at ${r0(g)} g. Noted: meals around this size will get flagged before you eat them.</div>` : ''}
       ${lowP ? `<div class="note warn sm">Only ${r0(t.p)} g protein in this meal (aim for ${S.settings.minP} g+).</div>` : ''}
       ${list.length ? `<div class="chips">${FULL.map(([k, l]) => `<button class="chip sm feel ${(dd.full || {})[s.id] === k ? 'on' : ''}" data-full="${s.id}|${k}">${l}</button>`).join('')}</div>` : ''}
       ${vitChipsFor(d, s.id)}
@@ -1452,7 +1457,8 @@ function logBatchDialog(c, slot) {
   }, 'Log it');
   let mode = sg ? 'g' : 's';
   const frac = () => mode === 'g' ? num(body.pg.value) / b.cookedG : num(body.sv.value) / b.serv;
-  const upd = () => { const t = itemsTotals(c.items), k = frac() || 0; $('#lsum', body).textContent = `${r0(t.kcal * k)} kcal · P ${r0(t.p * k)} · C ${r0(t.c * k)} · F ${r0(t.f * k)} · Fib ${r0(t.fib * k)}`; };
+  const upd = () => { const t = itemsTotals(c.items), k = frac() || 0, pg = sg ? sg * (num(body.sv.value) || 0) : 0, plate = body.pg && !$('#bG', body).hidden ? num(body.pg.value) : pg, lim = portionLimit().g;
+    $('#lsum', body).textContent = `${r0(t.kcal * k)} kcal · P ${r0(t.p * k)} · C ${r0(t.c * k)} · F ${r0(t.f * k)} · Fib ${r0(t.fib * k)}${plate > lim ? ` · ⚠ about ${r0(plate)} g, over your comfortable ${lim} g` : ''}`; };
   $$('[data-bm]', body).forEach(x => x.onclick = e => { e.preventDefault(); mode = x.dataset.bm; $$('[data-bm]', body).forEach(y => y.classList.toggle('on', y === x)); $('#bS', body).hidden = mode !== 's'; $('#bG', body).hidden = mode !== 'g'; upd(); });
   $$('[data-svq]', body).forEach(x => x.onclick = e => { e.preventDefault(); body.sv.value = x.dataset.svq; $$('[data-svq]', body).forEach(y => y.classList.toggle('on', y === x)); upd(); });
   body.sv.oninput = upd; body.pg.oninput = upd; upd();
@@ -2354,6 +2360,8 @@ function openSettings() {
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
 seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs();
+// goals made before 'did nothing' existed start counting from today, so their past isn't held against them
+if ((G().list || []).some(g => !g.created)) { G().list.forEach(g => { g.created ||= today(); }); save(); }
 VIEWS.beauty = beautyView; BIND.beauty = bindBeauty;
 // mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
@@ -2365,7 +2373,6 @@ render();
 syncFoodData();
 loadTrainSeed();
 if (S.settings.sheetUrl) sheetWatch();
-affirmations();
 let lastDay = today();
 // coming back to the app: pick up newer data, but not under an open dialog (same reason as the 'storage' listener:
 // a card or food being edited would be saved to a copy that's thrown away). It reloads when the dialog closes.

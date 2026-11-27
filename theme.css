@@ -127,3 +127,7 @@ body.px #aff { background: color-mix(in srgb, var(--bg) 70%, transparent); displ
 .petlcd { width: 68px; height: 42px; }
 .pxcathead { width: 52px; height: 52px; display: block; }
 body.px .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* bottom bar: small single-colour pixel icons */
+.pxtab { width: 22px !important; height: 22px !important; opacity: 1 !important; filter: none !important; margin: 0 auto 2px; }
+body.px .tabs button { color: var(--muted); }
+body.px .tabs button.on { color: var(--accent); }
