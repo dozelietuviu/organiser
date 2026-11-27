@@ -204,6 +204,7 @@ const VIEWS = {}, BIND = {};
 const SUBTABS = { food: ['log', 'plan', 'cards'], home: ['tasks', 'pantry', 'shop'], body: ['body', 'beauty'] };
 const SUB_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shop', body: 'Body', beauty: 'Beauty' };
 function render() {
+  applyTheme();
   const sub = SUBTABS[UI.tab], view = sub ? UI[UI.tab] : UI.tab;
   $('#title').textContent = TITLES[view];
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === UI.tab));
@@ -1193,6 +1194,7 @@ VIEWS.today = () => {
   const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null;
   const ws = warnings(d, 'today');
   return `${dayBar()}
+  ${pixelStatus(d)}
   ${choresToday(d)}
   ${beautyToday(d)}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
@@ -1208,7 +1210,7 @@ VIEWS.today = () => {
   <div class="card"><h2>Habits</h2>${habitRows(d)}</div>`;
 };
 BIND.today = v => {
-  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindSleep(v); bindChores(v); bindBeautyToday(v);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindSleep(v); bindChores(v); bindBeautyToday(v); bindPixelStatus(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
   const at = $('#ateSmth', v); if (at) at.onclick = () => quickUnpl();
@@ -2294,6 +2296,8 @@ function alertsDialog() {
 function openSettings() {
   const s = S.settings;
   const body = dialog(`<h2>Settings</h2>
+    <h3>Look</h3><div class="chips">${LOOKS.map(([k, l]) => `<button class="chip ${(s.theme || 'ocean') === k ? 'on' : ''}" data-look="${k}">${l}</button>`).join('')}</div>
+    <p class="muted small">Pixel (auto) is pastel by day and night mode after sunset. Only the look changes.</p>
     ${modesBlock(s)}
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
@@ -2318,6 +2322,7 @@ function openSettings() {
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }
   });
   bindModes(body, s);
+  $$('[data-look]', body).forEach(x => x.onclick = e => { e.preventDefault(); s.theme = x.dataset.look; save(); applyTheme(); $$('[data-look]', body).forEach(y => y.classList.toggle('on', y === x)); render(); });
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
     try { const t = await checkSheet(); if (!t || !t.p) throw 0; applySplit(t); S.settings.sheetSeen = JSON.stringify(t); save(); closeDlg(); render(); toast(`P ${s.p} · C ${s.c} · F ${s.f} ✓`); } catch { toast('Couldn\'t read the Sheet. Is it shared by link?'); } };
   $('#alerts', body).onclick = e => { e.preventDefault(); alertsDialog(); };
@@ -2355,5 +2360,5 @@ let lastDay = today();
 // coming back to the app: pick up newer data, but not under an open dialog (same reason as the 'storage' listener:
 // a card or food being edited would be saved to a copy that's thrown away). It reloads when the dialog closes.
 document.addEventListener('visibilitychange', () => { if (document.hidden) return; if ($('#dlg').open) { reloadLater = true; return; } reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); affirmations(); });
-setInterval(() => { if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); }, 5 * 60e3);
+setInterval(() => { if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); else applyTheme(); }, 5 * 60e3);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

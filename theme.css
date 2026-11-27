@@ -1,0 +1,74 @@
+/* Pixel looks (Settings › Look). Everything is scoped to body.px so the Ocean look is untouched.
+   Day: pastel pink / lavender / periwinkle on grid paper. Night: navy and purple with soft neon. */
+body.px-day {
+  --bg: #f3e6f7; --bg2: #fff7fd; --card: #fffafe; --line: #6b6fd6; --text: #2b2563; --muted: #6d68a6;
+  --accent: #ff5fa8; --accent2: #8b78f0; --warn: #e2456b; --info: #4f86e8;
+  --btn: #eef0ff; --title: #b8c0ff; --title2: #ffc6e2; --shadow: #6b6fd6; --on-accent: #fff; --grid: rgba(107, 111, 214, .13); --soft: #e9e3ff;
+}
+body.px-night {
+  --bg: #1a1540; --bg2: #221b52; --card: #241d57; --line: #8a90ff; --text: #f3ecff; --muted: #b9b0e8;
+  --accent: #ff8fd0; --accent2: #8ce6ff; --warn: #ff7c95; --info: #8fb0ff;
+  --btn: #2e2670; --title: #3d3499; --title2: #5b3a9c; --shadow: #0c0926; --on-accent: #2a0d33; --grid: rgba(140, 150, 255, .10); --soft: #30297a;
+}
+body.px { --radius: 4px; background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 22px 22px, var(--bg); }
+body.px h1, body.px h2, body.px h3, body.px .big, body.px .h, body.px .tabs button, body.px .seg button, body.px .pxbar b { font-family: "Pixelify Sans", ui-monospace, monospace; letter-spacing: .02em; }
+body.px h3 { color: var(--accent2); }
+body.px .top { background: var(--title); border-bottom: 2px solid var(--line); backdrop-filter: none; }
+body.px .top h1 { color: var(--text); }
+body.px .tabs { background: var(--card); border-top: 2px solid var(--line); backdrop-filter: none; }
+body.px .tabs button { color: var(--muted); }
+body.px .tabs button.on { color: var(--accent); }
+body.px .tabs button.on svg { filter: none; }
+/* cards become little windows: title bar with ▢ _ ✕ */
+body.px .card { position: relative; background: var(--card); border: 2px solid var(--line); border-radius: 4px; box-shadow: 4px 4px 0 var(--shadow); padding-top: 32px; }
+body.px .card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 20px; background: linear-gradient(90deg, var(--title), var(--title2)); border-bottom: 2px solid var(--line); }
+body.px .card::after { content: "▢ ‒ ✕"; position: absolute; right: 8px; top: 1px; font: 600 11px/18px ui-monospace, monospace; color: var(--line); letter-spacing: 2px; }
+body.px .card.compact { padding-top: 26px; }
+body.px .card.compact::before { height: 14px; } body.px .card.compact::after { font-size: 9px; line-height: 12px; }
+body.px .card.is-today { border-color: var(--accent); }
+body.px dialog { background: var(--card); color: var(--text); border: 2px solid var(--line); border-radius: 4px; box-shadow: 6px 6px 0 var(--shadow); }
+body.px #dlgBody { padding-top: 26px; position: relative; }
+body.px #dlgBody::before { content: ""; position: absolute; left: -18px; right: -18px; top: -18px; height: 22px; background: linear-gradient(90deg, var(--title), var(--title2)); border-bottom: 2px solid var(--line); }
+body.px dialog::backdrop { background: rgba(30, 20, 70, .45); }
+/* controls: same size and place, pixel corners */
+body.px button, body.px .btn { background: var(--btn); color: var(--text); border: 2px solid var(--line); border-radius: 4px; box-shadow: 2px 2px 0 var(--shadow); }
+body.px button:active { transform: translate(2px, 2px); box-shadow: none; }
+body.px button.primary, body.px button.mini.on, body.px .chip.on, body.px .seg button.on { background: var(--accent); color: var(--on-accent); border-color: var(--line); }
+body.px button.ghost, body.px button.icon { background: transparent; box-shadow: none; }
+body.px button.icon { border: 0; color: var(--text); }
+body.px .tabs button { background: transparent; border: 0; box-shadow: none; }
+body.px input, body.px select, body.px textarea { background: var(--bg2); color: var(--text); border: 2px solid var(--line); border-radius: 4px; }
+body.px .chip { background: var(--btn); border: 2px solid var(--line); border-radius: 4px; box-shadow: none; }
+body.px .chip.on .muted { color: var(--on-accent); }
+body.px .seg { background: var(--btn); border: 2px solid var(--line); border-radius: 4px; }
+body.px .seg button { border: 0; box-shadow: none; background: transparent; }
+body.px .note { border: 2px solid var(--line); border-radius: 4px; background: var(--soft); }
+body.px .note.warn { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--card)); }
+body.px .note.info { border-color: var(--info); background: color-mix(in srgb, var(--info) 10%, var(--card)); }
+body.px .list li { border-color: var(--soft); }
+body.px .list li.sel { background: var(--soft); }
+/* bars: chunky segments */
+body.px .bar { background: var(--soft); border: 2px solid var(--line); border-radius: 2px; height: 12px; }
+body.px .bar > i { border-radius: 0; background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 10px); }
+body.px .bar.over > i { background: repeating-linear-gradient(90deg, var(--warn) 0 8px, transparent 8px 10px); }
+body.px .drop { border-radius: 2px; border: 2px solid var(--line); background: var(--soft); box-shadow: none; }
+body.px .drop.on { background: var(--info); }
+body.px #toast { background: var(--accent); color: var(--on-accent); border: 2px solid var(--line); border-radius: 4px; box-shadow: 3px 3px 0 var(--shadow); }
+body.px .warnc, body.px .chip.low { color: var(--warn); }
+body.px .list li.chore.putoff { background: color-mix(in srgb, var(--warn) 12%, var(--card)); border: 2px solid var(--warn); border-radius: 4px; }
+body.px .chip.life { border-color: var(--warn); color: var(--warn); }
+body.px .hm { background: var(--soft); border-radius: 2px; }
+body.px-day .muted { color: var(--muted); }
+/* status screen + cat */
+.pxstatus { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: start; }
+.pxcatbox { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 4px; }
+.pxcat { width: 64px; height: auto; image-rendering: pixelated; }
+.pxsay { font: 600 11px/1.2 "Pixelify Sans", ui-monospace, monospace; background: var(--bg2); border: 2px solid var(--line); border-radius: 4px; padding: 2px 5px; text-align: center; }
+.pxbars { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pxbar { display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 5px 6px !important; text-align: left; }
+.pxbar b { font-size: .78rem; text-transform: uppercase; }
+.pxbar .seg { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; background: none !important; border: 0 !important; }
+.pxbar .seg i { height: 8px; background: var(--soft); outline: 1px solid var(--line); }
+.pxbar .seg i.on { background: var(--accent2); }
+.pxbar.lowb .seg i.on { background: var(--warn); }
+.pxstatus .pxnote { grid-column: 1 / -1; margin: 2px 0 0; }
