@@ -212,3 +212,9 @@ details > summary { cursor: pointer; }
 .qtile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px; border-radius: 12px; text-align: left; font-size: .82rem; line-height: 1.2; }
 .qsize { display: inline-flex; gap: 4px; margin-right: 6px; }
 .wholebtn { display: block; width: 100%; text-align: left; margin-top: 6px; }
+/* Train: folded cards, easy-log exercise cards */
+details.fold > summary { list-style: none; margin-top: 0; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold[open] > summary { margin-bottom: 8px; }
+.exlive.exdone { opacity: .7; }
+.exlive .note.sm { font-size: .85em; margin-top: 6px; }
