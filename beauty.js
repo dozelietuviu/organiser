@@ -22,17 +22,32 @@ const WX_RULES = {
 };
 const SKIN = [['clear', 'Clear'], ['dry', 'Dry'], ['oily', 'Oily'], ['breakout', 'Breakout'], ['irritated', 'Irritated']];
 const P_CATS = ['Skin', 'Hair', 'Body', 'Makeup', 'Other'];
-// starter routine and products, all editable (days: Mon = 0)
+// the routine (Nov 2026), all editable. days: Mon = 0. active: 'ret' (retinal) / 'bha' (salicylic): never on the same night.
+// opt = optional step (doesn't count towards done). note = small reminder under the step.
 const BEAUTY_SEED = {
-  steps: [['Cleanser', 'am'], ['Vitamin C serum', 'am'], ['Light moisturiser', 'am', '', 'mild'], ['Rich cream', 'am', '', 'cold'], ['SPF 30+', 'am', '', 'uv'],
-    ['Cleanser', 'pm'], ['Exfoliating acid', 'pm', [1, 4]], ['Retinol', 'pm', [0, 3, 5]], ['Moisturiser', 'pm'], ['Lip balm', 'pm', '', 'cold'], ['Face mask', 'pm', [6]]],
-  products: [['Cleanser', 'Skin', 12], ['Vitamin C serum', 'Skin', 6], ['Moisturiser', 'Skin', 12], ['Rich cream', 'Skin', 12], ['SPF', 'Skin', 12], ['Retinol', 'Skin', 6],
-    ['Exfoliating acid', 'Skin', 12], ['Lip balm', 'Skin', 12], ['Shampoo', 'Hair', 12], ['Conditioner', 'Hair', 12], ['Hair mask', 'Hair', 12], ['Body lotion', 'Body', 12], ['Deodorant', 'Body', 24], ['Mascara', 'Makeup', 3]],
+  steps: [
+    { name: 'Rinse with water', when: 'am', note: 'Dokdo cleanser only if your skin feels oily' },
+    { name: 'NMF + PhytoCeramides', when: 'am' },
+    { name: 'Birch Juice sunscreen SPF 45', when: 'am' },
+    { name: 'Makeup remover', when: 'pm', opt: true, note: 'eye shadow nights only' },
+    { name: 'Dokdo cleanser', when: 'pm' },
+    { name: 'Salicylic Acid 2%', when: 'pm', days: [1, 5], active: 'bha' },
+    { name: 'NMF + PhytoCeramides', when: 'pm' },
+    { name: 'Retinal 0.2%', when: 'pm', days: [0, 3], active: 'ret', note: 'pea-sized for the whole face · after the moisturiser for now, to buffer it' },
+  ],
+  products: [['Round Lab 1025 Dokdo Cleanser', 'Skin', 12], ['The Ordinary Salicylic Acid 2% Solution', 'Skin', 12], ['The Ordinary Retinal 0.2% Emulsion', 'Skin', 6],
+    ['The Ordinary NMF + PhytoCeramides', 'Skin', 12], ['Round Lab Birch Juice Sunscreen SPF 45', 'Skin', 12], ['Makeup remover', 'Skin', 12],
+    ['Shampoo', 'Hair', 12], ['Conditioner', 'Hair', 12], ['Hair mask', 'Hair', 12], ['Body lotion', 'Body', 12], ['Deodorant', 'Body', 24], ['Mascara', 'Makeup', 3]],
 };
+const ACTIVES = { '': 'None', ret: 'Retinal', bha: 'Salicylic acid' };
 function seedBeauty() {
-  const b = BEA(); if (b.seeded) return; b.seeded = 1;
-  b.steps = BEAUTY_SEED.steps.map(([name, when, days, rule]) => ({ id: uid(), name, when, days: days || null, rule: rule || '' }));
-  b.products = BEAUTY_SEED.products.map(([name, cat, pao]) => ({ id: uid(), name, cat, pao, opened: null, spare: 0, hist: [] }));
+  const b = BEA(); if (b.routineV === 2) return;
+  const mk = x => Object.assign({ id: uid(), days: null, rule: '', opt: false, active: '', note: '' }, x);
+  const prod = ([name, cat, pao]) => ({ id: uid(), name, cat, pao, opened: null, spare: 0, hist: [] });
+  b.steps = BEAUTY_SEED.steps.map(mk);
+  // skin products replaced by the new ones; hair / body / makeup kept as they are
+  b.products = b.seeded ? [...BEAUTY_SEED.products.filter(p => p[1] === 'Skin').map(prod), ...b.products.filter(p => p.cat !== 'Skin')] : BEAUTY_SEED.products.map(prod);
+  b.actStart = today(); b.pauseUntil = null; b.seeded = 1; b.routineV = 2;
   save();
 }
 
@@ -49,10 +64,12 @@ const wxToday = () => { const w = BEA().wx; return w && w.d === today() ? w : nu
 const wxLine = () => { const w = wxToday(); return w ? `${r0(w.tmin)}…${r0(w.tmax)}°C · UV ${r1(w.uv)} · humidity ${r0(w.rh)}%` : 'No weather today (offline), going by the season'; };
 
 // ---- routine ----
-const stepToday = (s, d = today()) => (!s.days || s.days.includes(dowIdx(d))) && (WX_RULES[s.rule || ''] || WX_RULES[''])[1](wxToday());
+const paused = (d = today()) => BEA().pauseUntil && d < BEA().pauseUntil;
+const stepToday = (s, d = today()) => (!s.days || s.days.includes(dowIdx(d))) && (WX_RULES[s.rule || ''] || WX_RULES[''])[1](wxToday()) && !(s.active && paused(d));
+const actWeek = () => BEA().actStart ? Math.floor(daysBetween(BEA().actStart, today()) / 7) + 1 : 0;
 const routine = (when, d = today()) => BEA().steps.filter(s => s.when === when && stepToday(s, d));
 const nowWhen = () => new Date().getHours() < 15 ? 'am' : 'pm';
-const routineLeft = (when, d = today()) => { const dn = BEA().done[d] || {}; return routine(when, d).filter(s => !dn[s.id]); };
+const routineLeft = (when, d = today()) => { const dn = BEA().done[d] || {}; return routine(when, d).filter(s => !s.opt && !dn[s.id]); };
 
 // ---- roots ----
 // clue per finished colour cycle: tapped "Need it now" after n days -> n; coloured while still "Fine" -> gap + 7 (went early); else the gap
@@ -103,15 +120,23 @@ function skinInsight() {
 function beautyView() {
   seedBeauty(); beautyWeather(); beautyRestock();
   const b = BEA(), t = today(), dn = b.done[t] || {}, rs = rootsState(), si = skinInsight(), when = nowWhen();
-  const stepLi = s => `<li><input type="checkbox" data-bstep="${s.id}" ${dn[s.id] ? 'checked' : ''}><div class="grow">${esc(s.name)}${s.rule ? ` <span class="muted small">${WX_RULES[s.rule][0].toLowerCase()}</span>` : ''}${s.days ? ` <span class="muted small">${s.days.map(i => DOWS[i]).join(' ')}</span>` : ''}</div></li>`;
-  const block = w => { const l = routine(w), left = l.filter(s => !dn[s.id]).length;
-    return `<details ${w === when ? 'open' : ''}><summary><b>${w === 'am' ? '☀️ Morning' : '🌙 Evening'}</b> <span class="muted small">${l.length - left}/${l.length}${!left && l.length ? ' ✓' : ''}</span></summary><ul class="list">${l.map(stepLi).join('')}</ul></details>`; };
+  const stepLi = s => `<li><input type="checkbox" data-bstep="${s.id}" ${dn[s.id] ? 'checked' : ''}><div class="grow">${s.active ? '<b>' + esc(s.name) + '</b>' : esc(s.name)}${s.opt ? ' <span class="muted small">optional</span>' : ''}${s.rule ? ` <span class="muted small">${WX_RULES[s.rule][0].toLowerCase()}</span>` : ''}${s.note ? `<div class="muted small">${esc(s.note)}</div>` : ''}</div></li>`;
+  const block = w => { const l = routine(w), need = l.filter(s => !s.opt), left = need.filter(s => !dn[s.id]).length;
+    return `<details ${w === when ? 'open' : ''}><summary><b>${w === 'am' ? '☀️ Morning' : '🌙 Evening'}</b> <span class="muted small">${need.length - left}/${need.length}${!left && need.length ? ' ✓' : ''}</span></summary><ul class="list">${l.map(stepLi).join('')}</ul></details>`; };
+  const actTonight = b.steps.find(s => s.active && s.when === 'pm' && (!s.days || s.days.includes(dowIdx(t))));
+  const wk = actWeek(), rets = b.steps.filter(s => s.active === 'ret'), retN = rets.reduce((a, s) => a + (s.days ? s.days.length : 7), 0);
+  const free = [0, 1, 2, 3, 4, 5, 6].filter(i => !b.steps.some(s => s.active && s.days && s.days.includes(i)));
+  const actBox = `<div class="note sm">${paused() ? `😣 Actives paused until ${fmtDay(b.pauseUntil)}. Cleanser and moisturiser only. <button class="mini ghost" id="aResume">Resume now</button>`
+    : `Tonight: ${actTonight ? `<b>${esc(actTonight.name)}</b>` : 'no active, cleanser and moisturiser only'} · actives week ${wk}${wk <= 12 ? ' of 12' : ''}`}
+    ${!paused() ? '<div><button class="mini ghost" id="aPause">😣 Stinging or peeling: skip actives 3 nights</button></div>' : ''}
+    ${wk >= 5 && retN < 3 && !b.thirdAsked && !paused() && (!b.thirdLater || t >= b.thirdLater) ? `<div>Week 5+: if your skin is calm, add a third retinal night <span class="muted small">(never on a salicylic night)</span>:<div class="chips">${free.map(i => `<button class="chip sm" data-ret3="${i}">${DOWS[i]}</button>`).join('')}<button class="chip sm" data-ret3="no">Not yet</button></div></div>` : ''}
+    ${wk >= 12 ? `<div>📏 12 weeks: time to judge the results. Compare with how your skin was when you started (${fmtDay(b.actStart)}).</div>` : ''}</div>`;
   const prods = P_CATS.map(c => [c, b.products.filter(p => p.cat === c)]).filter(([, l]) => l.length);
   const pLine = p => { const s = prodState(p);
     return `<li data-prod="${p.id}"><div class="grow">${esc(p.name)}${p.spare ? ` <span class="muted small">+${p.spare} spare</span>` : ''}<div class="muted small">${p.opened ? `opened ${fmtDay(p.opened)}` : 'not open'}${s.L ? ` · lasts ~${s.L < 60 ? s.L + ' days' : r1(s.L / 30.4) + ' months'}` : ''}${s.runsOut ? ` · runs out ~${fmtDay(s.runsOut)}` : ''}</div></div>
       ${s.toss ? '<span class="chip sm low">toss?</span>' : s.onList ? '<span class="chip sm">on list</span>' : s.soon ? '<span class="chip sm low">soon</span>' : ''}<span>›</span></li>`; };
   return `<div class="card"><div class="row"><h2 class="grow">Skin routine</h2><button class="mini ghost" id="bSteps">✎</button></div>
-    <p class="muted small">🌤 ${wxLine()}</p>${block('am')}${block('pm')}
+    <p class="muted small">🌤 ${wxLine()}</p>${actBox}${block('am')}${block('pm')}
     <div class="row wrap" style="margin-top:10px"><span class="muted small" style="margin-right:6px">Skin today <span class="small">(optional)</span></span><div class="chips">${SKIN.map(([k, l]) => `<button class="chip sm ${b.skin[t] === k ? 'on' : ''}" data-skin="${k}">${l}</button>`).join('')}</div></div>
     ${si ? `<div class="note info sm">${si}</div>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">Roots</h2><button class="mini ghost" id="hEdit">✎</button></div>
@@ -127,6 +152,11 @@ function beautyView() {
 function bindBeauty(v) {
   const b = BEA(), t = today();
   $$('[data-bstep]', v).forEach(c => c.onchange = () => { const dn = b.done[t] ||= {}; if (c.checked) dn[c.dataset.bstep] = 1; else delete dn[c.dataset.bstep]; save(); render(); });
+  const ap = $('#aPause', v); if (ap) ap.onclick = () => { b.pauseUntil = addDays(t, 3); save(); render(); toast('Actives off for 3 nights. Be gentle 🤍'); };
+  const ar = $('#aResume', v); if (ar) ar.onclick = () => { b.pauseUntil = null; save(); render(); };
+  $$('[data-ret3]', v).forEach(x => x.onclick = () => { const k = x.dataset.ret3; b.thirdAsked = 1;
+    if (k !== 'no') { const r = b.steps.find(s => s.active === 'ret'); if (r) { r.days = [...(r.days || []), +k].sort(); toast(`Retinal on ${DOWS[+k]} too`); } } else b.thirdAsked = 0, b.thirdLater = addDays(t, 7);
+    save(); render(); });
   $$('[data-skin]', v).forEach(x => x.onclick = () => { if (b.skin[t] === x.dataset.skin) delete b.skin[t]; else b.skin[t] = x.dataset.skin; save(); render(); });
   $$('[data-root]', v).forEach(x => x.onclick = () => { b.hair.checks.push({ d: t, k: x.dataset.root }); save(); render(); toast(x.dataset.root === 'need' ? 'Noted. Time to book 📅' : 'Noted ✓'); });
   const colour = d => { if (!b.hair.colours.includes(d)) b.hair.colours.push(d); b.hair.appt = null; save(); render(); toast('Coloured ✓'); };
@@ -153,11 +183,17 @@ function stepEdit(s) {
   const body = dialog(`<h2>${isNew ? 'New step' : 'Edit step'}</h2><label>Step</label><input name="name" value="${esc(s.name || '')}" placeholder="e.g. Eye cream">
     <label>When</label><select name="when"><option value="am" ${s.when !== 'pm' ? 'selected' : ''}>Morning</option><option value="pm" ${s.when === 'pm' ? 'selected' : ''}>Evening</option></select>
     <label>Days <span class="muted small">(none ticked = every day)</span></label><div class="chips">${DOWS.map((d, i) => `<label class="chip sm"><input type="checkbox" name="d${i}" ${s.days && s.days.includes(i) ? 'checked' : ''}> ${d}</label>`).join('')}</div>
+    <label>Note <span class="muted small">(optional)</span></label><input name="note" value="${esc(s.note || '')}">
+    <div class="row"><div class="grow"><label>Active</label><select name="active">${Object.entries(ACTIVES).map(([k, l]) => `<option value="${k}" ${(s.active || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <label class="row tick grow"><input type="checkbox" name="opt" ${s.opt ? 'checked' : ''}> Optional</label></div>
     <label>Weather</label><select name="rule">${Object.entries(WX_RULES).map(([k, [l]]) => `<option value="${k}" ${(s.rule || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     ${isNew ? '' : '<p><button class="mini del" id="sDel">Delete step</button></p>'}`, f => {
     const name = f.name.value.trim(); if (!name) { toast('Name the step'); return false; }
-    const days = DOWS.map((_, i) => f['d' + i].checked ? i : -1).filter(i => i >= 0);
-    const o = isNew ? { id: uid() } : s; Object.assign(o, { name, when: f.when.value, days: days.length && days.length < 7 ? days : null, rule: f.rule.value }); if (isNew) b.steps.push(o);
+    const days = DOWS.map((_, i) => f['d' + i].checked ? i : -1).filter(i => i >= 0), dd = days.length && days.length < 7 ? days : null, act = f.active.value;
+    // never retinal and salicylic acid on the same night
+    if (act && f.when.value === 'pm') { const other = b.steps.find(x => x !== s && x.when === 'pm' && x.active && x.active !== act && (!x.days || !dd || x.days.some(i => dd.includes(i))));
+      if (other) { toast(`Clashes with ${other.name}. Retinal and salicylic acid never on the same night`); return false; } }
+    const o = isNew ? { id: uid() } : s; Object.assign(o, { name, when: f.when.value, days: dd, rule: f.rule.value, active: act, opt: f.opt.checked, note: f.note.value.trim() }); if (isNew) b.steps.push(o);
   });
   const del = $('#sDel', body); if (del) del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; b.steps = b.steps.filter(x => x !== s); save(); closeDlg(); render(); };
 }
