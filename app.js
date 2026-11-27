@@ -246,9 +246,12 @@ function lastAte() {
   for (const d of [today(), addDays(today(), -1)]) for (const e of S.log[d] || []) if (e.at > t) t = e.at;
   return t;
 }
-function warnings(day) {
+// each note says where it shows: 'today' (Today screen) or 'log' (Food › Log). Weekly patterns (busy skips,
+// unplanned habits) are in the weekly report, and the freezer reminder is a chore (tasks.js).
+function warnings(day, where = 'today') {
   if (day !== today()) return [];
-  const s = S.settings, out = [], h = new Date().getHours();
+  const s = S.settings, out = [], h = new Date().getHours(), push = out.push.bind(out);
+  out.push = (x, place = 'log') => push(Object.assign(x, { place }));
   const last = lastAte();
   if (h >= 7 && h < 23) {
     const gap = last ? (Date.now() - last) / 36e5 : null;
@@ -260,24 +263,15 @@ function warnings(day) {
   // skipped meals: today, and a 'busy' pattern over 7 days
   const sk = (S.day[day] || {}).skip || {}, skMain = Object.keys(sk).filter(x => PLAN_SLOTS.includes(x));
   if (skMain.length >= 2) out.push(['warn', `${skMain.length} meals skipped today. Have a shake or a small protein snack so you don't end up too hungry later.`]);
-  const busy = Array.from({ length: 7 }, (_, i) => Object.values(((S.day[addDays(day, -i)] || {}).skip) || {})).flat().filter(r => r === 'busy').length;
-  if (busy >= 3) out.push(['info', `Skipped ${busy} meals this week for being busy. Keep a shake or a protein snack within reach for those days.`]);
   // unplanned eating: today's total, then patterns over the last 7 days
   const un = (S.log[day] || []).filter(e => e.slot === UNPL), unK = sumM(un).kcal;
   if (unK >= 250) out.push(['info', `${r0(unK)} kcal unplanned today. No need to skip meals: keep the next one protein-first and a bit lighter.`]);
-  const week = Array.from({ length: 7 }, (_, i) => S.log[addDays(day, -i)] || []).flat().filter(e => e.slot === UNPL);
-  if (week.length >= 3) {
-    const cnt = {}; week.forEach(e => e.why && (cnt[e.why] = (cnt[e.why] || 0) + 1));
-    const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
-    out.push(['warn', `${week.length} unplanned in the last 7 days (${r0(sumM(week).kcal)} kcal).${top && top[1] >= 2 ? ` Mostly "${WHY.find(w => w[0] === top[0])[1]}": ${WHY_TIP[top[0]]}` : ''}`]);
-  } else if (un.length) { const w = un[un.length - 1].why; if (w && WHY_TIP[w]) out.push(['info', WHY_TIP[w]]); }
+  if (un.length) { const w = un[un.length - 1].why; if (w && WHY_TIP[w]) out.push(['info', WHY_TIP[w]]); }
   // cycle: appetite pattern (from the Body tab)
-  const ct = S.body && cycleTip(cycleInfo(day)); if (ct) out.push(['info', ct]);
-  if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`]);
+  const ct = S.body && cycleTip(cycleInfo(day)); if (ct) out.push(['info', ct], 'today');
+  if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`], 'today');
   // freezer: things to take out tonight for tomorrow
-  const fz = freezerFor(addDays(day, 1));
-  if (fz.length && h >= 16) out.push(['info', `Take out of the freezer tonight: ${fz.map(esc).join(', ')}.`]);
-  return out;
+  return out.filter(x => x.place === where);
 }
 function freezerFor(day) {
   const names = new Set();
@@ -296,6 +290,13 @@ function bars(tot, d = UI.day) {
   return `<div class="big">${r0(Math.abs(left))}</div><div class="muted">${left >= 0 ? 'kcal left' : 'kcal over'} · ${r0(tot.kcal)} of ${s.kcal} eaten${burned ? ` · <span class="fire">🔥</span> ${r0(burned)} burned` : ''}</div>${isPMS(d) ? `<div class="muted small">🩸 PMS week: +${PMS_EXTRA} kcal, best spent on protein and fibre</div>` : ''}
     <div class="bar ${left < 0 ? 'over' : ''}"><i style="width:${Math.min(100, tot.kcal / s.kcal * 100)}%"></i></div>
     <div class="macros">${bar('Protein', tot.p, s.p, 'g')}${bar('Carbs', tot.c, s.c, 'g')}${bar('Fat', tot.f, s.f, 'g')}${bar('Fibre', tot.fib, s.fib, 'g')}</div>`;
+}
+function barsLine(tot, d = UI.day) {
+  const s = Object.assign({}, S.settings, { kcal: kcalFor(d) }), left = s.kcal - tot.kcal;
+  const m = (l, v, t) => `<span class="${v >= t * .9 ? 'good' : ''}">${l} ${r0(v)}/${r0(t)}</span>`;
+  return `<div class="row"><div class="grow"><b>${r0(Math.abs(left))}</b> <span class="muted small">${left >= 0 ? 'kcal left' : 'kcal over'}</span></div><span class="muted">›</span></div>
+    <div class="bar ${left < 0 ? 'over' : ''}"><i style="width:${Math.min(100, tot.kcal / s.kcal * 100)}%"></i></div>
+    <div class="muted small macroline">${m('P', tot.p, s.p)} · ${m('C', tot.c, s.c)} · ${m('F', tot.f, s.f)} · ${m('Fib', tot.fib, s.fib)}</div>`;
 }
 function waterRow(day) {
   const w = (S.day[day] || {}).water || 0, n = S.settings.water, gl = S.settings.glassMl || 250;
@@ -725,6 +726,10 @@ function weekReport(mon) {
   const unpl = days.flatMap(d => mealsOn(d).filter(e => e.slot === UNPL)), unplK = r0(unpl.reduce((a, e) => a + e.kcal, 0));
   const whyC = {}; unpl.forEach(e => e.why && (whyC[e.why] = (whyC[e.why] || 0) + 1)); const topWhy = Object.entries(whyC).sort((a, b) => b[1] - a[1])[0];
   const hungry = days.reduce((a, d) => a + Object.values(((S.day[d] || {}).full) || {}).filter(x => x === 'hungry').length, 0);
+  const busy = days.flatMap(d => Object.values(((S.day[d] || {}).skip) || {})).filter(r => r === 'busy').length;
+  const patterns = [];
+  if (busy >= 3) patterns.push(`Skipped ${busy} meals for being busy. Keep a shake or a protein snack within reach for those days.`);
+  if (unpl.length >= 3) patterns.push(`${unpl.length} unplanned (${unplK} kcal).${topWhy && topWhy[1] >= 2 ? ` Mostly "${(WHY.find(w => w[0] === topWhy[0]) || [, topWhy[0]])[1]}": ${WHY_TIP[topWhy[0]] || ''}` : ''}`);
   const t = S.train || {}, sess = (t.logs || []).filter(l => days.includes(l.date));
   const cardioMin = r0(sess.flatMap(l => l.items).filter(i => i.cardio).reduce((a, i) => a + num(i.min), 0));
   const steps = days.map(d => ((t.watch || {})[d] || {}).steps).filter(Boolean), avgSteps = steps.length ? r0(steps.reduce((a, x) => a + x, 0) / steps.length) : 0;
@@ -752,7 +757,7 @@ function weekReport(mon) {
   else if (avgEat > avgTarget + 120) fix = `You averaged ${avgEat - avgTarget} kcal a day over target. Check portion sizes on the biggest meal.`;
   else if (rb && (rb.burn - avgTarget) * 7 / KCAL_PER_KG < .5) fix = `Your real burn is about ${rb.burn} kcal, so ${avgTarget} kcal only loses ~${r1(Math.max(0, (rb.burn - avgTarget) * 7 / KCAL_PER_KG))} kg a week. Try ${Math.max(1500, r0((rb.burn - 880) / 50) * 50)} kcal, or add 2,000 steps a day.`;
   else if (sess.length < 3) fix = `Only ${sess.length} session${sess.length === 1 ? '' : 's'} this week. Strength training keeps the weight you lose as fat, not muscle.`;
-  return { days, logged, avgEat, avgTarget, pDays, unplK, hungry, sess, cardioMin, avgSteps, burned, wEnd, dW, pmsEnd, rb, wins, fix };
+  return { days, logged, avgEat, avgTarget, pDays, unplK, hungry, patterns, sess, cardioMin, avgSteps, burned, wEnd, dW, pmsEnd, rb, wins, fix };
 }
 function reportDialog(mon = addDays(monday(today()), -7)) {
   const r = weekReport(mon), s = S.settings;
@@ -774,6 +779,7 @@ function reportDialog(mon = addDays(monday(today()), -7)) {
     <h3>Your real burn</h3>
     ${r.rb ? `<p class="small">From ${r.rb.days} logged days and your weight trend, your body burns about <b>${r.rb.burn} kcal a day</b>. At ${r.avgTarget} kcal that's about <b>${Math.max(0, kgWeek)} kg a week</b>.</p>`
       : '<p class="muted small">Needs about 2–3 weeks of food logs and weigh-ins. It gets more accurate every week.</p>'}
+    ${r.patterns.length ? `<h3>Patterns</h3>${r.patterns.map(x => `<div class="note info sm">${x}</div>`).join('')}` : ''}
     <h3>One fix for this week</h3><div class="note ${r.fix ? 'warn' : ''} sm">${r.fix || 'Nothing to fix. Keep doing exactly this. ✨'}</div>
     <p class="muted small">Watch calories are shown for interest only and aren't added back to your food: watches often overcount by 25% or more.</p>`, null);
   $$('[data-rw]', body).forEach(b => b.onclick = e => { e.preventDefault(); reportDialog(addDays(mon, +b.dataset.rw)); });
@@ -959,7 +965,7 @@ function boardView() {
 VIEWS.goals = () => {
   const L = G().list, arch = L.filter(g => g.arch), open = L.filter(g => !g.done && !g.arch).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done && !g.arch);
   return `${farCard()}
-    <div class="row" style="margin:-4px 0 12px"><button class="mini" id="gRep">📈 Weekly report</button></div>
+    <div class="row" style="margin:-4px 0 12px"><button class="mini ${dowIdx(today()) <= 1 ? 'primary' : ''}" id="gRep">📈 Weekly report${dowIdx(today()) <= 1 ? ' · last week is ready' : ''}</button></div>
     ${open.map(goalCard).join('') || '<div class="card muted">No goals yet. Tap ＋ Goal, or paste the goals Claude sent you in Settings → 📋 Paste data.</div>'}
     <div class="row"><button class="mini" id="gAdd">＋ Goal</button></div>
     ${won.length ? `<details class="card"><summary>🏆 Achieved (${won.length})</summary>${won.map(goalCard).join('')}</details>` : ''}
@@ -1172,35 +1178,25 @@ function bindCat(v, d) {
   const cs = $('#catShop', v); if (cs) cs.onclick = () => { const f = catFood(); S.extras ||= []; if (!S.extras.some(x => x.key === f.key)) S.extras.push({ id: uid(), key: f.key, name: sn(f), qty: 1, cat: f.cat || 'Cat', price: f.price || 0 }); save(); toast('On the shopping list ✓'); render(); };
 }
 VIEWS.today = () => {
-  const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null, last = lastAte();
-  const ws = warnings(d), pl = portionLimit();
+  const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null;
+  const ws = warnings(d, 'today');
   return `${dayBar()}
   ${choresToday(d)}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${wakeCard(d)}
-  <div class="card">${bars(tot)}</div>
+  <div class="card compact" data-gofood>${barsLine(tot)}</div>
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}
   <div class="card">${waterRow(d)}</div>
-  ${d === today() && dowIdx(d) <= 1 ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Weekly report</div><div>📈 Last week is ready</div></div><button class="mini" id="openRep">Open</button></div></div>` : ''}
   ${trainToday(d)}
   ${catCard(d)}
-  <div class="card"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
-    <div class="grow right"><div class="muted small">Comfortable meal</div><div>${pl.g} g${pl.learned ? ' <span class="muted small">learned</span>' : ''}</div></div></div></div>
-  <div class="card"><div class="row"><h2 class="grow">Meals</h2><button class="mini" data-gofood>Open log</button></div>${mealSummary(d)}</div>
   <div class="card"><h2>Habits</h2>${habitRows(d)}</div>`;
 };
-function mealSummary(d) {
-  const es = S.log[d] || [];
-  return `<ul class="list">${SLOTS.map(s => { const t = sumM(es.filter(e => e.slot === s.id)); const f = ((S.day[d] || {}).full || {})[s.id];
-    return `<li><div class="grow">${s.id}<div class="muted small">${s.time}${t.kcal ? ` · ${r0(t.kcal)} kcal · P ${r0(t.p)} g` : ''}</div></div>${f ? `<span class="chip sm">${FULL.find(x => x[0] === f)[1]}</span>` : ''}${t.kcal ? '<span class="ok">✓</span>' : ''}</li>`; }).join('')}${(() => { const u = sumM(es.filter(e => e.slot === UNPL)); return u.kcal ? `<li><div class="grow">Unplanned<div class="muted small">${r0(u.kcal)} kcal</div></div></li>` : ''; })()}</ul>`;
-}
 BIND.today = v => {
   bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindChores(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
-  const orp = $('#openRep', v); if (orp) orp.onclick = () => reportDialog();
   $$('[data-gofood]', v).forEach(b => b.onclick = () => go('log'));
   $$('[data-skip]', v).forEach(b => b.onclick = () => skipDialog(b.dataset.skip));
   $$('[data-lognext]', v).forEach(b => b.onclick = () => { const slot = b.dataset.lognext; logCardDialog(plannedCard(today(), slot), slot); });
@@ -1212,6 +1208,9 @@ VIEWS.log = () => {
   const recent = S.recent.map(foodById).filter(Boolean).slice(0, 8);
   return `${dayBar()}
   <div class="card compact">${bars(sumM(es))}</div>
+  ${warnings(d, 'log').map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
+  ${d === today() ? (() => { const last = lastAte(); return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
+    <div class="grow right"><div class="muted small">Comfortable meal</div><div>${pl.g} g${pl.learned ? ' <span class="muted small">learned</span>' : ''}</div></div></div></div>`; })() : ''}
   <div class="card"><div class="row"><input id="q" class="grow" placeholder="Search foods and cards" value="${esc(UI.search)}" autocomplete="off"></div>
     <div class="row wrap gap"><button id="scan">📷 Scan</button><button id="newFood">+ New food</button></div>
     ${recent.length ? `<div class="chips">${recent.map(f => `<button class="chip" data-food="${f.id}">${esc(f.name)}</button>`).join('')}</div>` : ''}
