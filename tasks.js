@@ -9,7 +9,7 @@
 //   later = not yet, a bit early (half full)                        -> wait ~1/3 of the gap (trash: 1 day)
 //   more  = not yet, far too early (too little)                     -> wait a whole gap (trash: 3 days)
 //   skip  = (fixed chores only) skip this time, learns nothing      -> wait a whole gap
-//   life  = 'Life happened': putting it off, learns nothing          -> tomorrow, and the chore turns red until done
+//   life  = 'Life happened': putting it off, learns nothing          -> stays on Today (and every day after), red, until done
 const CHORE_SETS = {
   bin: ['Overflowing', 'Done', 'Half full', 'Too little'],
   clean: ['Really needed it', 'Done', 'Still OK', 'Still clean'],
@@ -90,18 +90,18 @@ function nextDue(c, from) {
 }
 function tapChore(c, k) {
   const t = today(), n = Math.max(0, dayDiff(c.last || addDays(t, -c.gap), t));
-  c.undo = { due: c.due, last: c.last, putOff: c.putOff || 0, n: (c.log || []).length };
+  c.undo = { due: c.due, last: c.last, putOff: c.putOff || 0, putDay: c.putDay, n: (c.log || []).length };
   const clue = c.fixed ? null : choreClue(c, k, n);
   (c.log ||= []).push({ d: t, k, n, clue }); if (c.log.length > 40) c.log = c.log.slice(-40);
   if (k === 'early' || k === 'done') { c.last = t; c.due = nextDue(c, t); c.putOff = 0; }
-  else if (k === 'life') { c.due = addDays(t, 1); c.putOff = (c.putOff || 0) + 1; }
+  else if (k === 'life') { if (c.due > t) c.due = t; if (c.putDay !== t) { c.putOff = (c.putOff || 0) + 1; c.putDay = t; } }
   else c.due = addDays(t, pushDays(c, k));
   save(); render();
   const lbl = (choreBtns(c).find(b => b[0] === k) || [])[1];
-  toast(k === 'early' || k === 'done' ? `${c.name} ✓ next ${dueTxt2(c.due)}` : k === 'life' ? `Life happens. ${c.name} is back tomorrow` : `${lbl}: back ${dueTxt2(c.due)}`);
+  toast(k === 'early' || k === 'done' ? `${c.name} ✓ next ${dueTxt2(c.due)}` : k === 'life' ? `Life happens. ${c.name} stays here until it's done` : `${lbl}: back ${dueTxt2(c.due)}`);
 }
 function undoChore(c) {
-  if (!c.undo) return; Object.assign(c, { due: c.undo.due, last: c.undo.last, putOff: c.undo.putOff }); c.log = (c.log || []).slice(0, c.undo.n); c.undo = null; save();
+  if (!c.undo) return; Object.assign(c, { due: c.undo.due, last: c.undo.last, putOff: c.undo.putOff, putDay: c.undo.putDay }); c.log = (c.log || []).slice(0, c.undo.n); c.undo = null; save();
 }
 const dueTxt2 = d => { const n = dayDiff(today(), d); return n === 0 ? 'today' : n === 1 ? 'tomorrow' : n < 7 ? DOW(d) : fmtDay(d); };
 const lateTxt = c => { const n = dayDiff(c.due, today()); return n <= 0 ? '' : n === 1 ? '1 day late' : `${n} days late`; };
@@ -158,7 +158,7 @@ function choreDialog(c) {
     <div class="chips" style="margin:12px 0">${choreBtns(c).map(([k, l]) => `<button class="chip ${k === 'done' ? 'on' : k === 'life' ? 'life' : ''}" data-ctap="${c.id}|${k}">${esc(l)}</button>`).join('')}</div>
     <p class="small">${c.fixed ? `Fixed: ${gapTxt(c.gap)}.` : n >= 4 ? `Learned: ${gapTxt(g)} (you started at ${c.gap}).` : `Learning: ${gapTxt(c.gap)} for now, ${4 - n} more tap${4 - n > 1 ? 's' : ''} until it adjusts to you.`}
       ${wd != null && g >= 5 ? ` You usually do it on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][wd]}, so it's planned near then.` : ''}</p>
-    ${c.putOff ? `<div class="note warn sm">Put off ${c.putOff === 1 ? 'once' : c.putOff + ' times'}. It stays red until it's done.</div>` : ''}
+    ${c.putOff ? `<div class="note warn sm">Put off ${c.putOff === 1 ? 'once' : c.putOff + ' times'}. It stays on Today, red, until it's done.</div>` : ''}
     ${hist.length ? `<h3>Recent</h3><ul class="list">${hist.map(x => `<li><div class="grow small">${fmtDay(x.d)}</div><span class="muted small">${esc(lbl(x.k))}${x.n ? ` · after ${x.n} d` : ''}</span></li>`).join('')}</ul>` : ''}
     <div class="row wrap gap">${c.undo ? '<button class="mini ghost" id="chUndo">Undo last tap</button>' : ''}<button class="mini" id="chEdit">✎ Edit</button></div>`, null);
   $$('[data-ctap]', body).forEach(b => b.onclick = e => { e.preventDefault(); closeDlg(); tapChore(c, b.dataset.ctap.split('|')[1]); });
