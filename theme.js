@@ -1,11 +1,11 @@
-/* Organiser: looks. 'ocean' (the original dark look) or Pixel: retro-computer windows, pastel by day
+/* Organiser: the look. Pixel: retro-computer windows, pastel by day
    and navy/neon by night. Pixel (auto) switches at sunrise / sunset in Vilnius (worked out on the phone,
    no internet needed). Pixel adds a status screen at the top of Today (energy, thirsty, hungry, happy,
    health, home) with a little black cat. Only the look changes: every button stays where it was.
    Loaded before app.js; only functions here. Styles: theme.css (all scoped to body.px). */
 'use strict';
 
-const LOOKS = [['ocean', 'Ocean'], ['pixel', 'Pixel (auto)'], ['pixel-day', 'Pixel day'], ['pixel-night', 'Pixel night']];
+const LOOKS = [['pixel', 'Auto (sunset)'], ['pixel-day', 'Day'], ['pixel-night', 'Night']];
 // sunrise / sunset (NOAA simplified), Vilnius. Returns local Date objects for the given day.
 function sunTimes(day = new Date(), lat = 54.69, lon = 25.28) {
   const rad = Math.PI / 180, start = new Date(day.getFullYear(), 0, 0), n = Math.floor((day - start) / 864e5);
@@ -18,7 +18,7 @@ function sunTimes(day = new Date(), lat = 54.69, lon = 25.28) {
 }
 const isNight = (now = new Date()) => { const s = sunTimes(now); return now < s.rise || now >= s.set; };
 function applyTheme() {
-  const t = (S.settings || {}).theme || 'ocean', px = t !== 'ocean', night = t === 'pixel-night' || (t === 'pixel' && isNight());
+  const t0 = (S.settings || {}).theme, t = ['pixel', 'pixel-day', 'pixel-night'].includes(t0) ? t0 : 'pixel', px = true, night = t === 'pixel-night' || (t === 'pixel' && isNight());
   const b = document.body; b.classList.toggle('px', px); b.classList.toggle('px-night', px && night); b.classList.toggle('px-day', px && !night);
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = !px ? '#06121b' : night ? '#1a1540' : '#f3e6f7';
   // pixel font for headings only (cached by the browser after the first load; offline it falls back to monospace)
@@ -26,34 +26,37 @@ function applyTheme() {
     l.href = 'https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap'; document.head.appendChild(l); }
 }
 
-// ---- the little black cat (16×14 pixels, drawn as squares) ----
-const CAT_ART = [
-  '..#........#....',
-  '.###......###...',
-  '.##############.',
-  '################',
-  '##EE######EE####',
-  '##EE######EE####',
-  '#######NN#######',
-  '.##############.',
-  '..############..',
-  '.##############.',
-  '################..#',
-  '################.##',
-  '##################.',
-  '.######..#######..',
-];
-function catSvg(state) {
-  const eye = state === 'sleepy' ? null : state === 'sad' ? '#7fb3ff' : '#c6f26b', px = [];
-  CAT_ART.forEach((row, y) => [...row].forEach((ch, x) => {
-    if (ch === '.') return;
-    let c = ch === '#' ? '#16121f' : ch === 'N' ? '#ff8fc0' : eye || '#16121f';
-    px.push(`<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${c}"/>`);
-    if (ch === 'E' && !eye && y === 5) px.push(`<rect x="${x}" y="${y}" width="1.02" height=".35" fill="#8a84b8"/>`); // closed eyes
-  }));
-  return `<svg class="pxcat" viewBox="-0.5 -0.5 20 15" shape-rendering="crispEdges" aria-hidden="true">${px.join('')}</svg>`;
+// ---- the virtual pet (an original little blob in an egg-shaped handheld, 1-bit LCD) ----
+// Its mood comes from how well you looked after yourself today (the status bars) and your goals.
+// Thriving -> fine -> hungry / thirsty -> sad -> sick -> dead (it respawns tomorrow). Chores due = poops.
+const PET = {
+  happy: ['#..............#', '.#...######...#.', '...##......##...', '..#..........#..', '.#............#.', '.#..#.#..#.#..#.', '.#............#.', '.#...#....#...#.', '.#....####....#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  ok: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#............#.', '.#...#....#...#.', '.#............#.', '.#.....##.....#.', '.#............#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  hungry: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#............#.', '.#...#....#...#.', '.#............#.', '.#.....##.....#.', '.#....#..#....#.', '..#....##....#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  sad: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#............#.', '.#...#....#...#.', '.#...#........#.', '.#............#.', '.#.....##.....#.', '..#...#..#...#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  sick: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#..#.#..#.#..#.', '.#...#....#...#.', '.#..#.#..#.#..#.', '.#............#.', '.#...#.#.#.#..#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  sleepy: ['...........###..', '.....######..#..', '...##......###..', '..#..........#..', '.#............#.', '.#............#.', '.#..##....##..#.', '.#............#.', '.#.....##.....#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  dead: ['.....######.....', '....#......#....', '.....######.....', '................', '.....######.....', '...##......##...', '..#..........#..', '..#.#.#..#.#.#..', '..#..#....#..#..', '..#.#.#..#.#.#..', '..#..........#..', '..#....##....#..', '..#..........#..', '..#.##.##.##.#..'],
+};
+const POOP = ['..#...', '.#.#..', '.####.', '######'];
+function petLcd(mood, poops) {
+  const px = [], put = (art, ox, oy) => art.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') px.push(`M${ox + x} ${oy + y}h1v1h-1z`); }));
+  put(PET[mood] || PET.ok, 2, 1);
+  for (let i = 0; i < Math.min(poops, 2); i++) put(POOP, 19, 11 - i * 5);
+  return `<svg class="petlcd" viewBox="0 0 26 16" shape-rendering="crispEdges" aria-hidden="true"><path fill="#2e3a2a" d="${px.join('')}"/></svg>`;
 }
-
+const petEgg = (mood, poops) => `<div class="petegg"><div class="petscreen">${petLcd(mood, poops)}</div><div class="petbtns"><i></i><i></i><i></i></div></div>`;
+const PET_SAY = {
+  happy: ['you looked after us today ♥', 'thriving. look at us.', 'best owner ever', 'we are SO back'],
+  ok: ['doing alright', 'mrrp?', 'steady', 'more water and we\'re golden'],
+  hungry: ['feed meeee', 'my bowl is EMPTY', 'is that a protein shake? for me?'],
+  thirsty: ['water. now. please.', 'i am a raisin', 'hydrate or diedrate'],
+  sad: ['it\'s ok. tomorrow.', 'sending a tiny hug', 'here for you'],
+  sick: ['i feel… pixelated.', 'call the pet vet', 'need water, food, sleep. anything.', 'cough. cough. dramatic cough.'],
+  sleepy: ['zzz…', 'five more minutes', 'lights out?'],
+  dead: ['💀 you let me die. i respawn tomorrow.', 'R.I.P. me. eat, drink, sleep, then revive me.', 'ghost mode. this is on you.', 'i\'m haunting you until you drink water'],
+  goal: ['your goals are crying. so am i.', 'recommit or i stay dramatic', 'deadline is coming. i can smell it.'],
+};
 // ---- status screen (Pixel looks only, top of Today) ----
 function statusBars(d = today()) {
   const s = S.settings, dd = S.day[d] || {}, tot = sumM(mealsOn(d)), h = new Date().getHours();
@@ -74,19 +77,25 @@ function statusBars(d = today()) {
     ['home', 'Home', Math.max(0, 1 - due / 6), 'tasks', due ? `${due} chore${due > 1 ? 's' : ''} due` : 'all done'],
   ];
 }
-function catState(bars, d) {
+// how well today went: average of the bars that have data, minus goals in trouble
+function petMood(bars) {
   const v = k => (bars.find(b => b[0] === k) || [])[2], h = new Date().getHours();
-  if (isNight() && h >= 21 || (v('energy') != null && v('energy') < .7 && h < 11)) return ['sleepy', 'zzz…'];
-  if (v('thirsty') < .4 && h >= 13) return ['ok', 'water? 💧'];
-  if (v('hungry') < .25 && h >= 13) return ['ok', 'snack? 🍙'];
-  if (v('happy') <= .3) return ['sad', 'here for you'];
-  if (v('home') < .5) return ['ok', 'chores…'];
-  return ['ok', ['♥', 'purr', 'nice', 'mrrp'][new Date().getDate() % 4]];
+  const vals = bars.map(b => b[2]).filter(x => x != null), score = (vals.length ? vals.reduce((a, x) => a + x, 0) / vals.length : .6) - Math.min(.2, goalsInTrouble() * .08);
+  const poops = v('home') != null && v('home') < .5 ? (v('home') < .2 ? 2 : 1) : 0, pick = k => PET_SAY[k][(new Date().getDate() + h) % PET_SAY[k].length];
+  if ((h >= 18 && score < .3) || (h >= 21 && score < .38)) return ['dead', pick('dead'), poops];
+  if (h >= 13 && score < .42) return ['sick', pick('sick'), poops];
+  if (goalsInTrouble() && h >= 10) return ['sad', pick('goal'), poops];
+  if ((isNight() && h >= 22) || h < 6 || (v('energy') != null && v('energy') < .7 && h < 10)) return ['sleepy', pick('sleepy'), poops];
+  if (v('thirsty') != null && v('thirsty') < .35 && h >= 12) return ['hungry', pick('thirsty'), poops];
+  if (v('hungry') != null && v('hungry') < .25 && h >= 13) return ['hungry', pick('hungry'), poops];
+  if (v('happy') != null && v('happy') <= .3) return ['sad', pick('sad'), poops];
+  if (score >= .75) return ['happy', pick('happy'), poops];
+  return ['ok', pick('ok'), poops];
 }
 function pixelStatus(d) {
   if (!document.body.classList.contains('px') || d !== today()) return '';
-  const bars = statusBars(d), [st, say] = catState(bars, d), seg = v => Array.from({ length: 10 }, (_, i) => `<i class="${v != null && i < Math.round(v * 10) ? 'on' : ''}"></i>`).join('');
-  return `<div class="card pxstatus"><div class="pxcatbox">${catSvg(st)}<span class="pxsay">${esc(say)}</span></div>
+  const bars = statusBars(d), [mood, say, poops] = petMood(bars), seg = v => Array.from({ length: 10 }, (_, i) => `<i class="${v != null && i < Math.round(v * 10) ? 'on' : ''}"></i>`).join('');
+  return `<div class="card pxstatus mood-${mood}"><div class="pxcatbox">${petEgg(mood, poops)}<span class="pxsay nopx">${esc(say)}</span></div>
     <div class="pxbars">${bars.map(([k, l, v, go_, note]) => `<button class="pxbar ${v != null && v < .34 ? 'lowb' : ''}" data-pxgo="${go_}" title="${esc(note)}"><b>${l}</b><span class="seg">${seg(v)}</span></button>`).join('')}</div>
     <p class="muted small pxnote" id="pxNote">Tap a bar for details.</p></div>`;
 }

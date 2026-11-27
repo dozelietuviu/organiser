@@ -72,3 +72,58 @@ body.px-day .muted { color: var(--muted); }
 .pxbar .seg i.on { background: var(--accent2); }
 .pxbar.lowb .seg i.on { background: var(--warn); }
 .pxstatus .pxnote { grid-column: 1 / -1; margin: 2px 0 0; }
+
+/* pixel icons (emoji replaced) and bottom bar */
+.pxi { width: 1.15em; height: 1.15em; vertical-align: -.2em; display: inline-block; }
+.pxo { fill: var(--pxo, #2b2563); }
+body.px-day { --pxo: #2b2563; } body.px-night { --pxo: #ece6ff; }
+.pxtab { width: 28px; height: 28px; display: block; opacity: .55; filter: saturate(.7); transition: opacity .15s; }
+body.px .tabs button.on .pxtab { opacity: 1; filter: none; transform: translateY(-1px); }
+/* fixes: link-style buttons must not get pixel button chrome (overlapped habit names and meal times) */
+body.px button.linkish, body.px button.linkish.plain { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; color: var(--accent); }
+body.px button.linkish.plain { color: var(--text); font-weight: 600; }
+body.px .pslot { margin: 6px 0; }
+body.px .pslot.paused { opacity: .7; }
+/* goals that push back */
+body.px .card.goal.danger { border-color: var(--warn); box-shadow: 4px 4px 0 var(--warn); }
+body.px .card.goal.danger::before { background: linear-gradient(90deg, var(--warn), var(--title2)); }
+body.px .gpush { margin: 8px 0; }
+/* vision board: photos as little windows */
+body.px .board { gap: 12px; }
+body.px .polaroid { background: var(--card); border: 2px solid var(--line); border-radius: 4px; box-shadow: 3px 3px 0 var(--shadow); padding: 0 0 4px; transform: none; }
+body.px .polaroid img { filter: none; border-bottom: 2px solid var(--line); }
+body.px .polaroid .cap { font-family: "Pixelify Sans", ui-monospace, monospace; font-style: normal; color: var(--text); padding: 4px 6px 2px; font-size: .82rem; }
+body.px .polaroid .inset { border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--shadow); transform: none; left: 6px; bottom: 34px; }
+.wbar { display: flex; justify-content: space-between; align-items: center; gap: 6px; height: 20px; padding: 0 6px; background: linear-gradient(90deg, var(--title), var(--title2)); border-bottom: 2px solid var(--line); font: 600 11px/18px ui-monospace, monospace; color: var(--text); white-space: nowrap; overflow: hidden; }
+.wbar span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.polaroid .wbar span:last-child { color: var(--line); letter-spacing: 2px; }
+body.px .polaroid.small-p .wbar { font-size: 9px; height: 16px; line-height: 14px; }
+/* morning pop-ups */
+body.px #aff { background: color-mix(in srgb, var(--bg) 70%, transparent); display: block; padding: 0; }
+#aff .aff-hint { position: absolute; left: 0; right: 0; top: calc(14px + env(safe-area-inset-top)); text-align: center; font: 600 13px "Pixelify Sans", ui-monospace, monospace; color: var(--text); }
+.popwin { position: absolute; background: var(--card); border: 2px solid var(--line); border-radius: 4px; box-shadow: 5px 5px 0 var(--shadow); transform: rotate(var(--r, 0deg)); animation: popin .18s steps(3) both; }
+.popwin img { display: block; width: 100%; max-height: 46vh; object-fit: cover; border-bottom: 2px solid var(--line); }
+.popwin .aff-cap { margin: 8px 10px 10px; font: 600 1.05rem/1.3 "Pixelify Sans", ui-monospace, monospace; color: var(--text); text-align: center; }
+.popwin .wbar { height: 26px; line-height: 22px; font-size: 12px; }
+.popwin .popx { padding: 0 8px !important; height: 20px; line-height: 16px; font-size: 13px; background: var(--btn); }
+@keyframes popin { from { transform: scale(.6) rotate(var(--r, 0deg)); opacity: 0; } to { transform: scale(1) rotate(var(--r, 0deg)); opacity: 1; } }
+/* the virtual pet */
+.pxstatus { grid-template-columns: 96px 1fr; }
+.petegg { width: 88px; height: 100px; margin: 0 auto; border: 3px solid var(--line); border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; background: radial-gradient(circle at 35% 28%, #fff9 0 8%, transparent 9%), var(--accent);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; box-shadow: 3px 3px 0 var(--shadow); }
+.petscreen { width: 60px; height: 40px; background: #c9dcae; border: 3px solid var(--line); border-radius: 6px; display: flex; align-items: center; justify-content: center; box-shadow: inset 2px 2px 0 #a9bd8c; }
+.petlcd { width: 52px; height: 32px; }
+.petbtns { display: flex; gap: 6px; } .petbtns i { width: 7px; height: 7px; border-radius: 50%; background: var(--card); border: 2px solid var(--line); }
+.mood-dead .petscreen { background: #b8b8c8; box-shadow: inset 2px 2px 0 #9a9aae; }
+.mood-dead .petegg { filter: grayscale(.85); animation: wobble 2.4s steps(2) infinite; }
+.mood-sick .petscreen { background: #d7d39c; }
+.mood-happy .petlcd { animation: hop 1.2s steps(2) infinite; }
+@keyframes hop { 50% { transform: translateY(-2px); } }
+@keyframes wobble { 50% { transform: rotate(-3deg); } }
+.mood-dead .pxsay, .mood-sick .pxsay { border-color: var(--warn); color: var(--warn); }
+.pxstatus { grid-template-columns: 104px 1fr; }
+.petegg { width: 98px; height: 110px; }
+.petscreen { width: 74px; height: 50px; }
+.petlcd { width: 68px; height: 42px; }
+.pxcathead { width: 52px; height: 52px; display: block; }
+body.px .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }

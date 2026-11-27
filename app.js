@@ -209,7 +209,7 @@ function render() {
   $('#title').textContent = TITLES[view];
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === UI.tab));
   const seg = sub ? `<div class="seg">${sub.map(t => `<button data-seg="${t}" class="${view === t ? 'on' : ''}">${SUB_LABELS[t]}</button>`).join('')}</div>` : '';
-  const v = $('#view'); v.innerHTML = seg + VIEWS[view](); BIND[view] && BIND[view](v);
+  const v = $('#view'); v.innerHTML = seg + VIEWS[view](); BIND[view] && BIND[view](v); pxEmoji(v);
   $$('[data-seg]', v).forEach(b => b.onclick = () => { UI[UI.tab] = b.dataset.seg; render(); scrollTo(0, 0); });
   if (S.alerts && S.alerts.topic) alertSoon();
 }
@@ -220,6 +220,7 @@ $('#btnSettings').onclick = () => openSettings();
 function dialog(html, onOk, okLabel = 'Save') {
   const d = $('#dlg'), body = $('#dlgBody');
   if (d.open) { d.onclose && d.onclose(); d.onclose = null; d.close(); }
+  setTimeout(() => pxEmoji(body), 0);
   body.innerHTML = html + `<div class="dlg-actions"><button value="cancel" class="ghost">${onOk ? 'Cancel' : 'Close'}</button>${onOk ? `<button value="ok" class="primary">${okLabel}</button>` : ''}</div>`;
   d.onclose = null;
   body.onsubmit = e => {
@@ -276,6 +277,7 @@ function warnings(day, where = 'today') {
   if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`], 'today');
   // freezer: things to take out tonight for tomorrow
   for (const [k, t, place] of energyNotes(day)) out.push([k, t], place);
+  const gw = goalsTodayWarn(); if (gw) out.push(['warn', gw], 'today');
   return out.filter(x => x.place === where);
 }
 function freezerFor(day) {
@@ -923,10 +925,11 @@ function goalCard(g) {
   const photo = G().board.find(x => x.goal === g.id && x.done);
   const smart = [['Specific', g.s], ['Measurable', g.m], ['Achievable', g.a], ['Relevant', g.r]].filter(x => x[1]);
   const month = ym(today()), ticks = ((g.ticks || {})[month]) || [];
-  return `<div class="card goal ${g.done ? 'won' : ''}" data-g="${g.id}">
+  return `<div class="card goal ${g.done ? 'won' : ''} ${goalDanger(g) === 2 ? 'danger' : ''}" data-g="${g.id}">
     <div class="row"><div class="gicon">${esc(g.icon || '☆')}</div><div class="grow"><div class="h">${esc(g.title)}</div>
       <div class="muted small">${g.done ? '🏆 Achieved ' + fmtDay(g.done) : [dueTxt(g.due), g.due ? 'by ' + fmtDay(g.due) + (g.due.slice(0, 4) !== today().slice(0, 4) ? ' ' + g.due.slice(0, 4) : '') : ''].filter(Boolean).join(' · ')}</div></div>
       <button class="icon" data-gedit="${g.id}" title="Edit">✎</button></div>
+    ${goalWarn(g)}
     ${photo ? `<div class="polaroid small-p"><img src="${photo.mine || photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
     ${goalBar(g)}
     <div class="small">${goalLine(g)}</div>
@@ -935,7 +938,7 @@ function goalCard(g) {
     ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · <span class="fire">🔥</span> ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small"><span class="fire">🔥</span> ${st} weeks in a row</div>` : ''}
     ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">Log ${new Date().toLocaleDateString('en-GB', { month: 'long' })}: tap what's done (starts fresh each month)</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
     ${smart.length ? `<details><summary class="muted small">SMART</summary>${smart.map(([k, t]) => `<div class="small"><b>${k}:</b> ${esc(t)}</div>`).join('')}</details>` : ''}
-    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : g.track === 'weight' ? '<button class="mini primary" data-gweigh="1">＋ Weigh in</button>' : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div>`}
+    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : g.track === 'weight' ? '<button class="mini primary" data-gweigh="1">＋ Weigh in</button>' : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div><div class="row gap">${nothingBtn(g)}</div>`}
   </div>`;
 }
 function farCard() {
@@ -951,22 +954,26 @@ function farCard() {
   if (!bits.length) return '';
   return `<div class="card compact far"><div class="muted small">How far you've come${st.date ? ' since ' + fmtDay(st.date) : ''}</div><div class="row wrap gap">${bits.map(([i, t]) => `<span class="chip">${i} ${t}</span>`).join('')}</div></div>`;
 }
-const polaroid = (x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:${(i * 7 % 9 - 4) * .6}deg"><img src="${x.mine || x.img}" alt="">${x.mine ? `<img class="inset" src="${x.img}" alt="">` : ''}${x.done ? '<span class="won-tag">🏆</span>' : ''}<div class="cap">${esc(x.cap || '')}</div></div>`;
+const winName = (x, i) => (String(x.cap || '').toLowerCase().replace(/[^a-z0-9ąčęėįšųūž]+/g, '_').replace(/^_|_$/g, '').slice(0, 14) || 'dream_' + String((i || 0) + 1).padStart(2, '0')) + '.jpeg';
+const polaroid = (x, i) => `<div class="polaroid" data-vb="${x.id}" style="--r:${(i * 7 % 9 - 4) * .6}deg"><div class="wbar nopx"><span>${esc(winName(x, i))}</span><span>▢ ‒ ✕</span></div><img src="${x.mine || x.img}" alt="">${x.mine ? `<img class="inset" src="${x.img}" alt="">` : ''}${x.done ? '<span class="won-tag">🏆</span>' : ''}<div class="cap">${esc(x.cap || '')}</div></div>`;
 // ---------- MORNING AFFIRMATIONS ----------
 // First open of the day before 10:00: the vision board slides up as a carousel (swipe), caption = affirmation.
 // Also on the Goals board with ▶. Shown once a day (S.affDay).
+// morning affirmations: old-school pop-up windows piled on the screen; close each one with ✕ (say it out loud first)
 function affirmations(force) {
   const list = G().board.filter(x => !x.arch && (x.mine || x.img));
   if (!list.length || $('#aff')) return;
   if (!force) { if (S.affDay === today() || new Date().getHours() >= 10) return; S.affDay = today(); save(); }
   const el = document.createElement('div'); el.id = 'aff';
-  el.innerHTML = `<div class="aff-top"><span class="muted small">Good morning 🌊 say each one out loud</span><button class="mini ghost" id="affX">✕</button></div>
-    <div class="aff-track">${list.map(x => `<div class="aff-slide"><img src="${x.mine || x.img}" alt=""><p class="aff-cap">${esc(x.cap || '')}</p></div>`).join('')}</div>
-    <div class="aff-dots">${list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>`;
-  document.body.appendChild(el);
-  const tr = $('.aff-track', el), dots = $$('.aff-dots i', el);
-  tr.onscroll = () => { const i = Math.round(tr.scrollLeft / tr.clientWidth); dots.forEach((d, j) => d.classList.toggle('on', i === j)); };
-  $('#affX', el).onclick = () => el.remove();
+  const W = Math.min(innerWidth - 40, 340);
+  el.innerHTML = `<div class="aff-hint">Good morning ✨ Say each one out loud, then ✕ it</div>` + list.map((x, i) => {
+    const left = 12 + ((i * 37) % Math.max(20, innerWidth - W - 24)), top = 60 + ((i * 53) % Math.max(40, innerHeight - 460));
+    return `<div class="popwin" style="left:${left}px;top:${top}px;width:${W}px;z-index:${i + 1};--r:${(i * 5 % 7 - 3) * .5}deg">
+      <div class="wbar nopx"><span>${esc(winName(x, i).replace('.jpeg', '.exe'))}</span><button class="popx" aria-label="Close">✕</button></div>
+      <img src="${x.mine || x.img}" alt=""><p class="aff-cap">${esc(x.cap || '')}</p></div>`; }).join('');
+  document.body.appendChild(el); pxEmoji(el);
+  $$('.popx', el).forEach(b => b.onclick = () => { b.closest('.popwin').remove(); if (!$('.popwin', el)) { el.remove(); toast('All closed. Go get it ✨'); } });
+  el.onclick = e => { if (e.target === el) el.remove(); };
 }
 function boardView() {
   const all = G().board, bd = all.filter(x => !x.arch), ar = all.filter(x => x.arch);
@@ -986,6 +993,7 @@ VIEWS.goals = () => {
     ${boardView()}`;
 };
 BIND.goals = v => {
+  bindGoalPush(v);
   $('#gAdd', v).onclick = () => goalEdit();
   $('#gRep', v).onclick = () => reportDialog();
   $$('[data-gedit]', v).forEach(x => x.onclick = () => goalEdit(x.dataset.gedit));
@@ -993,9 +1001,9 @@ BIND.goals = v => {
   $$('[data-gwin]', v).forEach(x => x.onclick = () => goalWin(x.dataset.gwin));
   $$('[data-gtick]', v).forEach(x => x.onclick = () => {
     const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
-    t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); S.goalsTouched = today(); save(); render(); });
+    t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); markActed(g); S.goalsTouched = today(); save(); render(); });
   $$('[data-gweigh]', v).forEach(x => x.onclick = () => { const b = B(); dialog(`<h2>⚖ Weigh in</h2><div class="row"><div class="grow"><label>Weight (kg)</label><input name="w" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div><p class="muted small">Same as logging it on Body. The goal uses your 7-day average.</p>`, f => { const w = num(f.w.value), d = f.d.value || today(); if (!w) return false; b.weights[d] = w; b.start ||= { date: d, weight: w }; toast('Saved ✓'); }, 'Save'); });
-  $$('[data-gtodo]', v).forEach(x => x.onclick = () => { const [id, i] = x.dataset.gtodo.split('|'), t = gById(id).todos[+i]; t.done = t.done ? undefined : today(); save(); render(); if (t.done) toast('Done ✓'); });
+  $$('[data-gtodo]', v).forEach(x => x.onclick = () => { const [id, i] = x.dataset.gtodo.split('|'), t = gById(id).todos[+i]; t.done = t.done ? undefined : today(); if (t.done) markActed(gById(id)); save(); render(); if (t.done) toast('Done ✓'); });
   $$('[data-vb]', v).forEach(x => x.onclick = () => photoEdit(x.dataset.vb));
   const ap = $('#affPlay', v); if (ap) ap.onclick = () => affirmations(true);
   $('#vbAdd', v).onchange = async e => { for (const f of e.target.files) await addPhoto(f, {}); render(); };
@@ -1024,7 +1032,7 @@ function goalEdit(id) {
       todos: f.todos.value.split('\n').map(x => x.trim()).filter(Boolean).map(t => ({ t, done: ((g.todos || []).find(o => o.t === t) || {}).done })) });
     if (g.track === 'habit' && !g.target) { toast('Set a target, e.g. 450'); return false; }
     if (g.track === 'smoke' && g.unit == null) g.unit = 'days';
-    if (!id) { g.id = uid(); g.log = []; G().list.push(g); }
+    if (!id) { g.id = uid(); g.log = []; g.created = today(); G().list.push(g); }
   });
   const sync = () => { const t = body.track.value; $('#cks', body).hidden = t !== 'check'; $('#nums', body).hidden = t === 'check'; $('#perW', body).hidden = t !== 'habit'; $('#startW', body).hidden = t === 'habit'; $('#thelp', body).textContent = TRACK_HELP[t] || ''; };
   body.track.onchange = sync; sync();
@@ -1040,6 +1048,7 @@ function goalLog(id) {
     <div class="row"><div class="grow"><label>${hab ? 'Amount' : 'Value now'}${g.unit ? ' (' + esc(g.unit) + ')' : ''}</label><input name="v" inputmode="decimal" autofocus></div><div class="grow"><label>Date</label><input type="date" name="d" value="${today()}"></div></div>
     ${hist.length ? `<h3>Recent</h3>${hist.map(x => `<div class="row small"><span class="grow">${fmtDay(x.d)}</span><b>${x.v}${g.unit ? ' ' + esc(g.unit) : ''}</b><button class="mini ghost" data-lx="${x.d}">✕</button></div>`).join('')}` : ''}`, f => {
     if (f.v.value.trim() === '') return false;
+    markActed(g);
     const d = f.d.value || today(), v = num(f.v.value), old = (g.log || []).find(x => x.d === d);
     g.log = (g.log || []).filter(x => x.d !== d); g.log.push({ d, v: hab ? r1((old ? old.v : 0) + v) : v });
     toast(hab && habitSum(g) >= g.target ? 'Target hit 🔥' : 'Logged ✓');
@@ -1174,7 +1183,7 @@ function trainToday(d) {
 function catCard(d) {
   const f = catFood(), fed = (S.day[d] || {}).catFed || 0, left = f && S.pantry[f.id] ? pantryQty(f.id) : null;
   const low = left != null && left <= CAT_LOW;
-  return `<div class="card cat ${fed ? 'fed' : ''}"><div class="row"><span class="cathead">${CAT_SVG}</span>
+  return `<div class="card cat ${fed ? 'fed' : ''}"><div class="row"><span class="cathead">${pxSvg(PX_TABS.catface, 'pxcathead')}</span>
     <div class="grow"><div class="h">${fed ? 'Cat is fed ✓' : 'Did you feed the cat?'}</div>
       <div class="muted small">${left == null ? 'Add wet cat food to the pantry to count it' : `${left === Infinity ? '' : r0(left)} wet food left`}${fed > 1 ? ` · fed ${fed}× today` : ''}</div></div>
     ${fed ? `<button class="mini" data-cat="1" title="Fed again">+1</button><button class="mini ghost" data-cat="-1">Undo</button>` : `<button class="primary" data-cat="1">Fed</button>`}</div>
@@ -1237,7 +1246,8 @@ VIEWS.log = () => {
     const pkd = ((((S.plan[d] || {}).packed) || {})[s.id]) || {};
     const planBtn = pc => { const pk = pkd[pc.id], k = pk ? itemsTotals(myItems(pc).map(i => ({ foodId: i.foodId, g: pk[i.foodId] ?? i.g }))).kcal : cardTotals(pc).kcal;
       return `<button class="planned" data-logcard="${pc.id}" data-slot="${s.id}">${pk ? '📦 Packed' : 'Planned'}: <b>${esc(pc.name)}</b> · ${r0(k)} kcal · tap to log</button>`; };
-    const rest = list.length ? pcs.filter(pc => !list.some(e => e.card === pc.id)) : [];
+    // planned cards still to eat; once you've logged something that isn't on the plan, the plan for this slot is done
+    const offPlan = list.some(e => !e.card || !pcs.some(pc => pc.id === e.card)), rest = list.length && !offPlan ? pcs.filter(pc => !list.some(e => e.card === pc.id)) : [];
     const over = g > pl.g, lowP = s.main && list.length && t.p < S.settings.minP;
     return `<div class="card slotcard"><div class="row"><div class="grow"><span class="slot">${s.id}</span> <span class="muted small">${list.length ? 'ate ' + hm(Math.min(...list.map(e => e.at))) : s.time}</span></div><span class="muted small">${t.kcal ? r0(t.kcal) + ' kcal · P ' + r0(t.p) : ''}</span><button class="mini" data-add="${s.id}">+</button></div>
       ${list.length ? `<ul class="list">${list.map(e => `<li><div class="grow">${esc(e.name)}<div class="muted small"><button class="linkish" data-at="${e.id}">${hm(e.at)}</button> · ${e.g ? r0(e.g) + ' g · ' : ''}${r0(e.kcal)} kcal · P ${r1(e.p)} · C ${r1(e.c)} · F ${r1(e.f)} · Fib ${r1(e.fib)}</div></div><button class="mini del" data-del="${e.id}">✕</button></li>`).join('')}</ul>${rest.map(planBtn).join('')}`
@@ -2297,7 +2307,7 @@ function openSettings() {
   const s = S.settings;
   const body = dialog(`<h2>Settings</h2>
     <h3>Look</h3><div class="chips">${LOOKS.map(([k, l]) => `<button class="chip ${(s.theme || 'ocean') === k ? 'on' : ''}" data-look="${k}">${l}</button>`).join('')}</div>
-    <p class="muted small">Pixel (auto) is pastel by day and night mode after sunset. Only the look changes.</p>
+    <p class="muted small">Auto: pastel by day, night look after sunset.</p>
     ${modesBlock(s)}
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
@@ -2343,7 +2353,7 @@ function openSettings() {
 
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
-seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather();
+seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs();
 VIEWS.beauty = beautyView; BIND.beauty = bindBeauty;
 // mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
