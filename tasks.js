@@ -125,7 +125,7 @@ const freezerRow = fz => `<li class="chore"><div class="row"><div class="grow">ð
   <div class="chips"><button class="chip sm on" data-fzout>Done</button></div></li>`;
 // top of Today: only what's due (nothing shows when nothing is due), so the morning plan is one glance
 function choresToday(d) {
-  if (d !== today()) return ''; const l = dueNow(), fz = freezerChore(); if (!l.length && !fz) return '';
+  if (d !== today() || !dayStarted()) return ''; const l = dueNow(), fz = freezerChore(); if (!l.length && !fz) return '';
   const shown = l.slice(0, 6);
   return `<div class="card"><div class="row"><h2 class="grow">Chores today</h2><button class="mini ghost" data-gochores>All</button></div>
     <ul class="list">${fz ? freezerRow(fz) : ''}${shown.map(c => choreRow(c)).join('')}</ul>${l.length > shown.length ? `<p class="muted small">+${l.length - shown.length} more in Household â€º Chores</p>` : ''}</div>`;

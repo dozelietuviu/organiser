@@ -250,6 +250,9 @@ function lastAte() {
 }
 // each note says where it shows: 'today' (Today screen) or 'log' (Food › Log). Weekly patterns (busy skips,
 // unplanned habits) are in the weekly report, and the freezer reminder is a chore (tasks.js).
+// the day starts at 09:00 (Settings), or earlier when you tap I'm up. Before that, Today stays quiet:
+// no chores, beauty reminders or Today warnings just because the clock passed midnight.
+const dayStarted = () => new Date().getHours() >= (S.settings.dayStartH ?? 9) || !!((S.body || {}).wake || {})[today()];
 function warnings(day, where = 'today') {
   if (day !== today()) return [];
   const s = S.settings, out = [], h = new Date().getHours(), push = out.push.bind(out);
@@ -278,7 +281,7 @@ function warnings(day, where = 'today') {
   // freezer: things to take out tonight for tomorrow
   for (const [k, t, place] of energyNotes(day)) out.push([k, t], place);
   const gw = goalsTodayWarn(); if (gw) out.push(['warn', gw], 'today');
-  return out.filter(x => x.place === where);
+  return out.filter(x => x.place === where && !(where === 'today' && day === today() && !dayStarted()));
 }
 function freezerFor(day) {
   const names = new Set();
@@ -2314,6 +2317,7 @@ function openSettings() {
   const body = dialog(`<h2>Settings</h2>
     <h3>Look</h3><div class="chips">${LOOKS.map(([k, l]) => `<button class="chip ${(s.theme || 'ocean') === k ? 'on' : ''}" data-look="${k}">${l}</button>`).join('')}</div>
     <p class="muted small">Auto: pastel by day, night look after sunset.</p>
+    <label>Day starts at <span class="muted small">(chores and reminders appear then, or when you tap I'm up)</span></label><input name="dayStartH" type="number" min="4" max="14" value="${s.dayStartH ?? 9}">
     ${modesBlock(s)}
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
@@ -2332,7 +2336,7 @@ function openSettings() {
     <div class="row wrap gap"><button class="mini" id="exp">⬇ Download backup</button><label class="btn mini">⬆ Restore<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="mini" id="paste">📋 Paste data</button></div>
     <p class="muted small">Food list updated ${esc(S.dataUpdated || '—')}. Phone storage used: ${Math.round(storeSize() / 2.5e4)}% ${storeSize() > 2e6 ? '⚠️ nearly full, archive or remove some photos' : ''}</p>`, b => {
     for (const k of ['kcal', 'p', 'c', 'f', 'fib', 'minP', 'gapH', 'portionStart', 'jonasDinner', 'jonasLunch']) s[k] = num(b[k].value) || s[k];
-    saveModes(b, s);
+    saveModes(b, s); const dh = parseInt(b.dayStartH.value); if (dh >= 4 && dh <= 14) s.dayStartH = dh;
     s.waterMl = Math.round(num(b.waterL.value) * 1000) || s.waterMl; s.glassMl = Math.round(num(b.glassL.value) * 1000) || s.glassMl || 250;
     s.water = Math.max(1, Math.ceil(s.waterMl / s.glassMl)); // taps (glasses) to reach the ml goal
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }

@@ -85,7 +85,7 @@ function petMood(bars) {
   if ((h >= 18 && score < .3) || (h >= 21 && score < .38)) return ['dead', pick('dead'), poops];
   if (h >= 13 && score < .42) return ['sick', pick('sick'), poops];
   if (goalsInTrouble() && h >= 10) return ['sad', pick('goal'), poops];
-  if ((isNight() && h >= 22) || h < 6 || (v('energy') != null && v('energy') < .7 && h < 10)) return ['sleepy', pick('sleepy'), poops];
+  if (!dayStarted() || (isNight() && h >= 22) || h < 6 || (v('energy') != null && v('energy') < .7 && h < 10)) return ['sleepy', pick('sleepy'), poops];
   if (v('thirsty') != null && v('thirsty') < .35 && h >= 12) return ['hungry', pick('thirsty'), poops];
   if (v('hungry') != null && v('hungry') < .25 && h >= 13) return ['hungry', pick('hungry'), poops];
   if (v('happy') != null && v('happy') <= .3) return ['sad', pick('sad'), poops];

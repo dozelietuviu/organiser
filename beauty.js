@@ -245,7 +245,7 @@ function prodEdit(p) {
 }
 // Today: one quiet line, only when something is waiting (routine for this part of the day, roots check, booking)
 function beautyToday(d) {
-  if (d !== today() || !S.beauty) return ''; const w = nowWhen(), left = routineLeft(w).length, all = routine(w).length, rs = rootsState(), bits = [];
+  if (d !== today() || !S.beauty || !dayStarted()) return ''; const w = nowWhen(), left = routineLeft(w).length, all = routine(w).length, rs = rootsState(), bits = [];
   if (left) bits.push(`${w === 'am' ? '☀️ Morning' : '🌙 Evening'} routine ${all - left}/${all}`);
   if (rs && rs.checkDue) bits.push('roots check');
   if (rs && !rs.appt && today() >= rs.bookBy) bits.push('<b>book the hairdresser</b>');
