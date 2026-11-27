@@ -40,6 +40,17 @@ const BEAUTY_SEED = {
     ['Shampoo', 'Hair', 12], ['Conditioner', 'Hair', 12], ['Hair mask', 'Hair', 12], ['Body lotion', 'Body', 12], ['Deodorant', 'Body', 24], ['Mascara', 'Makeup', 3]],
 };
 const ACTIVES = { '': 'None', ret: 'Retinal', bha: 'Salicylic acid' };
+// short "what it is and why" shown under the product name (editable per product). Matched by name.
+const PRODUCT_ABOUT = [
+  [/dokdo/i, 'Gentle, low-pH gel cleanser with deep-sea water minerals. Takes off oil, sunscreen and the day without stripping your skin barrier, which matters when you use actives.'],
+  [/salicylic/i, 'BHA exfoliant. Oil-soluble, so it gets inside pores and clears them out: fewer blackheads and breakouts, smoother texture. Exfoliating, so never on retinal nights.'],
+  [/retinal/i, 'Vitamin A (retinaldehyde), one step stronger and faster than retinol. Speeds up skin renewal: smoother texture, fewer breakouts, softer fine lines over months. Can sting at first, so pea-sized, buffered, and sunscreen every morning.'],
+  [/nmf|phytoceramide/i, 'Barrier moisturiser. Natural moisturising factors pull in and hold water; plant ceramides patch up the skin barrier. Keeps skin calm and comfortable while the actives work.'],
+  [/birch juice|sunscreen|spf/i, 'Light, hydrating daily sunscreen. UV causes most dark marks and skin ageing, and retinal and salicylic acid make skin more sun-sensitive, so this protects the results.'],
+  [/makeup remover/i, 'Melts eye shadow and mascara so the cleanser can do the rest. Less rubbing around the eyes, where the skin is thinnest.'],
+  [/mascara/i, 'Replace about every 3 months: bacteria build up in the tube and can cause eye irritation.'],
+];
+const aboutFor = p => p.about != null ? p.about : ((PRODUCT_ABOUT.find(([re]) => re.test(p.name)) || [])[1] || '');
 function seedBeauty() {
   const b = BEA(); if (b.routineV === 2) return;
   const mk = x => Object.assign({ id: uid(), days: null, rule: '', opt: false, active: '', note: '' }, x);
@@ -199,7 +210,8 @@ function stepEdit(s) {
 }
 function prodDialog(p) {
   if (!p) return; const s = prodState(p), t = today();
-  const body = dialog(`<h2>${esc(p.name)}</h2><p class="muted small">${p.cat}${p.opened ? ` · opened ${fmtDay(p.opened)}` : ' · not open'}${p.spare ? ` · ${p.spare} spare` : ''}${s.L ? ` · usually lasts ~${s.L} days` : ''}${p.pao ? ` · keep ${p.pao} months once open` : ''}</p>
+  const ab = aboutFor(p);
+  const body = dialog(`<h2>${esc(p.name)}</h2>${ab ? `<p class="small">${esc(ab)}</p>` : ''}<p class="muted small">${p.cat}${p.opened ? ` · opened ${fmtDay(p.opened)}` : ' · not open'}${p.spare ? ` · ${p.spare} spare` : ''}${s.L ? ` · usually lasts ~${s.L} days` : ''}${p.pao ? ` · keep ${p.pao} months once open` : ''}</p>
     ${s.toss ? `<div class="note warn sm">Opened over ${p.pao} months ago. Time to replace it.</div>` : ''}
     <div class="chips">${p.opened ? '<button class="chip on" data-pa="fin">Finished</button>' : '<button class="chip on" data-pa="open">Opened today</button>'}
       <button class="chip" data-pa="low">${s.onList ? 'On the list ✓' : 'Running low'}</button><button class="chip" data-pa="spare">Bought one</button></div>
@@ -219,13 +231,14 @@ function prodDialog(p) {
 function prodEdit(p) {
   const b = BEA(), isNew = !p.id;
   const body = dialog(`<h2>${isNew ? 'New product' : 'Edit product'}</h2><label>Name</label><input name="name" value="${esc(p.name || '')}" placeholder="e.g. Dry shampoo">
+    <label>What it is and why <span class="muted small">(optional)</span></label><textarea name="about" rows="3">${esc(isNew ? '' : aboutFor(p))}</textarea>
     <label>Type</label><select name="cat">${P_CATS.map(c => `<option ${c === (p.cat || 'Skin') ? 'selected' : ''}>${c}</option>`).join('')}</select>
     <label>Opened on <span class="muted small">(empty = not open)</span></label><input type="date" name="op" value="${p.opened || ''}">
     <label>Keep once open, months <span class="muted small">(the little jar symbol, e.g. 12M)</span></label><input name="pao" inputmode="numeric" value="${p.pao || ''}">
     <label>Spares</label><input name="sp" inputmode="numeric" value="${p.spare || 0}">
     ${isNew ? '' : '<p><button class="mini del" id="pDel">Delete product</button></p>'}`, f => {
     const name = f.name.value.trim(); if (!name) { toast('Name the product'); return false; }
-    const o = isNew ? { id: uid(), hist: [] } : p; Object.assign(o, { name, cat: f.cat.value, opened: f.op.value || null, pao: Math.round(num(f.pao.value)) || 0, spare: Math.max(0, Math.round(num(f.sp.value))) });
+    const o = isNew ? { id: uid(), hist: [] } : p; Object.assign(o, { name, about: f.about.value.trim(), cat: f.cat.value, opened: f.op.value || null, pao: Math.round(num(f.pao.value)) || 0, spare: Math.max(0, Math.round(num(f.sp.value))) });
     if (isNew) b.products.push(o);
   });
   const del = $('#pDel', body); if (del) del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; b.products = b.products.filter(x => x !== p); save(); closeDlg(); render(); };
