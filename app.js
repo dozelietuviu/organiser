@@ -157,7 +157,7 @@ async function syncFoodData() {
     // cards Claude adds for you: added once by key, never overwrite a card with the same name
     S.cardsAdded ||= {};
     for (const c of j.cards || []) { if (S.cardsAdded[c.key]) continue; S.cardsAdded[c.key] = 1; if (!S.cards.some(x => x.name.toLowerCase() === c.name.toLowerCase())) importCards([c]); }
-    save();
+    cardsIntoPantry(); save();
     render();
   } catch {}
 }
@@ -1113,7 +1113,7 @@ function importCards(list) {
     const slot = CARD_TYPES.includes(cardType(c.slot)) ? cardType(c.slot) : 'Meal';
     const note = c.note || '', method = c.method || (Array.isArray(c.steps) ? c.steps.map((x, i) => `${i + 1}. ${x}`).join('\n') : c.steps || ''), prep = num(c.prepMin || c.prep) || 0;
     const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || prep >= 60, prep, method, note };
-    const sv = num(c.servings); o.batch = sv > 1 ? { serv: sv, cookedG: num(c.cookedG) || (old && old.batch ? old.batch.cookedG : 0) || 0, left: old && old.batch ? old.batch.left || 0 : 0 } : undefined;
+    const sv = num(c.servings); o.batch = !sv && old && isBatch(old) ? old.batch : sv > 1 ? { serv: sv, cookedG: num(c.cookedG) || (old && old.batch ? old.batch.cookedG : 0) || 0, left: old && old.batch ? old.batch.left || 0 : 0 } : undefined;
     if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }
   return { added, updated, skipped, newFoods };
@@ -1810,10 +1810,10 @@ function haveText(c) {
   return miss.length ? `missing ${miss.length}/${ings.length}` : 'all in pantry';
 }
 VIEWS.pantry = () => {
-  fixPantryAmounts();
+  cardsIntoPantry(); fixPantryAmounts();
   const ids = Object.keys(S.pantry).filter(id => foodById(id) && !foodById(id).hidden);
   return `<div class="card"><div class="row"><p class="muted small grow">Use − and + as things get used. Low and run-out items turn coral. Items marked ★ always in the house go on the shopping list by themselves. Cooking a card takes its ingredients off.</p><button class="primary mini" id="addP">+ Add</button></div></div>
-  ${PLACES.map(pl => { const list = ids.filter(id => (S.pantry[id].place || foodById(id).place) === pl).map(foodById).sort((a, b) => a.name.localeCompare(b.name));
+  ${PLACES.map(pl => { const list = ids.filter(id => (S.pantry[id].place || foodById(id).place) === pl).map(foodById).sort((a, b) => sn(a).localeCompare(sn(b)));
     return `<div class="card"><h2>${pl === 'Freezer' ? '❄︎ ' : ''}${pl}</h2>${list.length ? `<ul class="list">${list.map(f => { const p = S.pantry[f.id], has = pantryHas(f.id);
       const lv = stockLevel(f);
       return `<li class="${lv}"><div class="grow" data-pe="${f.id}">${esc(sn(f))}${isAlways(f) ? ' <span class="alw" title="Always in the house">★</span>' : ''}${lv === 'low' ? ' <span class="lvl">low</span>' : ''}</div><button class="mini" data-q="${f.id}|-1">−</button><span class="qty">${has ? stockText(f, p.qty) : 'out'}</span><button class="mini" data-q="${f.id}|1">+</button></li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
@@ -2315,7 +2315,7 @@ function openSettings() {
 
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
-seedChores();
+seedChores(); cardsIntoPantry();
 // mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
 if (!S.settings.waterMl) { S.settings.glassMl ||= 250; S.settings.waterMl = (S.settings.water || 12) * S.settings.glassMl; }

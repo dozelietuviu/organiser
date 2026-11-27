@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-22d",
+ "updated": "2026-11-27",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -242,8 +242,8 @@
     "key": "buckwheat-dry",
     "ratio": 0.38
    },
-   "su": "g",
-   "suG": 1,
+   "su": "bag",
+   "suG": 2700,
    "sname": "Buckwheat"
   },
   {
@@ -275,8 +275,8 @@
     "key": "rice-dry",
     "ratio": 0.36
    },
-   "su": "g",
-   "suG": 1,
+   "su": "bag",
+   "suG": 2700,
    "sname": "Rice"
   },
   {
@@ -485,8 +485,8 @@
    "place": "Fridge",
    "shop": "Lidl",
    "packG": 100,
-   "su": "g",
-   "suG": 1,
+   "su": "root",
+   "suG": 100,
    "sname": "Ginger"
   },
   {
@@ -552,8 +552,8 @@
    "unit": "serving",
    "unitG": 30,
    "packG": 1700,
-   "su": "g",
-   "suG": 1,
+   "su": "jar",
+   "suG": 500,
    "sname": "Nut mix",
    "price": 30.0
   },
@@ -1997,8 +1997,8 @@
    "packG": 300,
    "price": 6.0,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "bag",
+   "suG": 300
   },
   {
    "key": "pumpkin-seeds",
@@ -2014,8 +2014,8 @@
    "packG": 300,
    "price": 4.0,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "bag",
+   "suG": 300
   },
   {
    "key": "flax-seeds",
@@ -2031,8 +2031,8 @@
    "packG": 300,
    "price": 4.0,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "bag",
+   "suG": 300
   },
   {
    "key": "hemp-seeds",
@@ -2048,8 +2048,8 @@
    "packG": 200,
    "price": 4.0,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "bag",
+   "suG": 200
   },
   {
    "key": "black-sesame",
@@ -2065,8 +2065,8 @@
    "packG": 300,
    "price": 6.0,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "bag",
+   "suG": 300
   },
   {
    "key": "puffed-amaranth",
@@ -2082,8 +2082,8 @@
    "packG": 300,
    "price": 6.0,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "bag",
+   "suG": 300
   },
   {
    "key": "nori",
@@ -2099,8 +2099,8 @@
    "packG": 11,
    "price": 1.99,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "pack",
+   "suG": 11
   },
   {
    "key": "rice-cakes",
@@ -2118,8 +2118,8 @@
    "packG": 130,
    "price": 0.99,
    "cat": "Food",
-   "su": "g",
-   "suG": 1
+   "su": "pack",
+   "suG": 130
   }
  ],
  "removed": [
