@@ -198,3 +198,8 @@ details > summary { cursor: pointer; }
 [hidden] { display: none !important; }
 
 .scl { min-width: 4.2em; text-align: right; margin-left: 6px; color: var(--accent); font-size: .85rem; }
+
+/* chores */
+.list li.chore { display: block; }
+.list li.chore .chips { margin: 6px 0 0; }
+.list li[data-ch], .list li.chore [data-ch] { cursor: pointer; }

@@ -197,21 +197,22 @@ function portionLimit() {
 // ---------- UI ----------
 // on Sat/Sun you plan the coming week, so Plan/Shop open on next week
 const planWeek = () => [0, 6].includes(new Date().getDay()) ? addDays(monday(today()), 7) : monday(today());
-const UI = { tab: 'today', day: today(), food: 'log', week: planWeek(), search: '' };
-const TITLES = { goals: 'Goals', train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', pantry: 'Pantry', shop: 'Shopping' };
+const UI = { tab: 'today', day: today(), food: 'log', home: 'tasks', week: planWeek(), search: '' };
+const TITLES = { goals: 'Goals', train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shopping' };
 const VIEWS = {}, BIND = {};
-const FOOD_TABS = ['log', 'plan', 'cards', 'pantry', 'shop'];
-const FOOD_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', pantry: 'Pantry', shop: 'Shop' };
+// bottom tabs with sub-pages (the segmented bar at the top): Food = log/plan/cards, Household = chores/pantry/shop
+const SUBTABS = { food: ['log', 'plan', 'cards'], home: ['tasks', 'pantry', 'shop'] };
+const SUB_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shop' };
 function render() {
-  const view = UI.tab === 'food' ? UI.food : UI.tab;
+  const sub = SUBTABS[UI.tab], view = sub ? UI[UI.tab] : UI.tab;
   $('#title').textContent = TITLES[view];
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === UI.tab));
-  const seg = UI.tab === 'food' ? `<div class="seg">${FOOD_TABS.map(t => `<button data-seg="${t}" class="${UI.food === t ? 'on' : ''}">${FOOD_LABELS[t]}</button>`).join('')}</div>` : '';
+  const seg = sub ? `<div class="seg">${sub.map(t => `<button data-seg="${t}" class="${view === t ? 'on' : ''}">${SUB_LABELS[t]}</button>`).join('')}</div>` : '';
   const v = $('#view'); v.innerHTML = seg + VIEWS[view](); BIND[view] && BIND[view](v);
-  $$('[data-seg]', v).forEach(b => b.onclick = () => { UI.food = b.dataset.seg; render(); scrollTo(0, 0); });
+  $$('[data-seg]', v).forEach(b => b.onclick = () => { UI[UI.tab] = b.dataset.seg; render(); scrollTo(0, 0); });
   if (S.alerts && S.alerts.topic) alertSoon();
 }
-const go = tab => { if (FOOD_TABS.includes(tab)) { UI.food = tab; tab = 'food'; } UI.tab = tab; render(); scrollTo(0, 0); };
+const go = tab => { for (const [k, l] of Object.entries(SUBTABS)) if (l.includes(tab)) { UI[k] = tab; tab = k; } UI.tab = tab; render(); scrollTo(0, 0); };
 $$('.tabs button').forEach(b => b.onclick = () => go(b.dataset.tab));
 $('#btnSettings').onclick = () => openSettings();
 
@@ -1174,6 +1175,7 @@ VIEWS.today = () => {
   const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null, last = lastAte();
   const ws = warnings(d), pl = portionLimit();
   return `${dayBar()}
+  ${choresToday(d)}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${wakeCard(d)}
   <div class="card">${bars(tot)}</div>
@@ -1195,7 +1197,7 @@ function mealSummary(d) {
     return `<li><div class="grow">${s.id}<div class="muted small">${s.time}${t.kcal ? ` · ${r0(t.kcal)} kcal · P ${r0(t.p)} g` : ''}</div></div>${f ? `<span class="chip sm">${FULL.find(x => x[0] === f)[1]}</span>` : ''}${t.kcal ? '<span class="ok">✓</span>' : ''}</li>`; }).join('')}${(() => { const u = sumM(es.filter(e => e.slot === UNPL)); return u.kcal ? `<li><div class="grow">Unplanned<div class="muted small">${r0(u.kcal)} kcal</div></div></li>` : ''; })()}</ul>`;
 }
 BIND.today = v => {
-  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindChores(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
   const orp = $('#openRep', v); if (orp) orp.onclick = () => reportDialog();
@@ -2313,6 +2315,8 @@ function openSettings() {
 }
 
 // ---------- start ----------
+VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
+seedChores();
 // mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
 if (!S.settings.waterMl) { S.settings.glassMl ||= 250; S.settings.waterMl = (S.settings.water || 12) * S.settings.glassMl; }
