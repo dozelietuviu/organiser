@@ -1793,6 +1793,10 @@ function cardDialog(c) {
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
       <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div><div id="jcook"></div></div>
     <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
+    <h3>Make ahead</h3>
+    <div class="row"><div class="grow"><label>Prep job <span class="muted small">(optional)</span></label><input name="ahead" value="${esc(c.ahead || '')}" placeholder="e.g. Korean marinated eggs (bulk)"></div>
+      <div><label>Prep day</label><select name="aheadDay">${DOWS.map((d, i) => `<option value="${i}" ${(c.aheadDay ?? 6) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></div></div>
+    <p class="muted small">When this card is planned, the prep job shows up as a chore on the prep day before it (Sunday unless you change it).</p>
     <h3>Recipe</h3>
     <div class="row"><div class="grow"><label>Prep time, min</label><input name="prep" inputmode="numeric" value="${c.prep || ''}" placeholder="e.g. 25"></div></div>
     <label class="row tick"><input type="checkbox" name="long" ${c.long ? 'checked' : ''}> ⏱ Takes 60+ min (shuffle only puts it on Tue or Thu)</label>
@@ -1804,7 +1808,7 @@ function cardDialog(c) {
     const bt = b.kind.value === 'batch' && num(b.serv.value) > 0;
     if (b.kind.value === 'batch' && !bt) { toast('How many servings does it make?'); return false; }
     o.batch = bt ? { serv: num(b.serv.value), cookedG: num(b.ckg.value) || 0, left: num(b.left.value) || 0 } : undefined;
-    Object.assign(o, { name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, prep: num(b.prep.value) || 0, long: b.long.checked || num(b.prep.value) >= 60, method: b.method.value.trim(), note: b.note.value.trim() });
+    Object.assign(o, { ahead: b.ahead.value.trim(), aheadDay: +b.aheadDay.value, name: b.name.value.trim(), slot: b.slot.value, stars: +b.stars.value, items, jonas: b.jonas.checked && b.slot.value === 'Meal', jonasKcal: num(b.jk.value) || 0, prep: num(b.prep.value) || 0, long: b.long.checked || num(b.prep.value) >= 60, method: b.method.value.trim(), note: b.note.value.trim() });
     if (isNew) S.cards.push(o);
     for (const k in S.settings.fixed) if (S.settings.fixed[k] === o.id) delete S.settings.fixed[k];
     if (b.fixed.checked && o.slot !== 'Meal') S.settings.fixed[o.slot] = o.id;

@@ -120,6 +120,20 @@ function choreRow(c, withBtns = true) {
   return `<li class="chore ${po ? 'putoff' : ''}"><div class="row"><div class="grow" data-ch="${c.id}">${esc(c.name)}<div class="muted small">${esc(c.area)}${po ? ` · <span class="warnc">put off ${po === 1 ? 'once' : po + '×'}</span>` : late ? ` · <span class="warnc">${late}</span>` : ''}</div></div><span data-ch="${c.id}" class="muted">›</span></div>
     ${withBtns ? `<div class="chips">${choreBtns(c).map(([k, l]) => `<button class="chip sm ${k === 'done' ? 'on' : k === 'life' ? 'life' : ''}" data-ctap="${c.id}|${k}">${esc(l)}</button>`).join('')}</div>` : ''}</li>`;
 }
+// make-ahead prep: a planned card with a prep job (e.g. marinated eggs for the savoury breakfast) makes its own
+// one-off chore on its prep day (Sunday by default) before the first planned day of that week. Done taps are
+// kept in S.prepLog (date, card, prep day) so it can show later how often prep happened on time.
+function prepJobs() {
+  const t = today(), out = new Map(), slots = [...new Set([...PLAN_SLOTS, ...Object.keys(S.settings.fixed || {})])];
+  for (let i = 0; i <= 8; i++) { const d = addDays(t, i);
+    for (const sl of slots) for (const c of myCards(d, sl)) { if (!c || !c.ahead) continue;
+      const wd = c.aheadDay ?? 6; let pd = d; for (let k = 0; k < 7; k++) { if (dowIdx(pd) === wd && pd <= d) break; pd = addDays(pd, -1); }
+      const key = `${c.id}:${pd}`; if (!out.has(key)) out.set(key, { key, c, pd, first: d }); } }
+  return [...out.values()].filter(j => j.pd <= t && !(S.prepDone || {})[j.key]).sort((a, b) => a.first.localeCompare(b.first));
+}
+const prepRow = j => { const late = j.pd < today(), when = j.first === today() ? 'today' : DOW(j.first);
+  return `<li class="chore ${late ? 'putoff' : ''}"><div class="row"><div class="grow">🍳 Prep: ${esc(j.c.ahead)}<div class="muted small">for ${esc(j.c.name)} · ${when}${late ? ' · <span class="warnc">late</span>' : ''}</div></div></div>
+  <div class="chips"><button class="chip sm on" data-prepdone="${j.key}">Done</button></div></li>`; };
 // freezer: meals planned for tomorrow that need something from the freezer become a one-off chore today
 // (done = ticked for today; it comes back on its own whenever tomorrow's plan needs the freezer again)
 function freezerChore() {
@@ -130,17 +144,17 @@ const freezerRow = fz => `<li class="chore"><div class="row"><div class="grow">�
   <div class="chips"><button class="chip sm on" data-fzout>Done</button></div></li>`;
 // top of Today: only what's due (nothing shows when nothing is due), so the morning plan is one glance
 function choresToday(d) {
-  if (d !== today() || !dayStarted()) return ''; const l = dueNow(), fz = freezerChore(); if (!l.length && !fz) return '';
+  if (d !== today() || !dayStarted()) return ''; const l = dueNow(), fz = freezerChore(), pj = prepJobs(); if (!l.length && !fz && !pj.length) return '';
   const shown = l.slice(0, 6);
   return `<div class="card"><div class="row"><h2 class="grow">Chores today</h2><button class="mini ghost" data-gochores>All</button></div>
-    <ul class="list">${fz ? freezerRow(fz) : ''}${shown.map(c => choreRow(c)).join('')}</ul>${l.length > shown.length ? `<p class="muted small">+${l.length - shown.length} more in Household › Chores</p>` : ''}</div>`;
+    <ul class="list">${pj.map(prepRow).join('')}${fz ? freezerRow(fz) : ''}${shown.map(c => choreRow(c)).join('')}</ul>${l.length > shown.length ? `<p class="muted small">+${l.length - shown.length} more in Household › Chores</p>` : ''}</div>`;
 }
 function choresView() {
-  const t = today(), all = live(), due = dueNow(), fz = freezerChore(), soon = all.filter(c => c.due > t && c.due <= addDays(t, 7)).sort((a, b) => a.due.localeCompare(b.due)),
+  const t = today(), all = live(), due = dueNow(), fz = freezerChore(), pj = prepJobs(), soon = all.filter(c => c.due > t && c.due <= addDays(t, 7)).sort((a, b) => a.due.localeCompare(b.due)),
     later = all.filter(c => c.due > addDays(t, 7)).sort((a, b) => a.due.localeCompare(b.due)), off = CH().list.filter(c => c.off);
   const mini = c => `<li data-ch="${c.id}"><div class="grow">${esc(c.name)}<div class="muted small">${esc(c.area)} · ${gapTxt(gapOf(c))}</div></div><span class="muted small">${dueTxt2(c.due)}</span><span>›</span></li>`;
   return `<div class="card"><div class="row"><h2 class="grow">Due now</h2><button class="mini" id="chAdd">+ Chore</button></div>
-    ${due.length || fz ? `<ul class="list">${fz ? freezerRow(fz) : ''}${due.map(c => choreRow(c)).join('')}</ul>` : '<p class="muted small">Nothing due. Enjoy it ✨</p>'}</div>
+    ${due.length || fz || pj.length ? `<ul class="list">${pj.map(prepRow).join('')}${fz ? freezerRow(fz) : ''}${due.map(c => choreRow(c)).join('')}</ul>` : '<p class="muted small">Nothing due. Enjoy it ✨</p>'}</div>
   ${soon.length ? `<div class="card"><h2>Next 7 days</h2><ul class="list">${soon.map(mini).join('')}</ul></div>` : ''}
   ${later.length ? `<div class="card"><details><summary><b>Later</b> <span class="muted small">${later.length}</span></summary><ul class="list">${later.map(mini).join('')}</ul></details></div>` : ''}
   ${off.length ? `<div class="card"><details><summary class="muted">Paused <span class="small">${off.length}</span></summary><ul class="list">${off.map(c => `<li data-ch="${c.id}"><div class="grow muted">${esc(c.name)}</div><span>›</span></li>`).join('')}</ul></details></div>` : ''}
@@ -151,6 +165,8 @@ function bindChores(v) {
   $$('[data-ctap]', v).forEach(b => b.onclick = () => { const [id, k] = b.dataset.ctap.split('|'), c = choreById(id); if (c) tapChore(c, k); });
   $$('[data-ch]', v).forEach(b => b.onclick = () => choreDialog(choreById(b.dataset.ch)));
   const g = $('[data-gochores]', v); if (g) g.onclick = () => go('tasks');
+  $$('[data-prepdone]', v).forEach(b => b.onclick = () => { const k = b.dataset.prepdone, [cid, pd] = k.split(':'); (S.prepDone ||= {})[k] = today();
+    (S.prepLog ||= []).push({ d: today(), card: cid, due: pd }); if (S.prepLog.length > 200) S.prepLog = S.prepLog.slice(-200); save(); render(); toast('Prepped ✓ Future you says thanks'); });
   const fz = $('[data-fzout]', v); if (fz) fz.onclick = () => { (S.day[today()] ||= {}).fzOut = 1; save(); render(); toast('Thawing ✓'); };
 }
 function bindChoresPage(v) { $('#chAdd', v).onclick = () => choreEdit({}); }
