@@ -98,7 +98,7 @@ function statusBars(d = today()) {
 function petMood(bars) {
   const v = k => (bars.find(b => b[0] === k) || [])[2], h = new Date().getHours(), d = today();
   const vals = bars.map(b => b[2]).filter(x => x != null), score = (vals.length ? vals.reduce((a, x) => a + x, 0) / vals.length : .6) - Math.min(.2, goalsInTrouble() * .08);
-  const poops = v('home') != null && v('home') < .5 ? (v('home') < .2 ? 2 : 1) : 0, pick = k => PET_SAY[k][(new Date().getDate() + h) % PET_SAY[k].length];
+  const poops = Math.min(2, (v('home') != null && v('home') < .5 ? (v('home') < .2 ? 2 : 1) : 0) + (typeof scoopsMissed === 'function' ? scoopsMissed(d) : 0)), pick = k => PET_SAY[k][(new Date().getDate() + h) % PET_SAY[k].length];
   const leaf = !(dayStarted() && h >= 11 && v('thirsty') != null && v('thirsty') < .4);
   const sym = ((S.body || {}).sym || {})[d] || {}, mood = typeof moodOf === 'function' ? moodOf(sym) : '', fc = S.body ? (moodForecast(d) || []).map(m => m.k) : [];
   const r = (m, say) => [m, say || pick(m), poops, leaf];

@@ -33,7 +33,7 @@ const CHORE_SEED = [
   ['Vacuum', 'Flat', 4, 'clean'], ['Mop floor', 'Flat', 7, 'clean'], ['Dust surfaces', 'Flat', 7, 'clean'], ['Wash sofa throws', 'Flat', 14, 'fresh'], ['Clean windows', 'Flat', 60, 'clean'],
   ['Water plants', 'Plants', 4, 'plants'], ['Fertilise plants', 'Plants', 30, 'fixed'],
   ['Laundry', 'Laundry', 3, 'laundry'],
-  ['Scoop litter', 'Cat', 1, 'litter'], ['Empty cat litter', 'Cat', 7, 'litter'], ['Wash cat bowls', 'Cat', 2, 'clean'], ['Clean water fountain', 'Cat', 7, 'clean'],
+  ['Full wash of litter box', 'Cat', 21, 'litter'], ['Wash cat bowls', 'Cat', 2, 'clean'], ['Clean water fountain', 'Cat', 7, 'clean'],
   ['Trim cat nails', 'Cat', 14, 'clean'], ['Cat bath', 'Cat', 90, 'clean'],
   ['Date night', 'Us', 7, 'fixed'], ['Plan the week together', 'Us', 7, 'fixed'],
   ['Pay bills', 'Admin', 30, 'fixed'],
@@ -42,9 +42,14 @@ const CH = () => (S.tasks ||= { list: [] });
 const dayDiff = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 864e5); // days from a to b
 // first start: due dates spread out so you don't get 35 chores on day one (short ones first)
 // chores that can't be put off ('Life happened' hidden): they stay on the list until done
-const MUST_DO = ['Scoop litter', 'Empty cat litter'];
+const MUST_DO = ['Full wash of litter box'];
 function seedChores() {
   if (!S.tasksMust) { S.tasksMust = 1; for (const c of (S.tasks || {}).list || []) if (MUST_DO.includes(c.name)) c.must = true; }
+  // v2: daily scooping moved to the cat card; the weekly empty became a full wash every 3 weeks
+  if (!S.tasksV2) { S.tasksV2 = 1; const L = (S.tasks || {}).list || [];
+    const hasWash = L.some(c => c.name === 'Full wash of litter box');
+    for (const c of L) if (c.name === 'Empty cat litter' && !hasWash) Object.assign(c, { name: 'Full wash of litter box', gap: 21, must: true, due: c.last ? addDays(c.last, 21) : c.due, log: [] });
+    if (S.tasks) S.tasks.list = L.filter(c => c.name !== 'Scoop litter' && !(hasWash && c.name === 'Empty cat litter')); }
   if (S.tasksSeeded) return; S.tasksSeeded = 1; const t = today();
   CHORE_SEED.forEach(([name, area, gap, set], i) => {
     const off = gap <= 1 ? 0 : (i * 5) % gap, due = addDays(t, off); // monthly+ chores spread over their whole gap

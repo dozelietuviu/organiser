@@ -161,3 +161,4 @@ body.px .tabs button.on { color: var(--accent); }
 /* vitamins row: pill icon never under a chip */
 .vitrow > span { flex: none; display: inline-flex; align-items: center; margin-right: 2px; }
 .pxi { flex: none; }
+.scooprow { margin-top: 8px; gap: 8px; } .scooprow .muted { line-height: 1.35; }

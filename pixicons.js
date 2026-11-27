@@ -4,6 +4,7 @@
 'use strict';
 const PX_COL = { k: '#16121f', a: '#5fe0d0', y: '#ffd166', r: '#ff5c7a', p: '#ff9fcb', w: '#ffffff', b: '#5ba8ff', l: '#b9e6ff', g: '#5fcf7a', n: '#a46a3c', s: '#b3b3cc', d: '#3a3550', v: '#9b86f2', z: '#8b78f0' };
 const PX_ICONS = {
+"💩": "....o.....|...ono....|..onnno...|..oonoo...|.onnnnno..|.ooonnooo.|onnnnnnnno|onwnnnwnno|onnnoonnno|.oooooooo.",
 "🍓": "....g.....|..ggggg...|.orggggro.|orryrryrro|orrrrrrrro|oryrryrro.|.orrrrrro.|.oryrryro.|..orrrro..|...oooo...",
 "😶": "..oooooo..|.oyyyyyyo.|oyyyyyyyyo|oyyoyyoyyo|oyyoyyoyyo|oyyyyyyyyo|oyyyyyyyyo|oyyooooyyo|.oyyyyyyo.|..oooooo..",
 "🏆": ".oooooooo.|oyoyyyyoyo|oyoyyyyoyo|oyoyyyyyyo|.ooyyyyoo.|..oyyyyo..|...oyyo...|....oo....|..oyyyyo..|..oooooo..",
