@@ -1149,7 +1149,7 @@ function importCards(list) {
     if (!items.length) { skipped++; continue; }
     const slot = CARD_TYPES.includes(cardType(c.slot)) ? cardType(c.slot) : 'Meal';
     const note = c.note || '', method = c.method || (Array.isArray(c.steps) ? c.steps.map((x, i) => `${i + 1}. ${x}`).join('\n') : c.steps || ''), prep = num(c.prepMin || c.prep) || 0;
-    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || prep >= 60, prep, method, note };
+    const o = { name: c.name.trim(), slot, stars: old ? old.stars : Math.min(5, Math.max(1, +c.stars || 3)), items, jonas: c.jonas !== false && slot === 'Meal', jonasKcal: num(c.jonasKcal) || 0, long: !!c.long || prep >= 60, prep, method, note, ...(c.ahead ? { ahead: c.ahead, aheadDay: c.aheadDay ?? 6 } : {}) };
     const sv = num(c.servings); o.batch = !sv && old && isBatch(old) ? old.batch : sv > 1 ? { serv: sv, cookedG: num(c.cookedG) || (old && old.batch ? old.batch.cookedG : 0) || 0, left: old && old.batch ? old.batch.left || 0 : 0 } : undefined;
     if (old) { Object.assign(old, o); updated++; } else { S.cards.push(Object.assign({ id: uid() }, o)); added++; }
   }

@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-27",
+ "updated": "2026-11-28",
  "note": "Maintained by Claude. Prices (EUR per pack, or per kg where packG is 1000) are from ESTERA's Lidl receipts (5 Oct - 10 Nov 2026). Macros are typical values; correct them from the label in the app if needed.",
  "foods": [
   {
@@ -2120,6 +2120,109 @@
    "cat": "Food",
    "su": "pack",
    "suG": 130
+  },
+  {
+   "key": "skyr",
+   "name": "Skyr natural",
+   "kcal": 63,
+   "p": 11,
+   "c": 4,
+   "f": 0.2,
+   "fib": 0,
+   "place": "Fridge",
+   "shop": "Lidl",
+   "packG": 450,
+   "su": "tub",
+   "suG": 450,
+   "sname": "Skyr"
+  },
+  {
+   "key": "hummus",
+   "name": "Hummus",
+   "kcal": 166,
+   "p": 8,
+   "c": 14,
+   "f": 10,
+   "fib": 6,
+   "place": "Fridge",
+   "shop": "Lidl",
+   "packG": 200,
+   "su": "tub",
+   "suG": 200,
+   "sname": "Hummus"
+  },
+  {
+   "key": "turkey-slices",
+   "name": "Turkey breast slices, cooked",
+   "kcal": 105,
+   "p": 22,
+   "c": 1,
+   "f": 1.5,
+   "fib": 0,
+   "place": "Fridge",
+   "shop": "Lidl",
+   "packG": 150,
+   "su": "pack",
+   "suG": 150,
+   "sname": "Turkey slices"
+  },
+  {
+   "key": "turkey-mince",
+   "name": "Turkey mince, raw",
+   "kcal": 130,
+   "p": 20,
+   "c": 0,
+   "f": 5.5,
+   "fib": 0,
+   "place": "Fridge",
+   "shop": "Lidl",
+   "packG": 500,
+   "sname": "Turkey mince"
+  },
+  {
+   "key": "cocoa",
+   "name": "Cocoa powder, unsweetened",
+   "kcal": 228,
+   "p": 19.6,
+   "c": 13,
+   "f": 13.7,
+   "fib": 37,
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "packG": 150,
+   "su": "tub",
+   "suG": 150,
+   "sname": "Cocoa powder"
+  },
+  {
+   "key": "berries-mix",
+   "name": "Mixed berries, frozen",
+   "kcal": 45,
+   "p": 1,
+   "c": 8,
+   "f": 0.3,
+   "fib": 3,
+   "place": "Freezer",
+   "shop": "Lidl",
+   "packG": 500,
+   "su": "bag",
+   "suG": 500,
+   "sname": "Mixed frozen berries"
+  },
+  {
+   "key": "breadcrumbs",
+   "name": "Breadcrumbs",
+   "kcal": 395,
+   "p": 13,
+   "c": 72,
+   "f": 5,
+   "fib": 4,
+   "place": "Cupboard",
+   "shop": "Lidl",
+   "packG": 500,
+   "su": "bag",
+   "suG": 500,
+   "sname": "Breadcrumbs"
   }
  ],
  "removed": [
@@ -2328,6 +2431,269 @@
     {
      "food": "Long cucumber",
      "g": 60
+    }
+   ]
+  },
+  {
+   "key": "nov26-mini-savoury",
+   "name": "Mini savoury buckwheat bowl",
+   "slot": "Breakfast",
+   "stars": 4,
+   "jonas": false,
+   "note": "A smaller version of your savoury bowl: same flavours, about 280 kcal and under 300 g.",
+   "method": "1. Spoon cooked buckwheat (from the Sunday batch) into a bowl and warm it.\n2. Add kimchi and a spoon of Greek yoghurt.\n3. Top with 2 halved Korean soy marinated eggs and a little marinade.",
+   "ahead": "Korean soy marinated eggs + cook buckwheat (bulk)",
+   "aheadDay": 6,
+   "items": [
+    {
+     "food": "Buckwheat, cooked",
+     "g": 100
+    },
+    {
+     "food": "Eggs ML (Kiaušiniai)",
+     "g": 100
+    },
+    {
+     "food": "Greek yoghurt 2%",
+     "g": 50
+    },
+    {
+     "food": "Kimchi",
+     "g": 40,
+     "kcal": 15,
+     "p": 0.9,
+     "c": 2,
+     "f": 0.5,
+     "fib": 1.6
+    }
+   ]
+  },
+  {
+   "key": "nov26-kimchi-scramble",
+   "name": "Kimchi egg scramble on rye",
+   "slot": "Breakfast",
+   "stars": 4,
+   "jonas": false,
+   "note": "10 minutes. Cottage cheese makes the eggs creamy and adds protein.",
+   "method": "1. Whisk the eggs with the cottage cheese grains and a pinch of salt.\n2. Warm chopped kimchi in a non-stick pan for 1 minute.\n3. Add the eggs and stir gently on low heat until just set.\n4. Serve on toasted rye with sliced spring onion.",
+   "items": [
+    {
+     "food": "Eggs ML (Kiaušiniai)",
+     "g": 120
+    },
+    {
+     "food": "Cottage cheese grains (Varškė grūdeliais)",
+     "g": 50
+    },
+    {
+     "food": "Kimchi",
+     "g": 50,
+     "kcal": 15,
+     "p": 0.9,
+     "c": 2,
+     "f": 0.5,
+     "fib": 1.6
+    },
+    {
+     "food": "Rye bread",
+     "g": 35
+    },
+    {
+     "food": "Spring onions (Laiškiniai svogūnai)",
+     "g": 5
+    }
+   ]
+  },
+  {
+   "key": "nov26-chicken-buckwheat-jar",
+   "name": "Chicken & buckwheat salad jar",
+   "slot": "Meal",
+   "stars": 4,
+   "jonas": false,
+   "note": "Office lunch. Dressing at the bottom, buckwheat and chicken in the middle, salad on top so it stays crisp. Fridge 3 days.",
+   "method": "1. Pan-fry or bake the chicken, then slice.\n2. In each jar: olive oil, lemon, dill and salt at the bottom.\n3. Add buckwheat, then chicken, then cucumber, cherry tomatoes and crumbled feta.\n4. Shake into a bowl at lunch.",
+   "ahead": "Cook chicken + buckwheat, pack 3 salad jars",
+   "aheadDay": 6,
+   "items": [
+    {
+     "food": "Chicken fillet XXL, raw (Vištienos filė)",
+     "g": 120
+    },
+    {
+     "food": "Buckwheat, cooked",
+     "g": 90
+    },
+    {
+     "food": "Long cucumber",
+     "g": 50
+    },
+    {
+     "food": "Cherry tomatoes",
+     "g": 50
+    },
+    {
+     "food": "Feta",
+     "g": 20,
+     "kcal": 264,
+     "p": 14.2,
+     "c": 4.1,
+     "f": 21.3,
+     "fib": 0
+    },
+    {
+     "food": "Olive oil",
+     "g": 5
+    },
+    {
+     "food": "Dill (Krapai)",
+     "g": 3
+    }
+   ]
+  },
+  {
+   "key": "nov26-turkey-wrap",
+   "name": "Turkey hummus protein wrap",
+   "slot": "Meal",
+   "stars": 4,
+   "jonas": false,
+   "note": "5-minute office lunch. Wrap in foil; best made the morning of.",
+   "method": "1. Spread hummus and cottage cheese on the tortilla.\n2. Lay on turkey slices, rocket and sliced red pepper.\n3. Roll tightly, cut in half and wrap in foil.",
+   "items": [
+    {
+     "food": "Whole-grain tortilla",
+     "g": 60,
+     "kcal": 270,
+     "p": 8.5,
+     "c": 45,
+     "f": 6,
+     "fib": 7
+    },
+    {
+     "food": "Turkey breast slices, cooked",
+     "g": 80
+    },
+    {
+     "food": "Hummus",
+     "g": 30
+    },
+    {
+     "food": "Cottage cheese (varškė) 5%",
+     "g": 40
+    },
+    {
+     "food": "Rocket, washed (Rukola)",
+     "g": 15
+    },
+    {
+     "food": "Red pepper",
+     "g": 40
+    }
+   ]
+  },
+  {
+   "key": "nov26-turkey-meatballs",
+   "name": "Turkey meatballs in tomato sauce",
+   "slot": "Meal",
+   "stars": 4,
+   "jonas": true,
+   "servings": 6,
+   "note": "Freezer batch: 6 portions. Serve with a little rice or mash for Jonas.",
+   "method": "1. Mix turkey mince, egg, parmesan, breadcrumbs, half the garlic and salt; roll into 24 small meatballs.\n2. Brown them in a little olive oil, or bake 15 min at 200°C.\n3. Soften onion and the rest of the garlic, add the canned tomatoes and simmer 10 minutes.\n4. Add the meatballs and spinach, simmer 10 minutes more.\n5. Weigh the whole pot once (minus the pot) and save it as the cooked weight. Portion and freeze.",
+   "ahead": "Batch-cook turkey meatballs (6 portions)",
+   "aheadDay": 6,
+   "items": [
+    {
+     "food": "Turkey mince, raw",
+     "g": 1000
+    },
+    {
+     "food": "Eggs ML (Kiaušiniai)",
+     "g": 60
+    },
+    {
+     "food": "Parmesan",
+     "g": 40
+    },
+    {
+     "food": "Breadcrumbs",
+     "g": 50
+    },
+    {
+     "food": "Onion",
+     "g": 150
+    },
+    {
+     "food": "Garlic",
+     "g": 15
+    },
+    {
+     "food": "Canned peeled tomatoes",
+     "g": 800
+    },
+    {
+     "food": "Olive oil",
+     "g": 15
+    },
+    {
+     "food": "Spinach",
+     "g": 100
+    }
+   ]
+  },
+  {
+   "key": "nov26-choc-skyr",
+   "name": "Chocolate skyr pudding",
+   "slot": "Dessert",
+   "stars": 4,
+   "jonas": false,
+   "note": "Planned chocolate fix: about 170 kcal and 25 g protein. Thicker after 30 min in the fridge.",
+   "method": "1. Whisk skyr, cocoa, protein powder and honey until smooth.\n2. Eat now or chill 30 minutes for a mousse texture.",
+   "items": [
+    {
+     "food": "Skyr natural",
+     "g": 150
+    },
+    {
+     "food": "Cocoa powder, unsweetened",
+     "g": 8
+    },
+    {
+     "food": "Protein shake powder (check label)",
+     "g": 10
+    },
+    {
+     "food": "Honey",
+     "g": 7
+    }
+   ]
+  },
+  {
+   "key": "nov26-froyo-bark",
+   "name": "Frozen yoghurt berry bark",
+   "slot": "Dessert",
+   "stars": 4,
+   "jonas": false,
+   "servings": 8,
+   "note": "Freezer batch: 8 pieces. One piece is a portion; take it straight from the freezer.",
+   "method": "1. Mix Greek yoghurt with honey and spread 1 cm thick on a lined tray.\n2. Scatter the berries and grated dark chocolate on top.\n3. Freeze at least 4 hours, break into 8 pieces, keep in a freezer bag.",
+   "ahead": "Make froyo berry bark (freeze 4 h+)",
+   "aheadDay": 6,
+   "items": [
+    {
+     "food": "Greek yoghurt 2%",
+     "g": 500
+    },
+    {
+     "food": "Mixed berries, frozen",
+     "g": 200
+    },
+    {
+     "food": "Honey",
+     "g": 30
+    },
+    {
+     "food": "Dark chocolate",
+     "g": 30
     }
    ]
   }
