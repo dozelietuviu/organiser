@@ -197,12 +197,12 @@ function portionLimit() {
 // ---------- UI ----------
 // on Sat/Sun you plan the coming week, so Plan/Shop open on next week
 const planWeek = () => [0, 6].includes(new Date().getDay()) ? addDays(monday(today()), 7) : monday(today());
-const UI = { tab: 'today', day: today(), food: 'log', home: 'tasks', week: planWeek(), search: '' };
-const TITLES = { goals: 'Goals', train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shopping' };
+const UI = { tab: 'today', day: today(), food: 'log', home: 'tasks', body: 'body', week: planWeek(), search: '' };
+const TITLES = { goals: 'Goals', train: 'Train', body: 'Body', today: 'Today', log: 'Log', plan: 'Plan', cards: 'Meal cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shopping', beauty: 'Beauty' };
 const VIEWS = {}, BIND = {};
 // bottom tabs with sub-pages (the segmented bar at the top): Food = log/plan/cards, Household = chores/pantry/shop
-const SUBTABS = { food: ['log', 'plan', 'cards'], home: ['tasks', 'pantry', 'shop'] };
-const SUB_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shop' };
+const SUBTABS = { food: ['log', 'plan', 'cards'], home: ['tasks', 'pantry', 'shop'], body: ['body', 'beauty'] };
+const SUB_LABELS = { log: 'Log', plan: 'Plan', cards: 'Cards', tasks: 'Chores', pantry: 'Pantry', shop: 'Shop', body: 'Body', beauty: 'Beauty' };
 function render() {
   const sub = SUBTABS[UI.tab], view = sub ? UI[UI.tab] : UI.tab;
   $('#title').textContent = TITLES[view];
@@ -1185,6 +1185,7 @@ VIEWS.today = () => {
   const ws = warnings(d, 'today');
   return `${dayBar()}
   ${choresToday(d)}
+  ${beautyToday(d)}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${sleepCard(d)}
   <div class="card compact" data-gofood>${barsLine(tot)}</div>
@@ -1198,7 +1199,7 @@ VIEWS.today = () => {
   <div class="card"><h2>Habits</h2>${habitRows(d)}</div>`;
 };
 BIND.today = v => {
-  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindSleep(v); bindChores(v);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindSleep(v); bindChores(v); bindBeautyToday(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
   const at = $('#ateSmth', v); if (at) at.onclick = () => quickUnpl();
@@ -2323,7 +2324,8 @@ function openSettings() {
 
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
-seedChores(); cardsIntoPantry();
+seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather();
+VIEWS.beauty = beautyView; BIND.beauty = bindBeauty;
 // mature sleeve: 300-400 g is comfortable (22 Nov), so the old 250 g default moves to 400 once
 if (!S.settings.portion400) { if (S.settings.portionStart === 250) S.settings.portionStart = 400; S.settings.portion400 = 1; }
 if (!S.settings.waterMl) { S.settings.glassMl ||= 250; S.settings.waterMl = (S.settings.water || 12) * S.settings.glassMl; }
