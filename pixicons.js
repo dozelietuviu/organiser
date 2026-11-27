@@ -2,7 +2,7 @@
    inputs) and draws the bottom bar. Letters: o = outline (follows day/night ink), the rest fixed colours.
    Loaded before app.js; only data + functions here. */
 'use strict';
-const PX_COL = { k: '#16121f', y: '#ffd166', r: '#ff5c7a', p: '#ff9fcb', w: '#ffffff', b: '#5ba8ff', l: '#b9e6ff', g: '#5fcf7a', n: '#a46a3c', s: '#b3b3cc', d: '#3a3550', v: '#9b86f2', z: '#8b78f0' };
+const PX_COL = { k: '#16121f', a: '#5fe0d0', y: '#ffd166', r: '#ff5c7a', p: '#ff9fcb', w: '#ffffff', b: '#5ba8ff', l: '#b9e6ff', g: '#5fcf7a', n: '#a46a3c', s: '#b3b3cc', d: '#3a3550', v: '#9b86f2', z: '#8b78f0' };
 const PX_ICONS = {
 "🍓": "....g.....|..ggggg...|.orggggro.|orryrryrro|orrrrrrrro|oryrryrro.|.orrrrrro.|.oryrryro.|..orrrro..|...oooo...",
 "😶": "..oooooo..|.oyyyyyyo.|oyyyyyyyyo|oyyoyyoyyo|oyyoyyoyyo|oyyyyyyyyo|oyyyyyyyyo|oyyooooyyo|.oyyyyyyo.|..oooooo..",
@@ -30,7 +30,7 @@ const PX_ICONS = {
 "🍽": "..........|..oooooo..|.owwwwwwo.|owwoooowwo|owowwwwowo|owowwwwowo|owwoooowwo|.owwwwwwo.|..oooooo..|..........",
 "⚠": "....oo....|...oyyo...|...oyyo...|..oyooyo..|..oyooyo..|.oyyooyyo.|.oyyyyyyo.|oyyyooyyyo|oyyyyyyyyo|oooooooooo",
 "🚨": ".y..r..y..|..y.r.y...|...ooo....|..orrro...|.orwrrro..|.orwrrro..|.orrrrro..|oooooooooo|osssssssso|oooooooooo",
-"💊": "......oo..|.....orro.|....orrrro|...orrrro.|..owwwro..|.owwwwo...|owwwwo....|owwwo.....|.owo......|..o.......",
+"💊": "..oooooo..|.oaaaaaao.|oaaaaaaaao|oaaawwaaao|oawwwwwwao|oawwwwwwao|oaaawwaaao|oaaaaaaaao|.oaaaaaao.|..oooooo..",
 "☕": "..s..s....|...s..s...|..s..s....|oooooooo..|owwwwwwooo|owwwwwwo.o|owwwwwwooo|.owwwwo...|..oooo....|oooooooo..",
 "🍷": "oooooooo..|o......o..|orrrrrro..|orrrrrro..|.orrrro...|..oooo....|...oo.....|...oo.....|...oo.....|.oooooo...",
 "🧚": "....oo....|...oyyo...|...oppo...|ll.oppo.ll|lllo..olll|.lloppoll.|...oppo...|..oppppo..|..oooooo..|..........",

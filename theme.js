@@ -35,17 +35,29 @@ const PET = {
   hungry: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#............#.', '.#...#....#...#.', '.#............#.', '.#.....##.....#.', '.#....#..#....#.', '..#....##....#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
   sad: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#............#.', '.#...#....#...#.', '.#...#........#.', '.#............#.', '.#.....##.....#.', '..#...#..#...#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
   sick: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#..#.#..#.#..#.', '.#...#....#...#.', '.#..#.#..#.#..#.', '.#............#.', '.#...#.#.#.#..#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
-  sleepy: ['...........###..', '.....######..#..', '...##......###..', '..#..........#..', '.#............#.', '.#............#.', '.#..##....##..#.', '.#............#.', '.#.....##.....#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  sleepy: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#............#.', '.#............#.', '.#..##....##..#.', '.#............#.', '.#.....##.....#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
+  angry: ['................', '.....######.....', '...##......##...', '..#..........#..', '.#..#......#..#.', '.#...#....#...#.', '.#...#....#...#.', '.#............#.', '.#....####....#.', '..#..........#..', '...##......##...', '.....######.....', '....#.#..#.#....', '................'],
   dead: ['.....######.....', '....#......#....', '.....######.....', '................', '.....######.....', '...##......##...', '..#..........#..', '..#.#.#..#.#.#..', '..#..#....#..#..', '..#.#.#..#.#.#..', '..#..........#..', '..#....##....#..', '..#..........#..', '..#.##.##.##.#..'],
 };
 const POOP = ['..#...', '.#.#..', '.####.', '######'];
-function petLcd(mood, poops) {
-  const px = [], put = (art, ox, oy) => art.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') px.push(`M${ox + x} ${oy + y}h1v1h-1z`); }));
-  put(PET[mood] || PET.ok, 2, 1);
-  for (let i = 0; i < Math.min(poops, 2); i++) put(POOP, 19, 11 - i * 5);
-  return `<svg class="petlcd" viewBox="0 0 26 16" shape-rendering="crispEdges" aria-hidden="true"><path fill="#2e3a2a" d="${px.join('')}"/></svg>`;
+// the leaf on its head: up when you've had enough water, wilted when you haven't
+const LEAF_UP = ['##.##', '.###.', '..#..'], LEAF_WILT = ['..#..', '.#.#.', '#...#'];
+// little effects around it: z's (asleep), sparkles (glow days), storm cloud (stormy days), tear drops (sad)
+const FX = {
+  asleep: [[['####', '..#.', '.#..', '####'], 17, 7], [['###', '.#.', '###'], 22, 2]],
+  glow: [[['.#.', '###', '.#.'], 19, 1], [['#'], 17, 6], [['.#.', '###', '.#.'], 22, 7]],
+  angry: [[['.####.', '######', '.#.#..', '#.#...'], 18, 0]],
+};
+const WALKERS = ['happy', 'ok', 'hungry', 'glow', 'angry', 'sad'];
+function petLcd(mood, poops, leaf) {
+  const path = (art, ox, oy) => { const d = []; art.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') d.push(`M${ox + x} ${oy + y}h1v1h-1z`); })); return d.join(''); };
+  const sprite = PET[{ glow: 'happy', asleep: 'sleepy', thirsty: 'hungry' }[mood] || mood] || PET.ok;
+  let body = path(sprite, 1, 4); if (mood !== 'dead') body += path(leaf ? LEAF_UP : LEAF_WILT, 6, 1);
+  const fx = (FX[mood] || []).map(([a, x, y]) => path(a, x, y)).join(''), poo = Array.from({ length: Math.min(poops, 2) }, (_, i) => path(POOP, 20, 14 - i * 5)).join('');
+  const walk = WALKERS.includes(mood) ? (poops ? 'petwalk short' : 'petwalk') : '';
+  return `<svg class="petlcd" viewBox="0 -1 26 19.5" shape-rendering="crispEdges" aria-hidden="true"><g class="${walk}"><path fill="#2e3a2a" d="${body}"/></g>${fx ? `<path class="fx fx-${mood}" fill="#2e3a2a" d="${fx}"/>` : ''}${poo ? `<path fill="#2e3a2a" d="${poo}"/>` : ''}</svg>`;
 }
-const petEgg = (mood, poops) => `<div class="petegg"><div class="petscreen">${petLcd(mood, poops)}</div><div class="petbtns"><i></i><i></i><i></i></div></div>`;
+const petEgg = (mood, poops, leaf = true) => `<div class="petegg"><div class="petscreen">${petLcd(mood, poops, leaf)}</div><div class="petbtns"><i></i><i></i><i></i></div></div>`;
 const PET_SAY = {
   happy: ['you looked after us today ♥', 'thriving. look at us.', 'best owner ever', 'we are SO back'],
   ok: ['doing alright', 'mrrp?', 'steady', 'more water and we\'re golden'],
@@ -55,6 +67,9 @@ const PET_SAY = {
   sick: ['i feel… pixelated.', 'call the pet vet', 'need water, food, sleep. anything.', 'cough. cough. dramatic cough.'],
   sleepy: ['zzz…', 'five more minutes', 'lights out?'],
   dead: ['💀 you let me die. i respawn tomorrow.', 'R.I.P. me. eat, drink, sleep, then revive me.', 'ghost mode. this is on you.', 'i\'m haunting you until you drink water'],
+  asleep: ['zzz…', 'shh. sleeping.', 'see you in the morning'],
+  glow: ['main character energy ✨', 'glowing. obviously.', 'siren mode on', 'we look GOOD today'],
+  angry: ['storm warning ⚡', 'do not perturb', 'snacks. distance. now.', 'everyone is annoying today'],
   goal: ['your goals are crying. so am i.', 'recommit or i stay dramatic', 'deadline is coming. i can smell it.'],
 };
 // ---- status screen (Pixel looks only, top of Today) ----
@@ -78,24 +93,32 @@ function statusBars(d = today()) {
   ];
 }
 // how well today went: average of the bars that have data, minus goals in trouble
+// how well today went: average of the bars that have data, minus goals in trouble.
+// Range: asleep, sleepy, happy, glow, ok, hungry, thirsty, stormy, sad, sick, dead.
 function petMood(bars) {
-  const v = k => (bars.find(b => b[0] === k) || [])[2], h = new Date().getHours();
+  const v = k => (bars.find(b => b[0] === k) || [])[2], h = new Date().getHours(), d = today();
   const vals = bars.map(b => b[2]).filter(x => x != null), score = (vals.length ? vals.reduce((a, x) => a + x, 0) / vals.length : .6) - Math.min(.2, goalsInTrouble() * .08);
   const poops = v('home') != null && v('home') < .5 ? (v('home') < .2 ? 2 : 1) : 0, pick = k => PET_SAY[k][(new Date().getDate() + h) % PET_SAY[k].length];
-  if ((h >= 18 && score < .3) || (h >= 21 && score < .38)) return ['dead', pick('dead'), poops];
-  if (h >= 13 && score < .42) return ['sick', pick('sick'), poops];
-  if (goalsInTrouble() && h >= 10) return ['sad', pick('goal'), poops];
-  if (!dayStarted() || (isNight() && h >= 22) || h < 6 || (v('energy') != null && v('energy') < .7 && h < 10)) return ['sleepy', pick('sleepy'), poops];
-  if (v('thirsty') != null && v('thirsty') < .35 && h >= 12) return ['hungry', pick('thirsty'), poops];
-  if (v('hungry') != null && v('hungry') < .25 && h >= 13) return ['hungry', pick('hungry'), poops];
-  if (v('happy') != null && v('happy') <= .3) return ['sad', pick('sad'), poops];
-  if (score >= .75) return ['happy', pick('happy'), poops];
-  return ['ok', pick('ok'), poops];
+  const leaf = !(dayStarted() && h >= 11 && v('thirsty') != null && v('thirsty') < .4);
+  const sym = ((S.body || {}).sym || {})[d] || {}, mood = typeof moodOf === 'function' ? moodOf(sym) : '', fc = S.body ? (moodForecast(d) || []).map(m => m.k) : [];
+  const r = (m, say) => [m, say || pick(m), poops, leaf];
+  if (!dayStarted()) return r('asleep');                                  // after Good night, until I'm up
+  if ((h >= 18 && score < .3) || (h >= 21 && score < .38)) return r('dead');
+  if (h >= 13 && score < .42) return r('sick');
+  if (goalsInTrouble() && h >= 10) return r('sad', pick('goal'));
+  if (h >= 22 || h < 6 || (v('energy') != null && v('energy') < .7 && h < 10)) return r('sleepy');
+  if (!leaf) return r('thirsty');
+  if (v('hungry') != null && v('hungry') < .25 && h >= 13) return r('hungry');
+  if (mood === 'stab' || (!mood && fc.includes('stab'))) return r('angry');
+  if (mood === 'low' || (v('happy') != null && v('happy') <= .3)) return r('sad');
+  if (mood === 'glow' || (!mood && fc.includes('glow'))) return r('glow');
+  if (score >= .75) return r('happy');
+  return r('ok');
 }
 function pixelStatus(d) {
-  if (!document.body.classList.contains('px') || d !== today()) return '';
-  const bars = statusBars(d), [mood, say, poops] = petMood(bars), seg = v => Array.from({ length: 10 }, (_, i) => `<i class="${v != null && i < Math.round(v * 10) ? 'on' : ''}"></i>`).join('');
-  return `<div class="card pxstatus mood-${mood}"><div class="pxcatbox">${petEgg(mood, poops)}<span class="pxsay nopx">${esc(say)}</span></div>
+  if (d !== today()) return '';
+  const bars = statusBars(d), [mood, say, poops, leaf] = petMood(bars), seg = v => Array.from({ length: 10 }, (_, i) => `<i class="${v != null && i < Math.round(v * 10) ? 'on' : ''}"></i>`).join('');
+  return `<div class="card pxstatus mood-${mood}"><div class="pxcatbox">${petEgg(mood, poops, leaf)}<span class="pxsay nopx">${esc(say)}</span></div>
     <div class="pxbars">${bars.map(([k, l, v, go_, note]) => `<button class="pxbar ${v != null && v < .34 ? 'lowb' : ''}" data-pxgo="${go_}" title="${esc(note)}"><b>${l}</b><span class="seg">${seg(v)}</span></button>`).join('')}</div>
     <p class="muted small pxnote" id="pxNote">Tap a bar for details.</p></div>`;
 }
