@@ -269,6 +269,7 @@ function warnings(day, where = 'today') {
   if (un.length) { const w = un[un.length - 1].why; if (w && WHY_TIP[w]) out.push(['info', WHY_TIP[w]]); }
   // cycle: appetite pattern (from the Body tab)
   const ct = S.body && cycleTip(cycleInfo(day)); if (ct) out.push(['info', ct], 'today');
+  const sw = S.body && sleepWarning(day); if (sw) out.push(['warn', sw], 'today');
   if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`], 'today');
   // freezer: things to take out tonight for tomorrow
   return out.filter(x => x.place === where);
@@ -466,6 +467,7 @@ VIEWS.body = () => {
     <div class="row gap"><input id="bwa" inputmode="decimal" placeholder="waist cm" value="${m.waist ?? ''}"><input id="bhi" inputmode="decimal" placeholder="hips cm" value="${m.hips ?? ''}"><button class="mini" id="bmSave">Save</button></div>
     ${lastM && st.waist ? `<p class="muted small">Last: waist ${lastM[1].waist} cm (${r1(lastM[1].waist - st.waist) <= 0 ? '' : '+'}${r1(lastM[1].waist - st.waist)}), hips ${lastM[1].hips} cm (${r1(lastM[1].hips - st.hips) <= 0 ? '' : '+'}${r1(lastM[1].hips - st.hips)}) since the start.</p>` : ''}
   </div>
+  ${sleepBodyCard()}
   <div class="card"><div class="row"><h2 class="grow">Cycle</h2>${ci ? `<span class="chip sm">${ci.phase}</span>` : ''}</div>
     ${ci ? `<div class="row gap"><div class="grow"><div class="muted small">Cycle day</div><div class="big">${ci.day}</div></div><div class="grow right"><div class="muted small">Next period around</div><div>${fmtDay(ci.next)}</div><div class="muted small">${ci.toNext > 0 ? `in ${ci.toNext} days` : ci.toNext === 0 ? 'today' : `${-ci.toNext} days late`} · avg ${ci.avg} days</div></div></div>` : '<p class="muted small">Tap below when your period starts.</p>'}
     ${cycleTip(ci) ? `<div class="note info sm">${cycleTip(ci)}</div>` : ''}
@@ -780,6 +782,7 @@ function reportDialog(mon = addDays(monday(today()), -7)) {
     ${r.rb ? `<p class="small">From ${r.rb.days} logged days and your weight trend, your body burns about <b>${r.rb.burn} kcal a day</b>. At ${r.avgTarget} kcal that's about <b>${Math.max(0, kgWeek)} kg a week</b>.</p>`
       : '<p class="muted small">Needs about 2–3 weeks of food logs and weigh-ins. It gets more accurate every week.</p>'}
     ${r.patterns.length ? `<h3>Patterns</h3>${r.patterns.map(x => `<div class="note info sm">${x}</div>`).join('')}` : ''}
+    ${sleepReport(r.days)}
     <h3>One fix for this week</h3><div class="note ${r.fix ? 'warn' : ''} sm">${r.fix || 'Nothing to fix. Keep doing exactly this. ✨'}</div>
     <p class="muted small">Watch calories are shown for interest only and aren't added back to your food: watches often overcount by 25% or more.</p>`, null);
   $$('[data-rw]', body).forEach(b => b.onclick = e => { e.preventDefault(); reportDialog(addDays(mon, +b.dataset.rw)); });
@@ -1183,7 +1186,7 @@ VIEWS.today = () => {
   return `${dayBar()}
   ${choresToday(d)}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
-  ${wakeCard(d)}
+  ${sleepCard(d)}
   <div class="card compact" data-gofood>${barsLine(tot)}</div>
   ${d === today() ? '<div class="row" style="margin:-4px 0 12px"><button class="mini" id="ateSmth">🍩 Ate something</button></div>' : ''}
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
@@ -1195,7 +1198,7 @@ VIEWS.today = () => {
   <div class="card"><h2>Habits</h2>${habitRows(d)}</div>`;
 };
 BIND.today = v => {
-  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindChores(v);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindSleep(v); bindChores(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
   const at = $('#ateSmth', v); if (at) at.onclick = () => quickUnpl();
