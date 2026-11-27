@@ -274,6 +274,7 @@ function warnings(day, where = 'today') {
     if (soon) out.push(['info', `🖤 Your glow days start ${soon === 1 ? 'tomorrow' : DOW(addDays(day, soon))}. Save something bold for them: the date, the haircut, the hard conversation.`], 'today'); }
   if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`], 'today');
   // freezer: things to take out tonight for tomorrow
+  for (const [k, t, place] of energyNotes(day)) out.push([k, t], place);
   return out.filter(x => x.place === where);
 }
 function freezerFor(day) {
@@ -790,6 +791,7 @@ function reportDialog(mon = addDays(monday(today()), -7)) {
       : '<p class="muted small">Needs about 2–3 weeks of food logs and weigh-ins. It gets more accurate every week.</p>'}
     ${r.patterns.length ? `<h3>Patterns</h3>${r.patterns.map(x => `<div class="note info sm">${x}</div>`).join('')}` : ''}
     ${sleepReport(r.days)}
+    ${energyReport(r.days)}
     <h3>One fix for this week</h3><div class="note ${r.fix ? 'warn' : ''} sm">${r.fix || 'Nothing to fix. Keep doing exactly this. ✨'}</div>
     <p class="muted small">Watch calories are shown for interest only and aren't added back to your food: watches often overcount by 25% or more.</p>`, null);
   $$('[data-rw]', body).forEach(b => b.onclick = e => { e.preventDefault(); reportDialog(addDays(mon, +b.dataset.rw)); });

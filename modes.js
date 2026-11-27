@@ -38,7 +38,8 @@ function modesBlock(s) {
     <p class="muted small" id="modeWhy">${s.mode && MODES.find(m => m[0] === s.mode) ? MODES.find(m => m[0] === s.mode)[5] : s.mode === 'custom' ? 'Custom numbers.' : 'Tap a mode to fill the targets below. Save to keep them.'}</p>
     <div class="row"><div class="grow"><label>Maintenance kcal</label><input name="maint" inputmode="numeric" value="${s.maint || est || s.kcal}"></div>
       <div class="grow"><label>Cut kcal</label><input name="cutK" inputmode="numeric" value="${s.cutKcal || 1750}"></div>
-      <div class="grow"><label>Weight, kg</label><input name="modeKg" inputmode="decimal" value="${kg ? r1(kg) : ''}" placeholder="from Body"></div></div>
+      <div class="grow"><label>Weight, kg</label><input name="modeKg" inputmode="decimal" value="${kg ? r1(kg) : ''}" placeholder="from Body"></div>
+      <div class="grow"><label>Body fat %</label><input name="bodyFat" inputmode="decimal" value="${s.bodyFat || ''}" placeholder="35"></div></div>
     <p class="muted small">${est ? `From your log and weight trend, your maintenance is about <b>${est} kcal</b>.${s.maint && Math.abs(s.maint - est) > 100 ? ` <button class="mini ghost" id="useEst">Use ${est}</button>` : ''}` : 'Your maintenance gets estimated once you have 14 logged days and weigh-ins. Until then, use your trainer\'s number or a calculator.'}</p>`;
 }
 function bindModes(body, s) {
@@ -52,4 +53,4 @@ function bindModes(body, s) {
   // typing your own numbers makes it Custom
   for (const k of ['kcal', 'p', 'c', 'f']) body[k].addEventListener('input', () => { body.dataset.mode = 'custom'; $$('[data-mode]', body).forEach(x => x.classList.remove('on')); });
 }
-const saveModes = (body, s) => { s.maint = num(body.maint.value) || s.maint; s.cutKcal = num(body.cutK.value) || s.cutKcal || 1750; if (body.dataset.mode) s.mode = body.dataset.mode; };
+const saveModes = (body, s) => { s.bodyFat = num(body.bodyFat.value) || ''; s.maint = num(body.maint.value) || s.maint; s.cutKcal = num(body.cutK.value) || s.cutKcal || 1750; if (body.dataset.mode) s.mode = body.dataset.mode; };
