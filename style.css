@@ -203,3 +203,7 @@ details > summary { cursor: pointer; }
 .list li.chore { display: block; }
 .list li.chore .chips { margin: 6px 0 0; }
 .list li[data-ch], .list li.chore [data-ch] { cursor: pointer; }
+/* "Life happened": put off, shown red until done */
+.list li.chore.putoff { background: rgba(240, 140, 124, .1); border: 1px solid rgba(240, 140, 124, .45); border-radius: 12px; padding: 9px 10px; margin: 6px 0; }
+.chip.life { border-color: rgba(240, 140, 124, .55); color: #ffa392; }
+.list li.chore .chips { gap: 5px; } .list li.chore .chip.sm { padding: 4px 9px; font-size: .78rem; }

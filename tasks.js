@@ -9,6 +9,7 @@
 //   later = not yet, a bit early (half full)                        -> wait ~1/3 of the gap (trash: 1 day)
 //   more  = not yet, far too early (too little)                     -> wait a whole gap (trash: 3 days)
 //   skip  = (fixed chores only) skip this time, learns nothing      -> wait a whole gap
+//   life  = 'Life happened': putting it off, learns nothing          -> tomorrow, and the chore turns red until done
 const CHORE_SETS = {
   bin: ['Overflowing', 'Done', 'Half full', 'Too little'],
   clean: ['Really needed it', 'Done', 'Still OK', 'Still clean'],
@@ -18,7 +19,8 @@ const CHORE_SETS = {
   fresh: ['Needed it', 'Done', 'Still fresh', 'Barely used'],
 };
 const CHORE_KINDS = ['early', 'done', 'later', 'more'];
-const FIXED_BTNS = [['done', 'Done'], ['later', 'Tomorrow'], ['skip', 'Skip this time']];
+const FIXED_BTNS = [['done', 'Done'], ['skip', 'Skip this time']];
+const LIFE = ['life', 'Life happened'];
 const CHORE_AREAS = ['Kitchen', 'Bathroom', 'Bedroom', 'Flat', 'Plants', 'Laundry', 'Cat', 'Us', 'Admin'];
 // [name, area, start gap in days, label set or 'fixed' (keeps its gap, doesn't learn)]
 const CHORE_SEED = [
@@ -47,7 +49,7 @@ function seedChores() {
   });
   save();
 }
-const choreBtns = c => c.fixed ? FIXED_BTNS : CHORE_KINDS.map((k, i) => [k, (c.labels || CHORE_SETS.clean)[i]]);
+const choreBtns = c => [...(c.fixed ? FIXED_BTNS : CHORE_KINDS.map((k, i) => [k, (c.labels || CHORE_SETS.clean)[i]])), LIFE];
 const pushDays = (c, k) => k === 'later' ? (c.fixed ? 1 : Math.max(1, Math.min(14, Math.round(gapOf(c) * 0.35)))) : gapOf(c);
 
 // ---- learning ----
@@ -85,17 +87,18 @@ function nextDue(c, from) {
 }
 function tapChore(c, k) {
   const t = today(), n = Math.max(0, dayDiff(c.last || addDays(t, -c.gap), t));
-  c.undo = { due: c.due, last: c.last, n: (c.log || []).length };
+  c.undo = { due: c.due, last: c.last, putOff: c.putOff || 0, n: (c.log || []).length };
   const clue = c.fixed ? null : choreClue(c, k, n);
   (c.log ||= []).push({ d: t, k, n, clue }); if (c.log.length > 40) c.log = c.log.slice(-40);
-  if (k === 'early' || k === 'done') { c.last = t; c.due = nextDue(c, t); }
+  if (k === 'early' || k === 'done') { c.last = t; c.due = nextDue(c, t); c.putOff = 0; }
+  else if (k === 'life') { c.due = addDays(t, 1); c.putOff = (c.putOff || 0) + 1; }
   else c.due = addDays(t, pushDays(c, k));
   save(); render();
   const lbl = (choreBtns(c).find(b => b[0] === k) || [])[1];
-  toast(k === 'early' || k === 'done' ? `${c.name} ✓ next ${dueTxt2(c.due)}` : `${lbl}: back ${dueTxt2(c.due)}`);
+  toast(k === 'early' || k === 'done' ? `${c.name} ✓ next ${dueTxt2(c.due)}` : k === 'life' ? `Life happens. ${c.name} is back tomorrow` : `${lbl}: back ${dueTxt2(c.due)}`);
 }
 function undoChore(c) {
-  if (!c.undo) return; Object.assign(c, { due: c.undo.due, last: c.undo.last }); c.log = (c.log || []).slice(0, c.undo.n); c.undo = null; save();
+  if (!c.undo) return; Object.assign(c, { due: c.undo.due, last: c.undo.last, putOff: c.undo.putOff }); c.log = (c.log || []).slice(0, c.undo.n); c.undo = null; save();
 }
 const dueTxt2 = d => { const n = dayDiff(today(), d); return n === 0 ? 'today' : n === 1 ? 'tomorrow' : n < 7 ? DOW(d) : fmtDay(d); };
 const lateTxt = c => { const n = dayDiff(c.due, today()); return n <= 0 ? '' : n === 1 ? '1 day late' : `${n} days late`; };
@@ -105,9 +108,9 @@ const dueNow = () => live().filter(c => c.due <= today()).sort((a, b) => a.due.l
 
 // ---- views ----
 function choreRow(c, withBtns = true) {
-  const late = lateTxt(c);
-  return `<li class="chore"><div class="row"><div class="grow" data-ch="${c.id}">${esc(c.name)}<div class="muted small">${esc(c.area)}${late ? ` · <span class="warnc">${late}</span>` : ''}</div></div><span data-ch="${c.id}" class="muted">›</span></div>
-    ${withBtns ? `<div class="chips">${choreBtns(c).map(([k, l]) => `<button class="chip sm ${k === 'done' ? 'on' : ''}" data-ctap="${c.id}|${k}">${esc(l)}</button>`).join('')}</div>` : ''}</li>`;
+  const late = lateTxt(c), po = c.putOff || 0;
+  return `<li class="chore ${po ? 'putoff' : ''}"><div class="row"><div class="grow" data-ch="${c.id}">${esc(c.name)}<div class="muted small">${esc(c.area)}${po ? ` · <span class="warnc">put off ${po === 1 ? 'once' : po + '×'}</span>` : late ? ` · <span class="warnc">${late}</span>` : ''}</div></div><span data-ch="${c.id}" class="muted">›</span></div>
+    ${withBtns ? `<div class="chips">${choreBtns(c).map(([k, l]) => `<button class="chip sm ${k === 'done' ? 'on' : k === 'life' ? 'life' : ''}" data-ctap="${c.id}|${k}">${esc(l)}</button>`).join('')}</div>` : ''}</li>`;
 }
 // freezer: meals planned for tomorrow that need something from the freezer become a one-off chore today
 // (done = ticked for today; it comes back on its own whenever tomorrow's plan needs the freezer again)
@@ -149,9 +152,10 @@ function choreDialog(c) {
   const lbl = k => (choreBtns(c).find(b => b[0] === k) || [, k])[1];
   const body = dialog(`<h2>${esc(c.name)}</h2>
     <div class="muted small">${esc(c.area)} · next ${dueTxt2(c.due)}${c.last ? ` · last done ${fmtDay(c.last)}` : ''}</div>
-    <div class="chips" style="margin:12px 0">${choreBtns(c).map(([k, l]) => `<button class="chip ${k === 'done' ? 'on' : ''}" data-ctap="${c.id}|${k}">${esc(l)}</button>`).join('')}</div>
+    <div class="chips" style="margin:12px 0">${choreBtns(c).map(([k, l]) => `<button class="chip ${k === 'done' ? 'on' : k === 'life' ? 'life' : ''}" data-ctap="${c.id}|${k}">${esc(l)}</button>`).join('')}</div>
     <p class="small">${c.fixed ? `Fixed: ${gapTxt(c.gap)}.` : n >= 4 ? `Learned: ${gapTxt(g)} (you started at ${c.gap}).` : `Learning: ${gapTxt(c.gap)} for now, ${4 - n} more tap${4 - n > 1 ? 's' : ''} until it adjusts to you.`}
       ${wd != null && g >= 5 ? ` You usually do it on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][wd]}, so it's planned near then.` : ''}</p>
+    ${c.putOff ? `<div class="note warn sm">Put off ${c.putOff === 1 ? 'once' : c.putOff + ' times'}. It stays red until it's done.</div>` : ''}
     ${hist.length ? `<h3>Recent</h3><ul class="list">${hist.map(x => `<li><div class="grow small">${fmtDay(x.d)}</div><span class="muted small">${esc(lbl(x.k))}${x.n ? ` · after ${x.n} d` : ''}</span></li>`).join('')}</ul>` : ''}
     <div class="row wrap gap">${c.undo ? '<button class="mini ghost" id="chUndo">Undo last tap</button>' : ''}<button class="mini" id="chEdit">✎ Edit</button></div>`, null);
   $$('[data-ctap]', body).forEach(b => b.onclick = e => { e.preventDefault(); closeDlg(); tapChore(c, b.dataset.ctap.split('|')[1]); });
@@ -164,7 +168,7 @@ function choreEdit(c) {
     <label>Name</label><input name="name" value="${esc(c.name || '')}" placeholder="e.g. Clean the balcony">
     <div class="row"><div class="grow"><label>Area</label><select name="area">${CHORE_AREAS.map(a => `<option ${a === (c.area || 'Flat') ? 'selected' : ''}>${a}</option>`).join('')}</select></div>
       <div class="grow"><label>${isNew ? 'Every … days' : 'Start gap, days'}</label><input name="gap" inputmode="numeric" value="${c.gap || 7}"></div></div>
-    <label class="row tick"><input type="checkbox" name="fixed" ${c.fixed ? 'checked' : ''}> Fixed gap (bills, date night): don't learn, just Done / Tomorrow / Skip</label>
+    <label class="row tick"><input type="checkbox" name="fixed" ${c.fixed ? 'checked' : ''}> Fixed gap (bills, date night): don't learn, just Done / Skip</label>
     <div id="chLbl" ${c.fixed ? 'hidden' : ''}><label>Button words</label>
       <select name="preset"><option value="">Pick a set…</option>${Object.entries(CHORE_SETS).map(([k, l]) => `<option value="${k}">${l.join(' / ')}</option>`).join('')}</select>
       <div class="grid4">${['Couldn\'t wait', 'Done', 'A bit early', 'Far too early'].map((h, i) => `<div><label class="small">${h}</label><input name="l${i}" value="${esc(labels[i])}"></div>`).join('')}</div></div>
