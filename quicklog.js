@@ -30,7 +30,7 @@ function quickLog(t, extra = {}) {
 function quickUnpl() {
   const { mine, common } = quickTiles();
   const tile = (t, i, set) => `<button class="qtile" data-qt="${set}|${i}"><span>${esc(t.name)}</span><span class="muted small">≈ ${r0(t.kcal)}</span></button>`;
-  const body = dialog(`<h2>🍩 Ate something</h2><p class="muted small">Tap it. That's it. A typical amount is logged; change size or add why later in Log.</p>
+  const body = dialog(`<h2>🍓 Ate something</h2><p class="muted small">Tap it. That's it. A typical amount is logged; change size or add why later in Log.</p>
     ${mine.length ? `<h3>Yours lately</h3><div class="qgrid">${mine.map((t, i) => tile(t, i, 'm')).join('')}</div>` : ''}
     <h3>Grab and go</h3><div class="qgrid">${common.map((t, i) => tile(t, i, 'c')).join('')}</div>
     <h3>Something else</h3><input name="qn" placeholder="What was it? (optional)" autocomplete="off" enterkeyhint="done">

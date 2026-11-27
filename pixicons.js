@@ -4,6 +4,7 @@
 'use strict';
 const PX_COL = { k: '#16121f', y: '#ffd166', r: '#ff5c7a', p: '#ff9fcb', w: '#ffffff', b: '#5ba8ff', l: '#b9e6ff', g: '#5fcf7a', n: '#a46a3c', s: '#b3b3cc', d: '#3a3550', v: '#9b86f2', z: '#8b78f0' };
 const PX_ICONS = {
+"🍓": "....g.....|..ggggg...|.orggggro.|orryrryrro|orrrrrrrro|oryrryrro.|.orrrrrro.|.oryrryro.|..orrrro..|...oooo...",
 "😶": "..oooooo..|.oyyyyyyo.|oyyyyyyyyo|oyyoyyoyyo|oyyoyyoyyo|oyyyyyyyyo|oyyyyyyyyo|oyyooooyyo|.oyyyyyyo.|..oooooo..",
 "🏆": ".oooooooo.|oyoyyyyoyo|oyoyyyyoyo|oyoyyyyyyo|.ooyyyyoo.|..oyyyyo..|...oyyo...|....oo....|..oyyyyo..|..oooooo..",
 "✨": "....y.....|....y.....|...yyy....|yyyyyyyy..|...yyy....|....y...y.|....y..yyy|.y......y.|yyy.......|.y........",
@@ -25,7 +26,7 @@ const PX_ICONS = {
 "☀": "....y.....|.y..y..y..|..yyyyy...|.yyyyyyy..|yyyyyyyyyy|.yyyyyyy..|..yyyyy...|.y..y..y..|....y.....|..........",
 "📅": "..o...o...|oooooooooo|orrrrrrrro|oooooooooo|owowowowoo|owwwwwwwwo|owowowowoo|owwwwwwwwo|oooooooooo|..........",
 "💄": "....oo....|...orro...|...orro...|...orro...|..oooooo..|..oyyyyo..|..oyyyyo..|..osssso..|..osssso..|..oooooo..",
-"🍩": "..........|..oooooo..|.oppppppo.|oppyppyppo|oppo..oppo|oppo..oppo|onppppppno|.onnnnnno.|..oooooo..|..........",
+"🍩": "....g.....|..ggggg...|.orggggro.|orryrryrro|orrrrrrrro|oryrryrro.|.orrrrrro.|.oryrryro.|..orrrro..|...oooo...",
 "🍽": "..........|..oooooo..|.owwwwwwo.|owwoooowwo|owowwwwowo|owowwwwowo|owwoooowwo|.owwwwwwo.|..oooooo..|..........",
 "⚠": "....oo....|...oyyo...|...oyyo...|..oyooyo..|..oyooyo..|.oyyooyyo.|.oyyyyyyo.|oyyyooyyyo|oyyyyyyyyo|oooooooooo",
 "🚨": ".y..r..y..|..y.r.y...|...ooo....|..orrro...|.orwrrro..|.orwrrro..|.orrrrro..|oooooooooo|osssssssso|oooooooooo",
@@ -78,6 +79,8 @@ const PX_ICONS = {
 };
 const PX_TABS = {"today": "....oo......|...o..o.....|.oo.oo.oo...|o..o..o..o..|o...oo...o..|.oooooooo...|o...oo...o..|o..o..o..o..|.oo.oo.oo...|...o..o.....|....oo......|............", "food": ".......oo...|......o.....|.....o.o....|....o...o...|...o....o...|.oo....oo...|o..o..o..o..|o..o..o..o..|o..o..o..o..|.oo....oo...|............|............", "home": ".....oo.....|....o..o....|...o....o...|..o......o..|.oooooooooo.|..o......o..|..o.o..o.o..|..o..oo..o..|..o......o..|..o.oo...o..|..oooooooo..|............", "train": "............|............|oo......oo..|oo......oo..|oo......oo..|oooooooooo..|oo......oo..|oo......oo..|oo......oo..|............|............|............", "body": "..o..o..o...|..oo.o.oo...|..o.ooo.o...|..o.....o...|...o...o....|....ooo.....|.....o......|.oo..o......|..oo.o..oo..|....oo.oo...|.....oo.....|............", "goals": ".....o......|....o.o.....|....o.o.....|oooo...oooo.|.o.......o..|..o.....o...|..o.....o...|.o...o...o..|.o..o.o..o..|o..o...o..o.|ooo.....ooo.|............"};
 PX_TABS.catface = '.d........d.|dpd......dpd|dppd....dppd|dddddddddddd|dddddddddddd|ddyyddddyydd|ddykddddykdd|dddddppddddd|lddddddddddd|.dddddddddd.|..dddddddd..|............';
+PX_TABS.catcry1 = '..d........d..|.dpd......dpd.|.dppd....dppd.|.dddddddddddd.|.dwwwddddwwwd.|.ddbddddddbdd.|.ddbdddppdbdd.|.ddbddddddbdd.|.ddbdwwwwdbdd.|..dbdwddwdbd..|...b.dddd.b...|...b......b...|..............|..b........b..';
+PX_TABS.catcry2 = '..d........d..|.dpd......dpd.|.dppd....dppd.|.dddddddddddd.|.dwwwddddwwwd.|.ddbddddddbdd.|.ddbdddppdbdd.|.ddbddddddbdd.|.ddbdwwwwdbdd.|..dbdwddwdbd..|...b.dddd.b...|..b........b..|...b......b...|..............';
 const pxCache = {};
 function pxSvg(art, cls = 'pxi') {
   const key = cls + art; if (pxCache[key]) return pxCache[key];

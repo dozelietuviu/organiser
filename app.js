@@ -1190,7 +1190,7 @@ function trainToday(d) {
 function catCard(d) {
   const f = catFood(), fed = (S.day[d] || {}).catFed || 0, left = f && S.pantry[f.id] ? pantryQty(f.id) : null;
   const low = left != null && left <= CAT_LOW;
-  return `<div class="card cat ${fed ? 'fed' : ''}"><div class="row"><span class="cathead">${pxSvg(PX_TABS.catface, 'pxcathead')}</span>
+  return `<div class="card cat ${fed ? 'fed' : ''}"><div class="row"><span class="cathead">${fed ? pxSvg(PX_TABS.catface, 'pxcathead') : `<span class="catcry">${pxSvg(PX_TABS.catcry1, 'pxcathead f1')}${pxSvg(PX_TABS.catcry2, 'pxcathead f2')}</span>`}</span>
     <div class="grow"><div class="h">${fed ? 'Cat is fed ✓' : 'Did you feed the cat?'}</div>
       <div class="muted small">${left == null ? 'Add wet cat food to the pantry to count it' : `${left === Infinity ? '' : r0(left)} wet food left`}${fed > 1 ? ` · fed ${fed}× today` : ''}</div></div>
     ${fed ? `<button class="mini" data-cat="1" title="Fed again">+1</button><button class="mini ghost" data-cat="-1">Undo</button>` : `<button class="primary" data-cat="1">Fed</button>`}</div>
@@ -1216,7 +1216,7 @@ VIEWS.today = () => {
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${sleepCard(d)}
   <div class="card compact" data-gofood>${barsLine(tot)}</div>
-  ${d === today() ? '<div class="row" style="margin:-4px 0 12px"><button class="mini" id="ateSmth">🍩 Ate something</button></div>' : ''}
+  ${d === today() ? '<div class="row" style="margin:-4px 0 12px"><button class="mini" id="ateSmth">🍓 Ate something</button></div>' : ''}
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}

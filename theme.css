@@ -131,3 +131,11 @@ body.px .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pxtab { width: 22px !important; height: 22px !important; opacity: 1 !important; filter: none !important; margin: 0 auto 2px; }
 body.px .tabs button { color: var(--muted); }
 body.px .tabs button.on { color: var(--accent); }
+/* crying cat until fed: tears fall (2 frames) and a little sob */
+.catcry { position: relative; display: block; width: 52px; height: 52px; animation: sob .9s steps(2) infinite; }
+.catcry .pxcathead { position: absolute; inset: 0; }
+.catcry .f2 { animation: blink2 .6s steps(1) infinite; }
+.catcry .f1 { animation: blink1 .6s steps(1) infinite; }
+@keyframes blink1 { 50% { opacity: 0; } }
+@keyframes blink2 { 0% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes sob { 50% { transform: translateY(1px) rotate(-2deg); } }
