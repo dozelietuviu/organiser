@@ -162,3 +162,11 @@ body.px .tabs button.on { color: var(--accent); }
 .vitrow > span { flex: none; display: inline-flex; align-items: center; margin-right: 2px; }
 .pxi { flex: none; }
 .scooprow { margin-top: 8px; gap: 8px; } .scooprow .muted { line-height: 1.35; }
+.scoop { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-left: 6px; border: 2px solid var(--line); border-radius: 4px; background: var(--bg2); vertical-align: middle; }
+.scoop .pxi { width: 20px; height: 20px; vertical-align: 0; }
+.scoop.poop { border-color: var(--warn); animation: stink 1.2s steps(2) infinite; }
+.scoop.later { width: auto; padding: 0 4px; border-style: dashed; }
+@keyframes stink { 50% { transform: translateY(-2px); } }
+/* pet walks faster */
+.petwalk { animation-duration: 2.6s !important; }
+.petwalk.short { animation-duration: 1.6s !important; }

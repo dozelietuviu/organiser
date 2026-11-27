@@ -82,6 +82,7 @@ const PX_TABS = {"today": "....oo......|...o..o.....|.oo.oo.oo...|o..o..o..o..|o
 PX_TABS.catface = '.d........d.|dpd......dpd|dppd....dppd|dddddddddddd|dddddddddddd|ddyyddddyydd|ddykddddykdd|dddddppddddd|lddddddddddd|.dddddddddd.|..dddddddd..|............';
 PX_TABS.catcry1 = '..d........d..|.dpd......dpd.|.dppd....dppd.|.dddddddddddd.|.dwwwddddwwwd.|.ddbddddddbdd.|.ddbdddppdbdd.|.ddbddddddbdd.|.ddbdwwwwdbdd.|..dbdwddwdbd..|...b.dddd.b...|...b......b...|..............|..b........b..';
 PX_TABS.catcry2 = '..d........d..|.dpd......dpd.|.dppd....dppd.|.dddddddddddd.|.dwwwddddwwwd.|.ddbddddddbdd.|.ddbdddppdbdd.|.ddbddddddbdd.|.ddbdwwwwdbdd.|..dbdwddwdbd..|...b.dddd.b...|..b........b..|...b......b...|..............';
+PX_TABS.bag = '..o...o...|...ooo....|....o.....|..oowoo...|.owwwwwo..|owwwwwwwo.|owlwwwwwo.|owwwwwlwo.|owwwwwwwo.|.ooooooo..';
 const pxCache = {};
 function pxSvg(art, cls = 'pxi') {
   const key = cls + art; if (pxCache[key]) return pxCache[key];

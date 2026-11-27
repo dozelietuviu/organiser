@@ -1195,18 +1195,18 @@ function trainToday(d) {
   if (!all.length && !t.live) return '';
   return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Training</div><div>${t.live ? '⏱ Session in progress: ' + esc(t.live.name) : all.map(x => (doneOn(d, x) ? '✓ ' : '') + esc(x)).join(' · ')}</div></div><button class="mini" id="goTrain">${t.live ? 'Continue' : 'Open'}</button></div></div>`;
 }
-// litter scooping: twice a day, in a morning (07-10) and an evening (21-24) window. Missed = a poop on the pet's screen.
-const SCOOP = [['am', 'Morning', 7, 10], ['pm', 'Evening', 21, 24]];
+// litter scooping, twice a day: from 07:00 a poop appears (morning), from 21:00 another (evening).
+// "Poop was scooped" bags the oldest one. The times are kept for your own data, there's no "missed".
+const SCOOP = [['am', 'Morning', 7], ['pm', 'Evening', 21]];
 function scoopState(d) {
   const sc = ((S.day[d] || {}).scoop) || {}, h = d !== today() ? 24 : new Date().getHours() + (today() !== calToday() ? 24 : 0); // still 'yesterday' after midnight
-  return SCOOP.map(([k, l, a, b]) => ({ k, l, a, b, at: sc[k], open: h >= a && h < b, missed: !sc[k] && h >= b, upcoming: !sc[k] && h < a }));
+  return SCOOP.map(([k, l, a]) => ({ k, l, a, at: sc[k], started: h >= a }));
 }
-const scoopsMissed = d => scoopState(d).filter(x => x.missed).length;
+const scoopsMissed = d => scoopState(d).filter(x => x.started && !x.at).length; // poops lying around (also shown on the pet)
 function scoopRow(d) {
-  const st = scoopState(d), open = st.find(x => x.open && !x.at), missed = st.filter(x => x.missed);
-  const bits = st.map(x => x.at ? `${x.l.toLowerCase()} ✓ ${x.at}` : x.missed ? `<span class="warnc">${x.l.toLowerCase()} missed</span>` : x.open ? `${x.l.toLowerCase()} now` : `${x.l.toLowerCase()} ${String(x.a).padStart(2, '0')}:00`).join(' · ');
-  const btn = open || missed.length ? `<button class="${open ? 'primary' : ''} mini" data-scoop="${(open || missed[missed.length - 1]).k}">💩 Poop was scooped</button>` : '';
-  return `<div class="row scooprow"><div class="grow muted small">Litter: ${bits}</div>${btn}</div>`;
+  const st = scoopState(d), todo = st.find(x => x.started && !x.at);
+  const slot = x => `<span class="scoop ${x.at ? 'done' : x.started ? 'poop' : 'later'}" title="${x.l}${x.at ? ' scooped ' + x.at : ''}">${x.at ? pxSvg(PX_TABS.bag, 'pxi') : x.started ? pxSvg(PX_ICONS['💩'], 'pxi') : '<span class="muted small">' + String(x.a).padStart(2, '0') + ':00</span>'}</span>`;
+  return `<div class="row scooprow"><div class="grow small"><span class="muted">Litter</span> ${st.map(slot).join('')}</div>${todo ? `<button class="mini primary" data-scoop="${todo.k}">Poop was scooped</button>` : ''}</div>`;
 }
 function catCard(d) {
   const f = catFood(), fed = (S.day[d] || {}).catFed || 0, left = f && S.pantry[f.id] ? pantryQty(f.id) : null;
@@ -1226,7 +1226,7 @@ function bindCat(v, d) {
     if (p && p.qty != null) { p.qty = Math.max(0, p.qty - n); p.have = p.qty > 0; }
     save(); render();
   });
-  $$('[data-scoop]', v).forEach(b => b.onclick = () => { const dd = S.day[d] ||= {}; (dd.scoop ||= {})[b.dataset.scoop] = new Date().toTimeString().slice(0, 5); save(); render(); toast('Scooped ✓ Fresh litter, happy cat'); });
+  $$('[data-scoop]', v).forEach(b => b.onclick = () => { const dd = S.day[d] ||= {}; (dd.scoop ||= {})[b.dataset.scoop] = new Date().toTimeString().slice(0, 5); save(); render(); toast('Bagged ✓ Fresh litter, happy cat'); });
   const cs = $('#catShop', v); if (cs) cs.onclick = () => { const f = catFood(); S.extras ||= []; if (!S.extras.some(x => x.key === f.key)) S.extras.push({ id: uid(), key: f.key, name: sn(f), qty: 1, cat: f.cat || 'Cat', price: f.price || 0 }); save(); toast('On the shopping list ✓'); render(); };
 }
 VIEWS.today = () => {
