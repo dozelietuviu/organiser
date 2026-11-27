@@ -64,6 +64,8 @@ function sleepLinks(nights = sleepNights()) {
 // ---- Today: the sleep card (Good night in the evening, I'm up in the morning) ----
 function sleepCard(d) {
   const h = new Date().getHours();
+  // morning, but no Good night was tapped: the app still thinks it's yesterday. One tap starts the new day.
+  if (d === today() && today() !== calToday() && h >= 4) return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">New day?</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNew">I'm up</button></div></div>`;
   if (d !== today() || (h >= 5 && h < 20)) return wakeCard(d) + (d === today() ? lastNightLine(d) : '');
   const night = nightOf(), bed = (B().bed || {})[night];
   return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Sleep</div><div>🌙 ${bed ? `Good night ${bed} · sleep well` : 'Going to bed?'}</div></div>
@@ -76,7 +78,9 @@ function lastNightLine(d) {
 }
 function bindSleep(v) {
   const bd = () => (B().bed ||= {});
-  const n = $('#bedNow', v); if (n) n.onclick = () => { bd()[nightOf()] = new Date().toTimeString().slice(0, 5); save(); render(); toast('Good night 🌙'); };
+  const n = $('#bedNow', v); if (n) n.onclick = () => { bd()[nightOf()] = new Date().toTimeString().slice(0, 5); UI.day = today(); lastDay = today(); save(); render(); toast('Good night 🌙'); };
+  const wn = $('#wakeNew', v); if (wn) wn.onclick = () => { (B().wake ||= {})[calToday()] = new Date().toTimeString().slice(0, 5); UI.day = today(); lastDay = today(); ensureWakeGoal();
+    save(); render(); if (S.affDay !== today()) { S.affDay = today(); save(); setTimeout(() => affirmations(true), 700); } };
   const e = $('#bedSet', v); if (e) e.onclick = () => { const night = nightOf();
     const body = dialog(`<h2>Went to bed</h2><p class="muted small">Night of ${fmtDay(night)}</p><label>Time</label><input type="time" name="t" value="${bd()[night] || '23:00'}">${bd()[night] ? '<p><button class="mini del" id="bedDel">Remove</button></p>' : ''}`, f => { if (f.t.value) bd()[night] = f.t.value; });
     const del = $('#bedDel', body); if (del) del.onclick = ev => { ev.preventDefault(); delete bd()[night]; save(); closeDlg(); render(); }; };

@@ -9,7 +9,15 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const today = () => iso(new Date());
+const calToday = () => iso(new Date());
+// the app's day follows your sleep, not the clock: after midnight it's still yesterday until you tap
+// Good night (or I'm up), and from the day-start hour (09:00) it's the new day anyway.
+const today = () => {
+  const now = new Date(), cal = iso(now), st = typeof S !== 'undefined' && S && S.settings && S.settings.dayStartH != null ? S.settings.dayStartH : 9;
+  if (now.getHours() >= st || typeof S === 'undefined' || !S) return cal;
+  const b = S.body || {}, prev = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  return (b.wake || {})[cal] || (b.bed || {})[prev] ? cal : prev;
+};
 const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const addDays = (s, n) => { const d = parseDay(s); d.setDate(d.getDate() + n); return iso(d); };
 const monday = s => { const d = parseDay(s); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return iso(d); };
@@ -252,7 +260,7 @@ function lastAte() {
 // unplanned habits) are in the weekly report, and the freezer reminder is a chore (tasks.js).
 // the day starts at 09:00 (Settings), or earlier when you tap I'm up. Before that, Today stays quiet:
 // no chores, beauty reminders or Today warnings just because the clock passed midnight.
-const dayStarted = () => new Date().getHours() >= (S.settings.dayStartH ?? 9) || !!((S.body || {}).wake || {})[today()];
+const dayStarted = () => today() !== calToday() || new Date().getHours() >= (S.settings.dayStartH ?? 9) || !!((S.body || {}).wake || {})[today()];
 function warnings(day, where = 'today') {
   if (day !== today()) return [];
   const s = S.settings, out = [], h = new Date().getHours(), push = out.push.bind(out);
@@ -2381,5 +2389,5 @@ let lastDay = today();
 // coming back to the app: pick up newer data, but not under an open dialog (same reason as the 'storage' listener:
 // a card or food being edited would be saved to a copy that's thrown away). It reloads when the dialog closes.
 document.addEventListener('visibilitychange', () => { if (document.hidden) return; if ($('#dlg').open) { reloadLater = true; return; } reloadS(); if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } render(); affirmations(); });
-setInterval(() => { if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); else applyTheme(); }, 5 * 60e3);
+setInterval(() => { if (today() !== lastDay) { if (UI.day === lastDay) UI.day = today(); lastDay = today(); } if (!document.hidden && UI.tab === 'today' && !$('#dlg').open) render(); else applyTheme(); }, 60e3);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
