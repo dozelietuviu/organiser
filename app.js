@@ -229,6 +229,8 @@ function dialog(html, onOk, okLabel = 'Save') {
   d.showModal(); return body;
 }
 const closeDlg = () => $('#dlg').open && $('#dlg').close();
+// a search box inside a dialog: Enter / the keyboard's search key only hides the keyboard, it must not close the dialog
+const noEnterSubmit = inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
 $('#dlg').addEventListener('close', () => { if (reloadLater) { reloadLater = false; reloadS(); render(); } });
 function confirmInline(btn) { if (btn.dataset.sure) return true; btn.dataset.sure = 1; btn.textContent = 'Tap again to confirm'; return false; }
 function dayBar() {
@@ -1354,14 +1356,17 @@ BIND.log = v => {
 function pickForSlot(slot) {
   // cards for this meal first, then snack cards (toppings like the nut mix go with any meal)
   const cards = S.cards.filter(c => c.slot === cardType(slot) || c.slot === 'Snack').sort((a, b) => (b.slot === cardType(slot)) - (a.slot === cardType(slot)) || (b.stars || 0) - (a.stars || 0));
+  // search box sits at the top so results show right under it (above the phone keyboard).
+  // While typing, the full card list hides: matching cards already show in the results.
   const body = dialog(`<h2>Add to ${slot}</h2>
-    ${cards.length ? `<h3>Cards</h3><ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} g</div></div><span>›</span></li>`).join('')}</ul>` : ''}
-    <h3>Food</h3><input name="q" placeholder="Search foods" autocomplete="off"><div id="sres"></div><div id="sshop"></div>
-    <div class="row wrap gap"><button class="mini" id="sScan">📷 Scan</button></div>`, null);
+    <input name="q" placeholder="Search foods and cards" autocomplete="off" enterkeyhint="search"><div id="sres"></div><div id="sshop"></div>
+    <div class="row wrap gap"><button class="mini" id="sScan">📷 Scan</button></div>
+    <div id="sCards">${cards.length ? `<h3>Cards</h3><ul class="list">${cards.map(c => `<li data-card="${c.id}"><div class="grow">🍱 ${esc(c.name)} ${stars(c.stars)}<div class="muted small">${r0(cardTotals(c).kcal)} kcal · P ${r0(cardTotals(c).p)} g</div></div><span>›</span></li>`).join('')}</ul>` : ''}</div>`, null);
   UI.pendingSlot = slot;
-  const res = $('#sres', body);
+  const res = $('#sres', body), cardList = $('#sCards', body);
   const shops = autoShops(body.q, $('#sshop', body), f => logFoodDialog(f, slot));
-  body.q.oninput = () => { res.innerHTML = searchLocal(body.q.value); bindPick(res, slot); shops(); };
+  body.q.oninput = () => { res.innerHTML = searchLocal(body.q.value); cardList.hidden = !!body.q.value.trim(); bindPick(res, slot); shops(); };
+  noEnterSubmit(body.q);
   bindPick(body, slot);
   $('#sScan', body).onclick = e => { e.preventDefault(); scanDialog(slot); };
 }
@@ -1560,7 +1565,7 @@ function onlineDialog(q0, slot, onFound) {
   const done = onFound || (f => logFoodDialog(f, slot));
   const body = dialog(`<h2>Search shops</h2><input name="q" value="${esc(q0 || '')}" placeholder="e.g. Pilos skyr" autocomplete="off"><div id="offRes"></div>`, null);
   const run = autoShops(body.q, $('#offRes', body), f => { closeDlg(); done(f); });
-  body.q.oninput = run; if (q0) run();
+  body.q.oninput = run; noEnterSubmit(body.q); if (q0) run();
 }
 function foodDialog(f, logAfter = false, onSaved) {
   const isNew = !f.id;
