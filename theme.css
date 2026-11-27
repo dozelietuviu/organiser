@@ -170,3 +170,27 @@ body.px .tabs button.on { color: var(--accent); }
 /* pet walks faster */
 .petwalk { animation-duration: 2.6s !important; }
 .petwalk.short { animation-duration: 1.6s !important; }
+/* pet v3: always alive */
+.petwalk { animation: walk 2.6s steps(1) infinite; }
+.petwalk.slow { animation-duration: 4.2s !important; }
+.pm-bob { animation: bob .8s steps(1) infinite; }
+.pm-hop { animation: hop2 .5s steps(1) infinite; }
+.pm-shake { animation: shake .25s steps(1) infinite; }
+.pm-sink { animation: sink 2.4s steps(1) infinite; }
+.pm-breathe { animation: breathe 2.2s steps(1) infinite; }
+.pm-shiver { animation: shiver .18s steps(1) infinite; }
+.pm-float { animation: float 1.6s steps(1) infinite; }
+@keyframes bob { 50% { transform: translateY(-1px); } }
+@keyframes hop2 { 0% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes shake { 50% { transform: translateX(1px); } }
+@keyframes sink { 50% { transform: translateY(1px); } }
+@keyframes breathe { 50% { transform: translateY(.5px) scaleY(.97); } }
+@keyframes shiver { 50% { transform: translateX(-.5px); } }
+@keyframes float { 0% { transform: translateY(0); } 25% { transform: translateY(-1px); } 50% { transform: translateY(-2px); } 75% { transform: translateY(-1px); } }
+.sway1 { animation: s1 1.1s steps(1) infinite; } .sway2 { animation: s2 1.1s steps(1) infinite; }
+@keyframes s1 { 50% { opacity: 0; } } @keyframes s2 { 0% { opacity: 0; } 50% { opacity: 1; } }
+.blink { opacity: 0; animation: blink 3.4s steps(1) infinite; }
+@keyframes blink { 0%, 92% { opacity: 0; } 94%, 98% { opacity: 1; } }
+.mood-sleepy .petlcd .fx { animation: zz 2s steps(2) infinite; }
+.fx-sick { animation: twinkle .7s steps(2) infinite; }
+.mood-happy .petlcd, .mood-glow .petlcd { animation: none; }
