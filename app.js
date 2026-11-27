@@ -270,6 +270,8 @@ function warnings(day, where = 'today') {
   // cycle: appetite pattern (from the Body tab)
   const ct = S.body && cycleTip(cycleInfo(day)); if (ct) out.push(['info', ct], 'today');
   const sw = S.body && sleepWarning(day); if (sw) out.push(['warn', sw], 'today');
+  if (S.body && !(moodForecast(day) || []).some(m => m.k === 'glow')) { const soon = [1, 2].find(n => (moodForecast(addDays(day, n)) || []).some(m => m.k === 'glow'));
+    if (soon) out.push(['info', `🖤 Your glow days start ${soon === 1 ? 'tomorrow' : DOW(addDays(day, soon))}. Save something bold for them: the date, the haircut, the hard conversation.`], 'today'); }
   if (S.body) for (const m of moodForecast(day) || []) out.push([m.k === 'stab' ? 'warn' : 'info', `${m.k === 'stab' ? '🔪' : '✨'} <b>${m.msg}</b> <span class="muted small">${m.k === 'stab' ? 'Stab-a-bitch' : 'GLOWING'} forecast · ${m.why}</span>`], 'today');
   // freezer: things to take out tonight for tomorrow
   return out.filter(x => x.place === where);
@@ -344,7 +346,12 @@ function cycleTip(ci) {
 // Learns from your own logs once a mood shows up at the same point in 2+ cycles; until then uses the usual pattern.
 const MOOD_MSG = {
   stab: ['Time to disappear into the forest 🌲', 'Try not to commit a felony today 🔪', 'Protect your peace. And everyone else\'s.', 'Snacks ready, people at arm\'s length 🐍', 'Today you are the storm. Warn the villagers.'],
-  glow: ['Let\'s go find a sugar daddy ✨', 'Time to go on a date 💋', 'Hair, skin, mood: main character day ✨', 'Take the selfie. Book the thing. Say yes.', 'Siren mode on 🧜‍♀️'],
+  glow: ['Let\'s go find a sugar daddy ✨', 'Time to go on a date 💋', 'Hair, skin, mood: main character day ✨', 'Take the selfie. Book the thing. Say yes.', 'Siren mode on 🧜‍♀️',
+    // dark feminine: strong, unapologetic
+    'You are not too much. They are not enough. 🖤', 'Walk in like you own the building. 🖤', 'Red lipstick. No explanations. 💄', 'Your energy is the dress code today 🌑',
+    'Ask for the raise. Send the email. Take the room.', 'Soft voice, sharp edges. Use both 🗡️', 'Queen of the coven today. Broom optional 🌙', 'You set the price today. No discounts 🖤',
+    'The moon is on your side. Make the move 🌕', 'Be the plot twist 🖤', 'Magnetic, mysterious, a little dangerous. Perfect 🐍', 'Say no without explaining. Say yes without apologising.',
+    'Nobody tells you where to stand today 🌑', 'Glow like you know a secret. You do ✨', 'Let them stare. That\'s what it\'s for 🖤'],
 };
 function moodForecast(d = today()) {
   const ci = cycleInfo(d); if (!ci || ci.onPeriod) return null;
