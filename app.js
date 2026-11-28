@@ -451,7 +451,15 @@ function bindHabits(v, d) {
     if (!o[d]) { o[d] = undefined; b.smoke.slips = b.smoke.slips.filter(y => y !== d); if (b.smoke.prev) { Object.assign(b.smoke, b.smoke.prev); b.smoke.prev = undefined; } toast('Slip undone'); }
     save(); render(); });
   $$('[data-hcfg]', v).forEach(x => x.onclick = () => habitEdit(x.dataset.hcfg));
-  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}; o[d] = Math.max(0, (o[d] || 0) + +n); save(); render(); });
+  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}, was = o[d] || 0; o[d] = Math.max(0, was + +n);
+    if (k === 'alcohol' && o[d] !== was) habDrink(d, +n); save(); render(); });
+}
+// alcohol +1 logs a standard glass of red wine (150 ml, about 125 kcal) as Unplanned; −1 takes the last one off
+const WINE = { name: 'Red wine, 1 glass (150 ml)', kcal: 125, p: .1, c: 3.8, f: 0, fib: 0 };
+function habDrink(d, n) {
+  const L = S.log[d] ||= [];
+  if (n > 0) { L.push(Object.assign({ id: uid(), at: d === today() ? Date.now() : parseDay(d).getTime() + 20 * 36e5, slot: UNPL, g: 0, hab: 'alcohol' }, WINE)); toast('🍷 +125 kcal added to the log'); }
+  else { const i = L.map(e => e.hab).lastIndexOf('alcohol'); if (i >= 0) L.splice(i, 1); }
 }
 function habitEdit(k) {
   const b = B(), c = habCfg(k);
