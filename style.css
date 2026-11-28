@@ -218,3 +218,4 @@ details.fold > summary::-webkit-details-marker { display: none; }
 details.fold[open] > summary { margin-bottom: 8px; }
 .exlive.exdone { opacity: .7; }
 .exlive .note.sm { font-size: .85em; margin-top: 6px; }
+.goal.parked { opacity: .75; }

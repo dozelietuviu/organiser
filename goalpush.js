@@ -15,7 +15,7 @@ const actedIn = (g, key, c) => Object.keys(g.acted || {}).some(d => pkey(d, c) =
 const markActed = g => { if (g) { (g.acted ||= {})[today()] = 1; if (g.nothing) delete g.nothing[pkey(today(), cadence(g))]; } };
 // skipped periods in the window (7 days / 4 weeks / 3 months): "did nothing" taps, plus past periods with nothing logged
 function skippedDays(g, to = today()) {
-  const c = cadence(g), N = CADENCES[c][3], start = g.created ? pkey(g.created, c) : '';
+  const c = cadence(g), N = CADENCES[c][3], from = [g.created, g.resumed].filter(Boolean).sort().pop(), start = from ? pkey(from, c) : ''; // time spent parked doesn't count
   let n = 0;
   for (let i = 0; i < N; i++) { const key = pkey(pBack(to, c, i), c);
     if ((g.nothing || {})[key]) n++;
@@ -32,7 +32,7 @@ function paceGap(g) {
 // 0 = fine, 1 = wobbling, 2 = danger. Deadline windows and skip limits scale with the cadence.
 const DANGER = { day: { near: 21, mid: 45, hard: 3, soft: 4 }, week: { near: 56, mid: 90, hard: 2, soft: 3 }, month: { near: 120, mid: 240, hard: 2, soft: 3 } };
 function goalDanger(g) {
-  if (g.done || g.arch || !g.due) return 0;
+  if (g.done || g.arch || g.later || !g.due) return 0;
   const c = cadence(g), T = DANGER[c], left = daysBetween(today(), g.due), sk = skippedDays(g), behind = paceGap(g);
   if (g.recommit && daysBetween(g.recommit, today()) < 2 && sk < T.soft + 1) return 0;
   if (left < 0) return sk >= 1 ? 2 : 1;
@@ -57,7 +57,7 @@ function goalWarn(g) {
   return `<div class="note ${lv === 2 ? 'warn' : ''} sm gpush">${lv === 2 ? '🚨 <b>Recommit or let it go.</b>' : '⚠ <b>Slipping.</b>'} ${when}${sk ? `, nothing done in ${sk} of the last ${CADENCES[cadence(g)][3]} ${CADENCES[cadence(g)][2]}` : ''}${paceGap(g) > .15 ? `, and you're ${Math.round(paceGap(g) * 100)}% behind the clock` : ''}. ${line}
     <div class="row wrap gap"><button class="mini primary" data-grecommit="${g.id}">🔥 Recommit</button><button class="mini" data-gedit="${g.id}">Move the deadline</button></div></div>`;
 }
-const nothingBtn = g => { if (g.done || g.arch) return ''; const c = cadence(g), on = (g.nothing || {})[pkey(today(), c)];
+const nothingBtn = g => { if (g.done || g.arch || g.later) return ''; const c = cadence(g), on = (g.nothing || {})[pkey(today(), c)];
   return `<button class="mini ${on ? 'on' : ''}" data-gnothing="${g.id}" title="Honest log">😶 Did nothing ${CADENCES[c][0]}</button>`; };
 function bindGoalPush(v) {
   $$('[data-gnothing]', v).forEach(x => x.onclick = () => { const g = gById(x.dataset.gnothing), t = pkey(today(), cadence(g)); g.nothing ||= {};

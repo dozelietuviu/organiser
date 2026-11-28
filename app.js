@@ -933,7 +933,22 @@ function goalBar(g) {
   const p = goalPct(g), fl = goalFlags(g);
   return `<div class="gbar"><i style="width:${(p * 100).toFixed(1)}%"></i>${fl.map(f => `<span class="flag ${p >= f.p - 1e-9 ? 'hit' : ''}" style="left:${(f.p * 100).toFixed(1)}%" title="${esc(f.label)}">⚑</span>`).join('')}</div>`;
 }
+// "Not right now": parked goals wait in their own list, with no warnings or "did nothing" checks.
+// Optional comeback date: on that day the goal returns to the list with a note to check the deadline.
+const LATER_OPTS = [['', 'No date, I\'ll bring it back'], [1, 'In 1 month'], [3, 'In 3 months'], [6, 'In 6 months'], [12, 'In a year']];
+function goalLater(g) {
+  dialog(`<h2>💤 Not right now</h2><p class="muted small">${esc(g.title)} moves to its own list. No warnings and no "Did nothing" while it waits. Progress so far is kept.</p>
+    <label>Bring it back</label><select name="m">${LATER_OPTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`, f => {
+    g.later = today(); const m = +f.m.value;
+    if (m) { const d = parseDay(today()); d.setMonth(d.getMonth() + m); g.laterUntil = iso(d); } else delete g.laterUntil;
+    toast('Parked 💤 It\'ll be here when you\'re ready'); }, 'Not now');
+}
+function goalBack(g, auto) { delete g.later; delete g.laterUntil; g.resumed = today(); g.back = auto ? today() : undefined; markActed(g); }
+function laterWake() { for (const g of G().list) if (g.later && g.laterUntil && g.laterUntil <= today()) { goalBack(g, true); save(); } }
 function goalCard(g) {
+  if (g.later) return `<div class="card goal parked"><div class="row"><div class="gicon">${esc(g.icon || '☆')}</div><div class="grow"><div class="h">${esc(g.title)}</div>
+    <div class="muted small">💤 since ${fmtDay(g.later)}${g.laterUntil ? ` · back ${fmtDay(g.laterUntil)}${g.laterUntil.slice(0, 4) !== today().slice(0, 4) ? ' ' + g.laterUntil.slice(0, 4) : ''}` : ''}</div></div>
+    <button class="mini" data-gback="${g.id}">Bring it back</button></div></div>`;
   const fl = goalFlags(g), p = goalPct(g), hit = fl.filter(f => p >= f.p - 1e-9).length, next = fl.find(f => p < f.p - 1e-9), st = goalStreak(g);
   const photo = G().board.find(x => x.goal === g.id && x.done);
   const smart = [['Specific', g.s], ['Measurable', g.m], ['Achievable', g.a], ['Relevant', g.r]].filter(x => x[1]);
@@ -942,6 +957,7 @@ function goalCard(g) {
     <div class="row"><div class="gicon">${esc(g.icon || '☆')}</div><div class="grow"><div class="h">${esc(g.title)}</div>
       <div class="muted small">${g.done ? '🏆 Achieved ' + fmtDay(g.done) : [dueTxt(g.due), g.due ? 'by ' + fmtDay(g.due) + (g.due.slice(0, 4) !== today().slice(0, 4) ? ' ' + g.due.slice(0, 4) : '') : ''].filter(Boolean).join(' · ')}</div></div>
       <button class="icon" data-gedit="${g.id}" title="Edit">✎</button></div>
+    ${g.back ? `<div class="note info sm">💤 Back from Not right now.${g.due && g.due < addDays(today(), 30) ? ' Check the deadline, it may need moving.' : ''} <button class="mini" data-gbackok="${g.id}">OK</button></div>` : ''}
     ${goalWarn(g)}
     ${photo ? `<div class="polaroid small-p"><img src="${photo.mine || photo.img}" alt=""><div class="cap">${esc(photo.cap || '')}</div></div>` : ''}
     ${goalBar(g)}
@@ -951,7 +967,7 @@ function goalCard(g) {
     ${fl.length ? `<div class="muted small">⚑ ${hit} of ${fl.length} flags${next ? ` · next: ${esc(next.label)}` : ''}${st > 1 ? ` · <span class="fire">🔥</span> ${st} weeks in a row` : ''}</div>` : st > 1 ? `<div class="muted small"><span class="fire">🔥</span> ${st} weeks in a row</div>` : ''}
     ${g.track === 'check' && !g.done ? `<div class="muted small" style="margin-top:8px">Log ${new Date().toLocaleDateString('en-GB', { month: 'long' })}: tap what's done (starts fresh each month)</div><div class="row wrap gap">${(g.checks || []).map((c, i) => `<button class="chip ${ticks.includes(i) ? 'on' : ''}" data-gtick="${g.id}|${i}">${ticks.includes(i) ? '✓ ' : ''}${esc(c)}</button>`).join('')}</div>` : ''}
     ${smart.length ? `<details><summary class="muted small">SMART</summary>${smart.map(([k, t]) => `<div class="small"><b>${k}:</b> ${esc(t)}</div>`).join('')}</details>` : ''}
-    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : g.track === 'weight' ? '<button class="mini primary" data-gweigh="1">＋ Weigh in</button>' : ''}<div class="grow"></div><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div><div class="row gap">${nothingBtn(g)}</div>`}
+    ${g.done ? '' : `<div class="row gap">${['manual', 'habit'].includes(g.track) ? `<button class="mini primary" data-glog="${g.id}">＋ Log ${esc(g.unit || 'progress')}</button>` : g.track === 'weight' ? '<button class="mini primary" data-gweigh="1">＋ Weigh in</button>' : ''}<div class="grow"></div><button class="mini ghost" data-glater="${g.id}">💤 Not now</button><button class="mini" data-gwin="${g.id}">🏆 Achieved</button></div><div class="row gap">${nothingBtn(g)}</div>`}
   </div>`;
 }
 function farCard() {
@@ -996,11 +1012,13 @@ function boardView() {
     ${ar.length ? `<details class="card"><summary>🗄 Archived photos (${ar.length})</summary><div class="board" style="margin-top:10px">${ar.map(polaroid).join('')}</div></details>` : ''}`;
 }
 VIEWS.goals = () => {
-  const L = G().list, arch = L.filter(g => g.arch), open = L.filter(g => !g.done && !g.arch).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done && !g.arch);
+  laterWake();
+  const L = G().list, arch = L.filter(g => g.arch), later = L.filter(g => g.later && !g.done && !g.arch), open = L.filter(g => !g.done && !g.arch && !g.later).sort((a, b) => (a.due || '9').localeCompare(b.due || '9')), won = L.filter(g => g.done && !g.arch);
   return `${farCard()}
     <div class="row" style="margin:-4px 0 12px"><button class="mini ${dowIdx(today()) <= 1 ? 'primary' : ''}" id="gRep">📈 Weekly report${dowIdx(today()) <= 1 ? ' · last week is ready' : ''}</button></div>
     ${open.map(goalCard).join('') || '<div class="card muted">No goals yet. Tap ＋ Goal, or paste the goals Claude sent you in Settings → 📋 Paste data.</div>'}
     <div class="row"><button class="mini" id="gAdd">＋ Goal</button></div>
+    ${later.length ? `<details class="card"><summary>💤 Not right now (${later.length})</summary>${later.map(goalCard).join('')}</details>` : ''}
     ${won.length ? `<details class="card"><summary>🏆 Achieved (${won.length})</summary>${won.map(goalCard).join('')}</details>` : ''}
     ${arch.length ? `<details class="card"><summary>🗄 Archived goals (${arch.length})</summary>${arch.map(goalCard).join('')}</details>` : ''}
     ${boardView()}`;
@@ -1012,6 +1030,9 @@ BIND.goals = v => {
   $$('[data-gedit]', v).forEach(x => x.onclick = () => goalEdit(x.dataset.gedit));
   $$('[data-glog]', v).forEach(x => x.onclick = () => goalLog(x.dataset.glog));
   $$('[data-gwin]', v).forEach(x => x.onclick = () => goalWin(x.dataset.gwin));
+  $$('[data-glater]', v).forEach(x => x.onclick = () => goalLater(gById(x.dataset.glater)));
+  $$('[data-gback]', v).forEach(x => x.onclick = () => { const g = gById(x.dataset.gback); goalBack(g); g.back = today(); save(); render(); toast('Back on your list ✨'); });
+  $$('[data-gbackok]', v).forEach(x => x.onclick = () => { delete gById(x.dataset.gbackok).back; save(); render(); });
   $$('[data-gtick]', v).forEach(x => x.onclick = () => {
     const [id, i] = x.dataset.gtick.split('|'), g = G().list.find(y => y.id === id), m = ym(today()), t = (g.ticks ||= {})[m] ||= [], n = +i;
     t.includes(n) ? t.splice(t.indexOf(n), 1) : t.push(n); markActed(g); S.goalsTouched = today(); save(); render(); });
