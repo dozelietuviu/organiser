@@ -35,6 +35,7 @@ const BODY_SEED = [
   ['Toenails + foot care', 21, ['Feet needed it', 'Done', 'Still fine', 'Not needed']],
   ['Pluck eyebrows', 7, ['Overgrown', 'Done', 'Still neat', 'Barely any']],
   ['Upper lip threading', 21, ['Visible', 'Done', 'Still smooth', 'Barely any']],
+  ['Face mask', 7, ['Skin needed it', 'Done', 'Still glowing', 'Not needed']],
   ['Hair mask', 7, ['Hair felt dry', 'Done', 'Still soft', 'Not needed']],
   ['Wash makeup brushes', 14, ['Really needed it', 'Done', 'Still clean', 'Barely used']],
   ['Fresh pillowcase', 3, ['Needed it', 'Done', 'Still fresh', 'Barely used']],
@@ -42,7 +43,8 @@ const BODY_SEED = [
 ];
 const isBody = c => c.area === 'Body care';
 function seedBody() {
-  if (S.bodySeeded) return; S.bodySeeded = 1; const t = today(), have = new Set(CH().list.map(c => c.name));
+  if (S.bodySeeded && !S.bodyV2) { S.bodyV2 = 1; if (!CH().list.some(c => c.name === 'Face mask')) CH().list.push({ id: uid(), name: 'Face mask', area: 'Body care', gap: 7, fixed: false, must: false, labels: ['Skin needed it', 'Done', 'Still glowing', 'Not needed'], due: addDays(today(), 2), last: addDays(today(), -5), log: [] }); save(); }
+  if (S.bodySeeded) return; S.bodySeeded = S.bodyV2 = 1; const t = today(), have = new Set(CH().list.map(c => c.name));
   BODY_SEED.forEach(([name, gap, set], i) => { if (have.has(name)) return;
     const due = addDays(t, gap <= 2 ? 0 : 1 + (i * 3) % (gap - 1)), fixed = set === 'fixed';
     CH().list.push({ id: uid(), name, area: 'Body care', gap, fixed, must: false, labels: fixed ? null : set.slice(), due, last: addDays(due, -gap), log: [] }); });

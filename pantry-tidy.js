@@ -47,8 +47,43 @@ function cardsIntoPantry() {
     const f = foodById(i.foodId); if (!f || f.kind === 'item' || f.hidden) continue;
     if (!f.sname) f.sname = plainName(f);
     guessBuyUnit(f);
-    if (!S.pantry[f.id]) { S.pantry[f.id] = { place: f.place || guessPlace(f), qty: 0, have: false }; added++; }
+    if (!S.pantry[f.id] && !f.stockAs && !joinGroup(f)) { S.pantry[f.id] = { place: f.place || guessPlace(f), qty: 0, have: false }; added++; }
   }
   if (added) save();
   return added;
+}
+
+// ---- generic pantry ----
+// One pantry line per kind of food: "Milk" covers milk 2.5% and 3.2%, "Cottage cheese" covers plain and grains,
+// "Greek yoghurt" covers 2% and 10%. The recipes keep their exact food (for the nutrition); the stock is shared.
+// f.stockAs = the id of the food that holds the shared pantry line. Prepped and cooked foods stay separate.
+// Something specific you want kept apart: add it under Shop › Other / one-off.
+function genericName(f) {
+  let n = String(f.sname || plainName(f)).replace(/\([^)]*\)/g, ' ').replace(/\d+[.,]?\d*\s*%/g, ' ')
+    .replace(/\b(light|lite|grains|low[- ]fat|full[- ]fat|semi[- ]skimmed|skimmed|lean|drained|in oil|in water|in brine|natural|plain|extra)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  return n ? n.charAt(0).toUpperCase() + n.slice(1) : sn(f);
+}
+const genKey = f => genericName(f).toLowerCase().replace(/s\b/g, '');
+const canGroup = f => !!f && f.kind !== 'item' && f.kind !== 'recipe' && !f.prep && !f.buyAs;
+const pid = id => { const f = foodById(id); return f && f.stockAs && foodById(f.stockAs) ? f.stockAs : id; };
+// join a food to an existing pantry line of the same kind (returns true if it did)
+function joinGroup(f) {
+  if (!canGroup(f) || f.stockAs || f.ownLine) return false; const k = genKey(f);
+  const host = Object.keys(S.pantry).map(foodById).find(h => h && h.id !== f.id && !h.stockAs && canGroup(h) && genKey(h) === k);
+  if (!host) return false;
+  f.stockAs = host.id; host.gname = genericName(host);
+  const mine = S.pantry[f.id]; if (mine) { const hp = S.pantry[host.id];
+    if (mine.have !== false && mine.qty) { hp.qty = r1((hp.have === false ? 0 : hp.qty || 0) + mine.qty); hp.have = true; } delete S.pantry[f.id]; }
+  return true;
+}
+function pantryGenericV1() {
+  if (S.pantryGeneric) return; S.pantryGeneric = 1;
+  // the line with stock (or the most used one) becomes the host
+  const used = id => (S.cards || []).filter(c => c.items.some(i => i.foodId === id)).length;
+  const ids = Object.keys(S.pantry).filter(id => canGroup(foodById(id)))
+    .sort((a, b) => (pantryQty(b) > 0) - (pantryQty(a) > 0) || used(b) - used(a));
+  for (const id of ids) { const f = foodById(id); if (f && S.pantry[id]) joinGroup(f); }
+  // cooked versions get ", cooked" so they don't look like a second "Buckwheat"
+  for (const f of S.foods) if (f.buyAs && !/cooked/i.test(sn(f))) f.gname = `${genericName(f)}, cooked`;
+  save();
 }

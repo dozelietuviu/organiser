@@ -53,7 +53,7 @@ function prepFoodDone(f, j) {
   const p = S.pantry[f.id] ||= { place: f.place || 'Fridge', qty: 0, have: true };
   const old = prepStale(f) ? 0 : Math.min(p.qty || 0, 1e9), k = j ? Math.max(1, Math.ceil((j.need - old) / prepMakes(f))) : 1, mk = prepMakes(f) * k;
   p.qty = r1(old + mk); p.have = true; p.made = today();
-  const take = (id, g) => { const q = S.pantry[id]; if (q && q.qty != null) { q.qty = Math.max(0, r1(q.qty - g)); if (!q.qty) q.have = false; } };
+  const take = (id, g) => { const q = S.pantry[pid(id)]; if (q && q.qty != null) { q.qty = Math.max(0, r1(q.qty - g)); if (!q.qty) q.have = false; } };
   for (const i of f.items || []) take(i.foodId, i.g * k);
   return k;
   if (f.buyAs) { const raw = S.foods.find(x => x.key === f.buyAs.key); if (raw) take(raw.id, mk * f.buyAs.ratio); }

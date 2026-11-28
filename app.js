@@ -295,7 +295,7 @@ function freezerFor(day) {
   const names = new Set();
   for (const slot of PLAN_SLOTS) for (const c of mealCards(day, slot)) {
     if (isCooked(day, slot)) continue;
-    for (const i of c.items) { const f = foodById(i.foodId); const pi = f && S.pantry[f.id]; if (pi && pi.place === 'Freezer' && pantryHas(f.id)) names.add(f.name); }
+    for (const i of c.items) { const f = foodById(i.foodId); const pi = f && S.pantry[pid(f.id)]; if (pi && pi.place === 'Freezer' && pantryHas(f.id)) names.add(f.name); }
   }
   return [...names];
 }
@@ -1916,8 +1916,8 @@ function stockText(f, qty) {
 }
 const stepOf = f => { const { su, g } = suOf(f); return su === 'g' ? 100 : g; };
 const defaultQty = f => { const { su, g } = suOf(f); return su === 'g' ? (f.packG || 500) : (f.packG > g ? Math.max(1, Math.round(f.packG / g)) * g : g); };
-const pantryHas = id => { const p = S.pantry[id]; return !!p && p.have !== false && (p.qty == null || p.qty > 0); };
-const pantryQty = id => { const p = S.pantry[id]; if (!p || p.have === false || (p.made && prepStale(foodById(id) || {}))) return 0; return p.qty == null ? Infinity : p.qty; };
+const pantryHas = id => { id = pid(id); const p = S.pantry[id]; return !!p && p.have !== false && (p.qty == null || p.qty > 0); };
+const pantryQty = id => { id = pid(id); const p = S.pantry[id]; if (!p || p.have === false || (p.made && prepStale(foodById(id) || {}))) return 0; return p.qty == null ? Infinity : p.qty; };
 function fixPantryAmounts() { for (const [id, p] of Object.entries(S.pantry)) { const f = foodById(id); if (f && p.qty == null) p.qty = p.have === false ? 0 : defaultQty(f); } }
 function haveText(c) {
   const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean);
@@ -1950,7 +1950,7 @@ function pantryEdit(f, isAdd) {
     <label class="row tick"><input type="checkbox" name="alw" ${isAlways(f) ? 'checked' : ''}> ★ Always in the house: add to shopping when low</label>
     ${isAdd ? '' : '<p class="row wrap gap"><button class="mini" id="macP">Edit macros</button><button class="del mini" id="rmP">Remove from pantry</button></p>'}`, b => {
     if (b.alw.checked !== isAlways(f)) { S.always ||= {}; S.always[f.key || f.id] = b.alw.checked; }
-    const nm = b.nm.value.trim(); if (nm && nm !== sn(f)) { f.name = f.sname = nm; f.edited = true; }
+    const nm = b.nm.value.trim(); if (nm && nm !== sn(f)) { if (f.gname) f.gname = nm; else f.name = f.sname = nm; f.edited = true; }
     const nsu = b.su.value.trim() || 'g', ng = nsu === 'g' ? 1 : (num(b.sug.value) || 1);
     if (nsu !== su || ng !== g) { f.su = nsu; f.suG = ng; f.edited = true; }
     const qty = num(b.amt.value) * ng;
@@ -1997,9 +1997,9 @@ const portions = (d, slot, c) => { const w = whoOf(d, slot); return (w.includes(
 const batchesFor = (c, mult, stock) => stock >= mult - .01 ? 0 : Math.ceil((mult - stock) / c.batch.serv - 1e-9);
 function useUp(card, mult = 1) {
   if (isBatch(card)) { const b = card.batch, st = b.left || 0, n = batchesFor(card, mult, st);
-    for (const i of card.items) { const p = S.pantry[i.foodId]; if (!n || !p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * n); if (!p.qty) p.have = false; }
+    for (const i of card.items) { const p = S.pantry[pid(i.foodId)]; if (!n || !p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * n); if (!p.qty) p.have = false; }
     b.left = Math.max(0, r1(st + n * b.serv - mult)); return; }
-  for (const i of card.items) { const p = S.pantry[i.foodId]; if (!p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * mult); if (!p.qty) p.have = false; }
+  for (const i of card.items) { const p = S.pantry[pid(i.foodId)]; if (!p || p.qty == null) continue; p.qty = Math.max(0, p.qty - i.g * mult); if (!p.qty) p.have = false; }
 }
 // main protein of a card, for "don't repeat the same meat two dinners in a row"
 function protGroup(c) {
@@ -2171,6 +2171,8 @@ function planNeed(days, emergency = false) {
   return need;
 }
 function needsToList(need) {
+  // one line per kind of food (milk 2.5% and 3.2% -> Milk)
+  for (const [id, g] of Object.entries({ ...need })) { const h = pid(id); if (h !== id) { delete need[id]; need[h] = (need[h] || 0) + g; } }
   // cooked foods (e.g. cooked buckwheat) are bought dry: convert, after using what's already cooked in the pantry
   for (const [id, g] of Object.entries({ ...need })) {
     const f = foodById(id); if (!f || !f.buyAs) continue;
@@ -2190,7 +2192,7 @@ function needsToList(need) {
 }
 const REG_CATS = ['Food', 'Jonas snacks', 'Drinks', 'Cat', 'Household'];
 // shopping name: generic, no brand (e.g. "Yoghurt snacks"); foods sharing one are a single line/chip
-const sn = f => f.sname || f.name;
+const sn = f => f.gname || f.sname || f.name; // gname: the generic pantry name (pantry-tidy.js)
 const xName = x => { const f = x.key && S.foods.find(y => (y.key || y.id) === x.key); return f ? sn(f) : x.name; };
 const allRegulars = () => { const seen = new Set(); return S.foods.filter(f => f.regular && !seen.has(sn(f)) && seen.add(sn(f))).map(f => ({ key: f.key || f.id, id: f.id, name: sn(f), cat: f.cat || 'Food', price: f.price || 0 })); };
 // regulars unticked (run out) in the pantry and not already on the list
@@ -2446,7 +2448,7 @@ function openSettings() {
 
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
-seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs(); fixCardsV1(); prepSetupV1(); seedBody();
+seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs(); fixCardsV1(); prepSetupV1(); seedBody(); pantryGenericV1();
 // goals made before 'did nothing' existed start counting from today, so their past isn't held against them
 if ((G().list || []).some(g => !g.created)) { G().list.forEach(g => { g.created ||= today(); }); save(); }
 VIEWS.beauty = beautyView; BIND.beauty = bindBeauty;
