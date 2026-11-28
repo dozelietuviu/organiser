@@ -5,7 +5,8 @@
    - Household chores and prep jobs rest. On the way home every household chore's clock moves on by the
      days you were away (a flat nobody lives in doesn't get dirty). Plants and Admin (rent, bills) keep
      their real dates. Body care, beauty, sleep, water and vitamins carry on as normal.
-   - Food logging is just "🍽 Ate" (no weighing): it counts how often you ate. Holiday days don't count
+   - Food logging is just "🍽 Ate" (no weighing): it counts how often you ate, and gives two simple notes:
+     5 h or more since you last ate, or eating again within 2 h. Holiday days don't count
      in calories, energy, the weekly report or the maintenance estimate, and give no food warnings.
    - The cat is at the hotel (or a sitter feeds her at home): no feeding or litter.
    - Goals don't count holiday days as "did nothing".
@@ -52,9 +53,15 @@ function holidayCard(d) {
   if (!onHoliday(d)) return '';
   const ate = (S.log[d] || []).filter(e => e.name === HOL_ATE).length;
   const vt = (S.body && B().vit[d]) || {}, vits = S.body ? B().vitSlots.flatMap(sl => sl.items.filter(it => vitDue(it, d))) : [];
+  // two simple food notes while away: a long gap (5 h+), or eating again within 2 h (grazing)
+  const ats = (S.log[d] || []).filter(e => e.hol).map(e => e.at).sort((a, b) => a - b), now = Date.now(), H = 36e5;
+  const lastT = typeof lastAte === 'function' ? lastAte() : ats[ats.length - 1];
+  const gapNote = d === t && dayStarted() && new Date().getHours() < 22 && lastT && now - lastT >= 5 * H ? `<div class="note warn sm">⏰ ${Math.floor((now - lastT) / H)} h since you last ate. Time for something small.</div>` : '';
+  const grazeNote = d === t && ats.length >= 2 && ats[ats.length - 1] - ats[ats.length - 2] < 2 * H && now - ats[ats.length - 1] < 2 * H ? '<div class="note info sm">🍓 That was less than 2 h after the last time. Give it a little break before the next one.</div>' : '';
   return `<div class="card holiday"><div class="row"><h2 class="grow">✈️ On holiday ✿</h2>${h && d === t ? '<button class="mini" id="holHome">🏠 I\'m home</button>' : ''}</div>
     <p class="muted small">${h && h.to ? `Back ${fmtDay(addDays(h.to, 1))}` : 'Back whenever you are'} · chores, prep and food counting are resting.</p>
     <div class="row"><button class="primary" id="holAte">🍽 Ate</button><span class="grow muted small">${ate ? `${ate}× today` : 'Tap whenever you eat, no weighing'}</span>${ate ? '<button class="mini ghost" id="holAteUndo">Undo</button>' : ''}</div>
+    ${gapNote}${grazeNote}
     ${vits.length ? `<div class="chips vitrow"><span class="muted small">💊</span>${vits.map(it => `<button class="chip sm ${vt[it.id] ? 'on' : ''}" data-vit="${it.id}">${vt[it.id] ? '✓ ' : ''}${esc(it.name)}</button>`).join('')}</div>` : ''}</div>`;
 }
 function bindHoliday(v) {
