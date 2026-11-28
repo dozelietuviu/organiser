@@ -1927,15 +1927,15 @@ function haveText(c) {
 VIEWS.pantry = () => {
   cardsIntoPantry(); fixPantryAmounts();
   const ids = Object.keys(S.pantry).filter(id => foodById(id) && !foodById(id).hidden);
-  return `<div class="card"><div class="row"><p class="muted small grow">Use − and + as things get used. Low and run-out items turn coral. Items marked ★ always in the house go on the shopping list by themselves. Cooking a card takes its ingredients off.</p><button class="primary mini" id="addP">+ Add</button></div></div>
+  return `<div class="card"><div class="row"><p class="muted small grow">Tap <b>Low</b> when it's nearly gone (2 cups of buckwheat left) or <b>Out</b> when it's finished: it goes on the shopping list by itself. Ticking it off there sets it back to ✓. Tap a name for the exact amount.</p><button class="primary mini" id="addP">+ Add</button></div></div>
   ${PLACES.map(pl => { const list = ids.filter(id => (S.pantry[id].place || foodById(id).place) === pl).map(foodById).sort((a, b) => sn(a).localeCompare(sn(b)));
     return `<div class="card"><h2>${pl === 'Freezer' ? '❄︎ ' : ''}${pl}</h2>${list.length ? `<ul class="list">${list.map(f => { const p = S.pantry[f.id], has = pantryHas(f.id);
       const lv = stockLevel(f);
-      return `<li class="${lv}"><div class="grow" data-pe="${f.id}">${esc(sn(f))}${isAlways(f) ? ' <span class="alw" title="Always in the house">★</span>' : ''}${lv === 'low' ? ' <span class="lvl">low</span>' : ''}${isPrepped(f) && keepsTill(f) && has ? prepStale(f) ? ' <span class="lvl">past its date</span>' : ` <span class="muted small">keeps till ${DOW(keepsTill(f))}</span>` : ''}</div><button class="mini" data-q="${f.id}|-1">−</button><span class="qty">${has ? stockText(f, p.qty) : 'out'}</span><button class="mini" data-q="${f.id}|1">+</button></li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
+      return `<li class="${lv}"><div class="grow" data-pe="${f.id}">${esc(sn(f))}${isAlways(f) ? ' <span class="alw" title="Always in the house">★</span>' : ''}${lv === 'low' ? ' <span class="lvl">low</span>' : ''}${isPrepped(f) && keepsTill(f) && has ? prepStale(f) ? ' <span class="lvl">past its date</span>' : ` <span class="muted small">keeps till ${DOW(keepsTill(f))}</span>` : ''}${has && p.qty != null && p.qty < 1e9 ? `<div class="muted small">${stockText(f, p.qty)}</div>` : ''}</div>${['ok', 'low', 'out'].map(k => `<button class="chip sm st-${k} ${lv === k || (!lv && k === 'ok') ? 'on' : ''}" data-st="${f.id}|${k}">${{ ok: '✓', low: 'Low', out: 'Out' }[k]}</button>`).join('')}</li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
 };
 BIND.pantry = v => {
   $('#addP', v).onclick = () => pantryAdd();
-  $$('[data-q]', v).forEach(b => b.onclick = () => { const [id, d] = b.dataset.q.split('|'); const f = foodById(id), p = S.pantry[id]; p.qty = Math.max(0, r1((p.qty || 0) + stepOf(f) * +d)); p.have = p.qty > 0; save(); render(); });
+  $$('[data-st]', v).forEach(b => b.onclick = () => { const [id, k] = b.dataset.st.split('|'); setStock(foodById(id), k); save(); render(); if (k !== 'ok') toast('On the shopping list ✓'); });
   $$('[data-pe]', v).forEach(el => el.onclick = () => pantryEdit(foodById(el.dataset.pe)));
 };
 function pantryEdit(f, isAdd) {
@@ -2197,8 +2197,17 @@ const xName = x => { const f = x.key && S.foods.find(y => (y.key || y.id) === x.
 const allRegulars = () => { const seen = new Set(); return S.foods.filter(f => f.regular && !seen.has(sn(f)) && seen.add(sn(f))).map(f => ({ key: f.key || f.id, id: f.id, name: sn(f), cat: f.cat || 'Food', price: f.price || 0 })); };
 // regulars unticked (run out) in the pantry and not already on the list
 // stock level: 'out', 'low' (part of the last pack left, 150 g loose, 3 cat food, 2 rolls) or ''
+// ✓ / Low / Out from the pantry. Low and Out that you mark yourself go on the shopping list (Running low),
+// whether or not it's an always-in-the-house item. Cooking still takes grams off in the background.
+function setStock(f, k) {
+  const p = S.pantry[f.id], { g } = suOf(f), pack = g > 1 ? g : defaultQty(f) || 500;
+  if (k === 'ok') { delete p.mark; p.have = true; if (p.qty != null && p.qty < pack) p.qty = pack; }
+  else if (k === 'low') { p.mark = 'low'; p.have = true; p.qty = p.qty == null ? null : Math.max(1, Math.min(p.qty || pack, r1(pack * .3))); }
+  else { p.mark = 'out'; p.have = false; p.qty = 0; }
+}
 function stockLevel(f) {
   const p = S.pantry[f.id]; if (!p) return '';
+  if (p.mark === 'low' && pantryHas(f.id)) return 'low';
   if (!pantryHas(f.id)) return 'out';
   if (p.qty == null) return '';
   const { su, g } = suOf(f);
@@ -2211,10 +2220,10 @@ function stockLevel(f) {
 const isAlways = f => S.always && (f.key || f.id) in S.always ? S.always[f.key || f.id] : !!f.always;
 // worst stock level among pantry foods sharing a shopping name (for the Regulars chips)
 const regLevel = name => { const lv = S.foods.filter(f => !f.hidden && sn(f) === name).map(stockLevel); return lv.includes('out') ? 'out' : lv.includes('low') ? 'low' : ''; };
-const restock = () => { const seen = new Set(); return S.foods.filter(f => !f.hidden && isAlways(f) && S.pantry[f.id] && stockLevel(f) && !(S.extras || []).some(x => xName(x) === sn(f)) && !seen.has(sn(f)) && seen.add(sn(f))); };
+const restock = (skip = []) => { const seen = new Set(skip.map(x => sn(x.f))); return S.foods.filter(f => !f.hidden && (isAlways(f) || (S.pantry[f.id] || {}).mark) && S.pantry[f.id] && stockLevel(f) && !(S.extras || []).some(x => xName(x) === sn(f)) && !seen.has(sn(f)) && seen.add(sn(f))); };
 const regCats = () => { const m = {}; for (const r of allRegulars()) (m[r.cat] ||= []).push(r); return [...REG_CATS, ...Object.keys(m).filter(c => !REG_CATS.includes(c))].filter(c => m[c]).map(c => [c, m[c]]); };
 VIEWS.shop = () => {
-  const items = shoppingNeeds(), extras = S.extras || [], rs = restock(), xTotal = extras.reduce((a, x) => a + (x.price || 0) * x.qty, 0) + rs.reduce((a, f) => a + (f.price || 0), 0);
+  const items = shoppingNeeds(), extras = S.extras || [], rs = restock(items), xTotal = extras.reduce((a, x) => a + (x.price || 0) * x.qty, 0) + rs.reduce((a, f) => a + (f.price || 0), 0);
   const byShop = SHOPS.map(s => [s, items.filter(x => (x.f.shop || 'Lidl') === s)]).filter(([, l]) => l.length);
   const total = items.reduce((a, x) => a + (x.cost || 0), 0) + xTotal, missing = items.filter(x => !x.cost).length;
   const ticked = S.bought[UI.week] || {};
@@ -2224,7 +2233,7 @@ VIEWS.shop = () => {
   ${byShop.length ? byShop.map(([s, l]) => { const st = l.reduce((a, x) => a + (x.cost || 0), 0);
     return `<div class="card"><div class="row"><h2 class="grow">${s}</h2><span class="muted">${st ? '≈ ' + eur(st) : ''}</span></div><ul class="list">${l.map(x => `<li class="${ticked[x.f.id] ? 'done' : ''}"><input type="checkbox" data-buy="${x.f.id}" ${ticked[x.f.id] ? 'checked' : ''}><div class="grow">${esc(sn(x.f))}<div class="muted small">${x.packs ? `${x.packs} × ${x.f.packG} g` : amountText(x.f, x.g)}${x.cost ? ' · ≈ ' + eur(x.cost) : ''}</div></div></li>`).join('')}</ul></div>`; }).join('')
     : '<div class="card"><p class="muted">Nothing to buy. Plan some meals first, or your pantry already covers them.</p></div>'}
-  ${rs.length ? `<div class="card"><div class="row"><h2 class="grow">Running low</h2><span class="muted small">always in the house</span></div><ul class="list">${rs.map(f => `<li><input type="checkbox" data-rs="${f.id}"><div class="grow">${esc(sn(f))}<div class="muted small">${esc(f.place || '')}${f.price ? ' · ≈ ' + eur(f.price) : ''}</div></div></li>`).join('')}</ul><p class="muted small">Tick when bought and it goes back in the pantry.</p></div>` : ''}
+  ${rs.length ? `<div class="card"><div class="row"><h2 class="grow">Running low</h2><span class="muted small">from the pantry</span></div><ul class="list">${rs.map(f => `<li><input type="checkbox" data-rs="${f.id}"><div class="grow">${esc(sn(f))}<div class="muted small">${esc(f.place || '')}${f.price ? ' · ≈ ' + eur(f.price) : ''}</div></div></li>`).join('')}</ul><p class="muted small">Tick when bought and it goes back in the pantry.</p></div>` : ''}
   <div class="card"><div class="row"><h2 class="grow">Also buy</h2><span class="muted">${xTotal ? '≈ ' + eur(xTotal) : ''}</span></div>
     ${extras.length ? `<ul class="list">${extras.map(x => `<li><input type="checkbox" data-xgot="${x.id}"><div class="grow">${esc(xName(x))}<div class="muted small">${esc(x.cat)}${x.price ? ' · ≈ ' + eur(x.price * x.qty) : ''}</div></div><button class="mini" data-xm="${x.id}">−</button><span class="qty">${x.qty}</span><button class="mini" data-xq="${x.id}">+</button><button class="icon del" data-xdel="${x.id}" aria-label="Remove">✕</button></li>`).join('')}</ul><p class="muted small">Tick it when it's in the basket and it disappears. − or ✕ fixes a wrong tap.</p>` : '<p class="muted small">Tap regulars below (coral = low or out at home), or type anything (light bulbs…).</p>'}
     <div class="row"><input id="xt" class="grow" placeholder="Misc: e.g. light bulbs"><button class="mini" id="xa">Add</button></div></div>
@@ -2253,7 +2262,7 @@ BIND.shop = v => {
   $$('[data-xm]', v).forEach(b => b.onclick = () => { const x = S.extras.find(y => y.id === b.dataset.xm); if (--x.qty < 1) S.extras = S.extras.filter(y => y !== x); save(); render(); });
   $$('[data-xdel]', v).forEach(b => b.onclick = () => { S.extras = S.extras.filter(y => y.id !== b.dataset.xdel); save(); render(); });
   $$('[data-xgot]', v).forEach(c => c.onchange = () => { S.extras = S.extras.filter(x => x.id !== c.dataset.xgot); save(); toast('Got it ✓'); render(); });
-  $$('[data-rs]', v).forEach(c => c.onchange = () => { const p = S.pantry[c.dataset.rs]; const f = foodById(c.dataset.rs); p.have = true; p.qty = (p.qty || 0) + defaultQty(f); save(); toast('Back in the pantry ✓'); render(); });
+  $$('[data-rs]', v).forEach(c => c.onchange = () => { const p = S.pantry[c.dataset.rs]; const f = foodById(c.dataset.rs); delete p.mark; p.have = true; p.qty = (p.qty || 0) + defaultQty(f); save(); toast('Back in the pantry ✓'); render(); });
   $('#myReg', v).onclick = () => dialog(`<h2>Add a regular</h2><label>Name</label><input name="n" placeholder="e.g. Oat milk"><div class="row"><div class="grow"><label>Group</label><select name="c">${REG_CATS.map(c => `<option>${c}</option>`).join('')}</select></div><div class="grow"><label>Kept in</label><select name="pl">${PLACES.map(c => `<option>${c}</option>`).join('')}</select></div></div><label>Price € (optional)</label><input name="p" inputmode="decimal"><p class="muted small">It goes in your pantry too. Untick it there when it runs out and it lands on this list.</p>`, b => {
     if (!b.n.value.trim()) return false;
     const f = { id: uid(), key: 'my-' + uid(), kind: ['Food', 'Jonas snacks'].includes(b.c.value) ? 'food' : 'item', name: b.n.value.trim(), cat: b.c.value, place: b.pl.value, price: num(b.p.value) || 0, regular: true, shop: 'Lidl', kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
@@ -2261,7 +2270,7 @@ BIND.shop = v => {
   const pa = $('#putAway', v);
   if (pa) pa.onclick = () => {
     const t = S.bought[UI.week] || {}, items = shoppingNeeds();
-    for (const x of items) if (t[x.f.id]) { const p = S.pantry[x.f.id] ||= { place: x.f.place || 'Cupboard', qty: 0, have: true }; if (p.qty != null) p.qty += x.packs ? x.packs * x.f.packG : x.g; p.have = true; }
+    for (const x of items) if (t[x.f.id]) { const p = S.pantry[x.f.id] ||= { place: x.f.place || 'Cupboard', qty: 0, have: true }; delete p.mark; if (p.qty != null) p.qty += x.packs ? x.packs * x.f.packG : x.g; p.have = true; }
     S.bought[UI.week] = {}; save(); toast('In the pantry ✓'); render();
   };
 };

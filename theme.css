@@ -194,3 +194,7 @@ body.px .tabs button.on { color: var(--accent); }
 .mood-sleepy .petlcd .fx { animation: zz 2s steps(2) infinite; }
 .fx-sick { animation: twinkle .7s steps(2) infinite; }
 .mood-happy .petlcd, .mood-glow .petlcd { animation: none; }
+/* pantry ✓ / Low / Out: ✓ calm, Low amber, Out coral */
+body.px .chip.st-ok.on { background: var(--accent-soft, #dfe3ff); color: inherit; }
+body.px .chip.st-low.on { background: #f4c46a; border-color: #c98f1d; color: #3a2a05; }
+body.px .chip.st-out.on { background: #ff7a7a; border-color: #d94b4b; color: #fff; }

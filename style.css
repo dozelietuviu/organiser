@@ -219,3 +219,7 @@ details.fold[open] > summary { margin-bottom: 8px; }
 .exlive.exdone { opacity: .7; }
 .exlive .note.sm { font-size: .85em; margin-top: 6px; }
 .goal.parked { opacity: .75; }
+/* pantry ✓ / Low / Out */
+.chip.st-ok, .chip.st-low, .chip.st-out { padding: 4px 9px; margin-left: 4px; }
+.chip.st-low.on { background: #f4c46a; border-color: #c98f1d; color: #3a2a05; }
+.chip.st-out.on { background: var(--warn, #ff6b6b); border-color: var(--warn, #ff6b6b); color: #fff; }
