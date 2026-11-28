@@ -155,7 +155,9 @@ function beautyView() {
       <p class="muted small">Next around ${fmtDay(rs.due)} (every ~${r1(rs.g.days / 7)} weeks, ${rs.g.how})${rs.appt ? ` · 📅 booked ${fmtDay(rs.appt)}` : ` · book by ${fmtDay(rs.bookBy)}`}</p>
       ${rs.checkDue ? `<div class="note sm">Roots check: how do they look?<div class="chips">${[['fine', 'Fine'], ['showing', 'Showing'], ['need', 'Need it now']].map(([k, l]) => `<button class="chip sm" data-root="${k}">${l}</button>`).join('')}</div></div>` : rs.lastCheck ? `<p class="muted small">Last check ${fmtDay(rs.lastCheck.d)}: ${{ fine: 'fine', showing: 'showing', need: 'need it now' }[rs.lastCheck.k]}</p>` : ''}`
     : '<p class="muted small">Log your last colour to start. The app starts from 6 weeks and learns your real gap.</p>'}
-    <div class="row wrap gap"><button class="mini primary" id="hDone">💇 Coloured today</button><button class="mini" id="hPast">Earlier date</button><button class="mini" id="hBook">${rs && rs.appt ? 'Change booking' : '📅 Booked'}</button></div></div>
+    ${apptPast() ? `<div class="note sm">📅 Hairdresser was booked for ${fmtDay(b.hair.appt)}. Did it happen?<div class="chips"><button class="chip sm on" data-appt="yes">Yes, coloured that day</button><button class="chip sm" data-appt="moved">Moved it</button><button class="chip sm" data-appt="no">Didn't go</button></div></div>`
+      : !rs && b.hair.appt ? `<p class="muted small">📅 Booked ${fmtDay(b.hair.appt)}</p>` : ''}
+    <div class="row wrap gap"><button class="mini primary" id="hDone">💇 Coloured today</button><button class="mini" id="hPast">Earlier date</button><button class="mini" id="hBook">${b.hair.appt && b.hair.appt >= t ? 'Change booking' : '📅 Booked'}</button></div></div>
   <div class="card"><div class="row"><h2 class="grow">Products</h2><button class="mini" id="pAdd">+ Product</button></div>
     <p class="muted small">Tap one: opened, finished, running low, bought a spare. It learns how long each lasts and adds it to Shop › Also buy before it runs out.</p>
     ${prods.map(([c, l]) => `<h3>${c}</h3><ul class="list">${l.map(pLine).join('')}</ul>`).join('')}</div>`;
@@ -173,6 +175,8 @@ function bindBeauty(v) {
   const colour = d => { if (!b.hair.colours.includes(d)) b.hair.colours.push(d); b.hair.appt = null; save(); render(); toast('Coloured ✓'); };
   $('#hDone', v).onclick = () => colour(t);
   $('#hPast', v).onclick = () => dialog(`<h2>Coloured on</h2><input type="date" name="d" value="${t}">`, f => { if (f.d.value) colour(f.d.value); });
+  $$('[data-appt]', v).forEach(x => x.onclick = () => { const k = x.dataset.appt, d = b.hair.appt;
+    if (k === 'yes') colour(d); else if (k === 'no') { b.hair.appt = null; save(); render(); } else $('#hBook', v).click(); });
   $('#hBook', v).onclick = () => dialog(`<h2>Hairdresser booked</h2><label>Date</label><input type="date" name="d" value="${(rootsState() || {}).due || t}">`, f => { b.hair.appt = f.d.value || null; });
   $('#hEdit', v).onclick = () => { const body = dialog(`<h2>Roots</h2><label>Starting guess, weeks</label><input name="w" inputmode="decimal" value="${r1(b.hair.start / 7)}"><label>Remind me to book, days ahead</label><input name="lead" inputmode="numeric" value="${b.hair.lead}">
     <h3>Colours</h3><ul class="list">${b.hair.colours.slice().sort().reverse().map(d => `<li><div class="grow">${fmtDay(d)}</div><button class="mini del" data-hdel="${d}">✕</button></li>`).join('') || '<li class="muted small">None yet</li>'}</ul>`, f => {
@@ -243,12 +247,17 @@ function prodEdit(p) {
   });
   const del = $('#pDel', body); if (del) del.onclick = e => { e.preventDefault(); if (!confirmInline(del)) return; b.products = b.products.filter(x => x !== p); save(); closeDlg(); render(); };
 }
+// a booking that has passed (up to 2 weeks ago) and hasn't been logged as a colour yet
+const apptPast = () => { const a = BEA().hair.appt; return !!a && a < today() && daysBetween(a, today()) <= 14 && !BEA().hair.colours.includes(a); };
 // Today: one quiet line, only when something is waiting (routine for this part of the day, roots check, booking)
 function beautyToday(d) {
   if (d !== today() || !S.beauty || !dayStarted()) return ''; const w = nowWhen(), left = routineLeft(w).length, all = routine(w).length, rs = rootsState(), bits = [];
   if (left) bits.push(`${w === 'am' ? '☀️ Morning' : '🌙 Evening'} routine ${all - left}/${all}`);
   if (rs && rs.checkDue) bits.push('roots check');
-  if (rs && !rs.appt && today() >= rs.bookBy) bits.push('<b>book the hairdresser</b>');
+  const ap = BEA().hair.appt, ad = ap ? daysBetween(today(), ap) : null;
+  if (ad === 0) bits.push('<b>💇 hairdresser today</b>'); else if (ad === 1) bits.push('<b>💇 hairdresser tomorrow</b>'); else if (ad > 1 && ad <= 3) bits.push(`💇 hairdresser ${DOW(ap)}`);
+  else if (apptPast()) bits.push('did the hairdresser happen?');
+  else if (rs && !rs.appt && !ap && today() >= rs.bookBy) bits.push('<b>book the hairdresser</b>');
   return bits.length ? `<div class="card compact" data-gobeauty><div class="row"><div class="grow">💄 ${bits.join(' · ')}</div><span class="muted">›</span></div></div>` : '';
 }
 const bindBeautyToday = v => { const x = $('[data-gobeauty]', v); if (x) x.onclick = () => go('beauty'); };
