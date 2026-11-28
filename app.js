@@ -432,10 +432,13 @@ function habitRows(d) {
       if (n) return `<div class="row pslot"><div class="grow">${head}<div class="muted small warnc">Slipped ${d === today() ? 'today' : 'this day'} · ${n} smoked${wk > n ? ` · ${wk} this week` : ''} · best ${smk.best || 0} days</div></div><button class="mini" data-smk="-1">−</button><span class="qty">${n}</span><button class="mini" data-smk="1">+</button></div>`;
       return `<div class="row pslot"><div class="grow">${head}<div class="muted small">${smk ? `${sf} day${sf === 1 ? '' : 's'} · best ${Math.max(smk.best || 0, sf)}` : 'Not started'}${wk ? ` · ${wk} smoked this week` : ''}${c.note ? ' · ' + esc(c.note) : ''}</div></div><button class="mini ghost" id="slip">${smk ? 'I slipped' : 'Start today'}</button></div>`; }
     const today_n = (b[k] || {})[d] || 0, tot = habCount(k, d), over = c.limit && tot > c.limit;
+    // alcohol: each drinking day has an occasion; "freestyle" days get a ❗
+    const free = k === 'alcohol' ? Array.from({ length: 7 }, (_, i) => addDays(d, -i)).filter(x => (b[k] || {})[x] && (b.drinkWhy || {})[x] === 'free').length : 0;
+    const why = k === 'alcohol' && today_n ? (b.drinkWhy || {})[d] : '';
     const per = c.per === 'day' ? 'today' : c.per === 'week' ? 'this week' : 'this month';
     const lim = c.limit ? `${c.limit} a ${c.per}` : '';
-    return `<div class="row pslot"><div class="grow">${head}<div class="muted small ${over ? 'warnc' : ''}">${[lim, c.note && esc(c.note), c.per !== 'day' ? `${tot} ${per}` : over ? `that's ${tot} today` : ''].filter(Boolean).join(' · ')}</div></div>
-      <button class="mini" data-hab="${k}|-1">−</button><span class="qty">${c.per === 'month' ? '×' + tot : today_n}</span><button class="mini" data-hab="${k}|1">+</button></div>`;
+    return `<div class="row pslot"><div class="grow">${head}<div class="muted small ${over || free ? 'warnc' : ''}">${[lim, c.note && esc(c.note), c.per !== 'day' ? `${tot} ${per}` : over ? `that's ${tot} today` : '', why && why !== 'free' ? DRINK_WHY[why] : '', free ? `❗ ${free} freestyle day${free > 1 ? 's' : ''} this week` : ''].filter(Boolean).join(' · ')}</div></div>
+      <button class="mini" data-hab="${k}|-1">−</button><span class="qty">${c.per === 'month' ? '×' + tot : today_n}${why === 'free' ? ' ❗' : ''}</span><button class="mini" data-hab="${k}|1">+</button></div>`;
   }).join('');
 }
 function bindHabits(v, d) {
@@ -451,8 +454,19 @@ function bindHabits(v, d) {
     if (!o[d]) { o[d] = undefined; b.smoke.slips = b.smoke.slips.filter(y => y !== d); if (b.smoke.prev) { Object.assign(b.smoke, b.smoke.prev); b.smoke.prev = undefined; } toast('Slip undone'); }
     save(); render(); });
   $$('[data-hcfg]', v).forEach(x => x.onclick = () => habitEdit(x.dataset.hcfg));
-  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}, was = o[d] || 0; o[d] = Math.max(0, was + +n);
-    if (k === 'alcohol' && o[d] !== was) habDrink(d, +n); save(); render(); });
+  $$('[data-hab]', v).forEach(x => x.onclick = () => { const [k, n] = x.dataset.hab.split('|'); const o = b[k] ||= {}, was = o[d] || 0;
+    const add = () => { o[d] = Math.max(0, was + +n); if (k === 'alcohol' && o[d] !== was) habDrink(d, +n); if (k === 'alcohol' && !o[d] && b.drinkWhy) delete b.drinkWhy[d]; save(); render(); };
+    // first drink of the day: what's the occasion?
+    if (k === 'alcohol' && +n > 0 && !(b.drinkWhy || {})[d]) return drinkWhy(d, add);
+    if (k === 'alcohol' && +n > 0 && b.drinkWhy[d] === 'free') toast('❗ Still freestyle: birthdays & weddings only');
+    add(); });
+}
+const DRINK_WHY = { birthday: '🎂 birthday', wedding: '💍 wedding', free: '❗ freestyle' };
+function drinkWhy(d, then) {
+  const body = dialog(`<h2>🍷 What's the occasion?</h2><p class="muted small">Your habit: birthdays & weddings only. Asked once a day.</p>
+    <div class="chips">${Object.entries({ birthday: '🎂 Birthday', wedding: '💍 Wedding', free: '🍷 Freestyle' }).map(([k, l]) => `<button class="chip" data-why="${k}">${l}</button>`).join('')}</div>`, null);
+  $$('[data-why]', body).forEach(x => x.onclick = e => { e.preventDefault(); (B().drinkWhy ||= {})[d] = x.dataset.why; closeDlg(); then();
+    if (x.dataset.why === 'free') setTimeout(() => toast('❗ Off-habit: birthdays & weddings only. Logged anyway'), 50); });
 }
 // alcohol +1 logs a standard glass of red wine (150 ml, about 125 kcal) as Unplanned; −1 takes the last one off
 const WINE = { name: 'Red wine, 1 glass (150 ml)', kcal: 125, p: .1, c: 3.8, f: 0, fib: 0 };
