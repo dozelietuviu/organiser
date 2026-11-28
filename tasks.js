@@ -21,7 +21,33 @@ const CHORE_SETS = {
 const CHORE_KINDS = ['early', 'done', 'later', 'more'];
 const FIXED_BTNS = [['done', 'Done'], ['skip', 'Skip this time']];
 const LIFE = ['life', 'Life happened'];
-const CHORE_AREAS = ['Kitchen', 'Bathroom', 'Bedroom', 'Flat', 'Plants', 'Laundry', 'Cat', 'Us', 'Admin'];
+const CHORE_AREAS = ['Kitchen', 'Bathroom', 'Bedroom', 'Flat', 'Plants', 'Laundry', 'Cat', 'Us', 'Admin', 'Body care'];
+// Body care: same learning chore cards, but they live in Body › Beauty (not Household, not the Today chore list).
+// Start gaps follow usual skin advice and then learn from your taps.
+// [name, start gap, button words: couldn't wait / done / a bit early / far too early]
+const BODY_SEED = [
+  ['Full shower', 2, ['Really needed it', 'Done', 'French shower did it', 'Still fresh']],
+  ['Moisturise body', 1, ['Skin felt tight', 'Done', 'Still soft', 'Not needed']],
+  ['Body scrub', 3, ['Skin felt rough', 'Done', 'Still smooth', 'Not needed']],
+  ['Shave', 3, ['Stubbly', 'Done', 'Still smooth', 'Barely any']],
+  ['Cut nails', 10, ['Too long', 'Done', 'Still short', 'Barely grown']],
+  ['Hand care: cuticles, oil, deep moisture', 7, ['Hands were dry', 'Done', 'Still soft', 'Not needed']],
+  ['Toenails + foot care', 21, ['Feet needed it', 'Done', 'Still fine', 'Not needed']],
+  ['Pluck eyebrows', 7, ['Overgrown', 'Done', 'Still neat', 'Barely any']],
+  ['Upper lip threading', 21, ['Visible', 'Done', 'Still smooth', 'Barely any']],
+  ['Hair mask', 7, ['Hair felt dry', 'Done', 'Still soft', 'Not needed']],
+  ['Wash makeup brushes', 14, ['Really needed it', 'Done', 'Still clean', 'Barely used']],
+  ['Fresh pillowcase', 3, ['Needed it', 'Done', 'Still fresh', 'Barely used']],
+  ['Replace razor blade', 21, 'fixed'],
+];
+const isBody = c => c.area === 'Body care';
+function seedBody() {
+  if (S.bodySeeded) return; S.bodySeeded = 1; const t = today(), have = new Set(CH().list.map(c => c.name));
+  BODY_SEED.forEach(([name, gap, set], i) => { if (have.has(name)) return;
+    const due = addDays(t, gap <= 2 ? 0 : 1 + (i * 3) % (gap - 1)), fixed = set === 'fixed';
+    CH().list.push({ id: uid(), name, area: 'Body care', gap, fixed, must: false, labels: fixed ? null : set.slice(), due, last: addDays(due, -gap), log: [] }); });
+  save();
+}
 // [name, area, start gap in days, label set or 'fixed' (keeps its gap, doesn't learn)]
 const CHORE_SEED = [
   ['Empty trash', 'Kitchen', 3, 'bin'], ['Take out recycling', 'Kitchen', 7, 'bin'], ['Wipe stove and counters', 'Kitchen', 2, 'clean'],
@@ -111,7 +137,9 @@ function undoChore(c) {
 const dueTxt2 = d => { const n = dayDiff(today(), d); return n === 0 ? 'today' : n === 1 ? 'tomorrow' : n < 7 ? DOW(d) : fmtDay(d); };
 const lateTxt = c => { const n = dayDiff(c.due, today()); return n <= 0 ? '' : n === 1 ? '1 day late' : `${n} days late`; };
 const gapTxt = g => g === 1 ? 'every day' : `every ${g} days`;
-const live = () => CH().list.filter(c => !c.off);
+const live = () => CH().list.filter(c => !c.off && !isBody(c));
+const bodyLive = () => CH().list.filter(c => !c.off && isBody(c));
+const bodyDue = () => bodyLive().filter(c => c.due <= today()).sort((a, b) => a.due.localeCompare(b.due) || a.gap - b.gap);
 const dueNow = () => live().filter(c => c.due <= today()).sort((a, b) => a.due.localeCompare(b.due) || a.gap - b.gap);
 
 // ---- views ----
@@ -173,6 +201,16 @@ function bindChores(v) {
   const fz = $('[data-fzout]', v); if (fz) fz.onclick = () => { (S.day[today()] ||= {}).fzOut = 1; save(); render(); toast('Thawing ✓'); };
 }
 function bindChoresPage(v) { $('#chAdd', v).onclick = () => choreEdit({}); }
+// Body › Beauty: body care chores
+function bodyCareCard() {
+  const t = today(), due = bodyDue(), soon = bodyLive().filter(c => c.due > t).sort((a, b) => a.due.localeCompare(b.due));
+  const mini = c => `<li data-ch="${c.id}"><div class="grow">${esc(c.name)}<div class="muted small">${gapTxt(gapOf(c))}</div></div><span class="muted small">${dueTxt2(c.due)}</span><span>›</span></li>`;
+  return `<div class="card"><div class="row"><h2 class="grow">Body care</h2><button class="mini" id="bcAdd">+ Add</button></div>
+    ${due.length ? `<ul class="list">${due.map(c => choreRow(c)).join('')}</ul>` : '<p class="muted small">All done for today ✨</p>'}
+    ${soon.length ? `<details><summary class="muted small">Coming up · ${soon.length}</summary><ul class="list">${soon.map(mini).join('')}</ul></details>` : ''}
+    <p class="muted small">🚿 Full shower every ~2 days, a French shower (quick wash: face, underarms, intimate area) in between. Lukewarm, 5 to 10 minutes, soap only where it's needed, then moisturise straight after while skin is still damp. That keeps your skin's own oils.</p></div>`;
+}
+function bindBodyCare(v) { const a = $('#bcAdd', v); if (a) a.onclick = () => choreEdit({ area: 'Body care', gap: 7 }); }
 function choreDialog(c) {
   if (!c) return;
   const g = gapOf(c), wd = choreDay(c), n = (c.log || []).filter(x => x.clue > 0).length, hist = (c.log || []).slice(-8).reverse();

@@ -150,6 +150,7 @@ function beautyView() {
     <p class="muted small">🌤 ${wxLine()}</p>${actBox}${block('am')}${block('pm')}
     <div class="row wrap" style="margin-top:10px"><span class="muted small" style="margin-right:6px">Skin today <span class="small">(optional)</span></span><div class="chips">${SKIN.map(([k, l]) => `<button class="chip sm ${b.skin[t] === k ? 'on' : ''}" data-skin="${k}">${l}</button>`).join('')}</div></div>
     ${si ? `<div class="note info sm">${si}</div>` : ''}</div>
+  ${bodyCareCard()}
   <div class="card"><div class="row"><h2 class="grow">Roots</h2><button class="mini ghost" id="hEdit">✎</button></div>
     ${rs ? `<p>Coloured ${fmtDay(rs.last)} · ${rs.since} days ago</p>
       <p class="muted small">Next around ${fmtDay(rs.due)} (every ~${r1(rs.g.days / 7)} weeks, ${rs.g.how})${rs.appt ? ` · 📅 booked ${fmtDay(rs.appt)}` : ` · book by ${fmtDay(rs.bookBy)}`}</p>
@@ -163,6 +164,7 @@ function beautyView() {
     ${prods.map(([c, l]) => `<h3>${c}</h3><ul class="list">${l.map(pLine).join('')}</ul>`).join('')}</div>`;
 }
 function bindBeauty(v) {
+  bindChores(v); bindBodyCare(v);
   const b = BEA(), t = today();
   $$('[data-bstep]', v).forEach(c => c.onchange = () => { const dn = b.done[t] ||= {}; if (c.checked) dn[c.dataset.bstep] = 1; else delete dn[c.dataset.bstep]; save(); render(); });
   const ap = $('#aPause', v); if (ap) ap.onclick = () => { b.pauseUntil = addDays(t, 3); save(); render(); toast('Actives off for 3 nights. Be gentle 🤍'); };
@@ -254,6 +256,7 @@ function beautyToday(d) {
   if (d !== today() || !S.beauty || !dayStarted()) return ''; const w = nowWhen(), left = routineLeft(w).length, all = routine(w).length, rs = rootsState(), bits = [];
   if (left) bits.push(`${w === 'am' ? '☀️ Morning' : '🌙 Evening'} routine ${all - left}/${all}`);
   if (rs && rs.checkDue) bits.push('roots check');
+  const bc = bodyDue().length; if (bc) bits.push(`${bc} body care`);
   const ap = BEA().hair.appt, ad = ap ? daysBetween(today(), ap) : null;
   if (ad === 0) bits.push('<b>💇 hairdresser today</b>'); else if (ad === 1) bits.push('<b>💇 hairdresser tomorrow</b>'); else if (ad > 1 && ad <= 3) bits.push(`💇 hairdresser ${DOW(ap)}`);
   else if (apptPast()) bits.push('did the hairdresser happen?');

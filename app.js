@@ -2446,7 +2446,7 @@ function openSettings() {
 
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
-seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs(); fixCardsV1(); prepSetupV1();
+seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs(); fixCardsV1(); prepSetupV1(); seedBody();
 // goals made before 'did nothing' existed start counting from today, so their past isn't held against them
 if ((G().list || []).some(g => !g.created)) { G().list.forEach(g => { g.created ||= today(); }); save(); }
 VIEWS.beauty = beautyView; BIND.beauty = bindBeauty;
