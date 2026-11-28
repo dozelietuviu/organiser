@@ -42,13 +42,14 @@ const PET = {
 const POOP = ['..#...', '.#.#..', '.####.', '######'];
 // the sprout on its head, 2 frames each so it sways. Perky when you drink enough, wilted when you don't,
 // a little flower on glow days, a closed bud while asleep, gone when dead.
+// 🌱 two leaves on a stem, drawn in green (9 wide, 6 tall, sits on its head); two frames so it sways
 const SPROUT = {
-  up: [['##.#.', '.###.', '..#..'], ['.#.##', '.###.', '..#..']],
-  wilt: [['..#..', '.#.#.', '#...#'], ['..#..', '.#.#.', '#..#.']],
-  bloom: [['#.#.#', '.###.', '..#..'], ['.#.#.', '#####', '..#..']],
-  bud: [['..#..', '.##..', '..#..'], ['..#..', '..##.', '..#..']],
-  limp: [['.....', '.##..', '..#..'], ['.....', '..##.', '..#..']],
-  spiky: [['#.#.#', '.###.', '..#..'], ['.#.#.', '.###.', '..#..']],
+  up: [['.##...##.', '####.####', '.###.###.', '...#.#...', '....#....', '....#....'], ['.........', '.##...##.', '####.####', '.###.###.', '...###...', '....#....']],
+  wilt: [['.........', '....#....', '...###...', '.##.#.##.', '#...#...#', '....#....'], ['.........', '....#....', '...###...', '.##.#.##.', '#...#....', '....#...#']],
+  bloom: [['...###...', '##.###.##', '###.#.###', '.##.#.##.', '...###...', '....#....'], ['...###...', '#..###..#', '##..#..##', '.##.#.##.', '...###...', '....#....']],
+  bud: [['.........', '.........', '....##...', '...###...', '....#....', '....#....'], ['.........', '.........', '...##....', '...###...', '....#....', '....#....']],
+  limp: [['.........', '.........', '....###..', '....#..#.', '....#....', '....#....'], ['.........', '.........', '....###..', '....#...#', '....#....', '....#....']],
+  spiky: [['#.......#', '##.....##', '.##...##.', '..##.##..', '...###...', '....#....'], ['.#.....#.', '##.....##', '.##...##.', '..##.##..', '...###...', '....#....']],
 };
 // little effects around it: z's (asleep / sleepy), sparkles (glow days), storm cloud (stormy days)
 const FX = {
@@ -64,16 +65,16 @@ const EYE_ROW = { ok: 5, hungry: 5, sad: 5, angry: 6, happy: 5 };
 const MOTION = { happy: 'walk hop', glow: 'walk hop', ok: 'walk', hungry: 'walk', thirsty: 'walk slow', angry: 'walk shake', sad: 'sink', sleepy: 'breathe', asleep: 'breathe', sick: 'shiver', dead: 'float' };
 function petLcd(mood, poops, leaf) {
   const path = (art, ox, oy) => { const d = []; art.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') d.push(`M${ox + x} ${oy + y}h1v1h-1z`); })); return d.join(''); };
-  const base = { glow: 'happy', asleep: 'sleepy', thirsty: 'hungry' }[mood] || mood, sprite = PET[base] || PET.ok, ink = '#2e3a2a', lcd = '#c9dcae';
+  const base = { glow: 'happy', asleep: 'sleepy', thirsty: 'hungry' }[mood] || mood, sprite = PET[base] || PET.ok, ink = '#2e3a2a', lcd = '#c9dcae', leafc = mood === 'sick' || mood === 'sad' ? '#6b7a3a' : '#2f8a26';
   const sp = mood === 'dead' ? null : SPROUT[mood === 'glow' ? 'bloom' : mood === 'asleep' ? 'bud' : mood === 'sick' ? 'limp' : mood === 'angry' ? 'spiky' : leaf ? 'up' : 'wilt'];
   const er = EYE_ROW[base], eyes = er == null ? '' : [...sprite[er]].map((c, x) => c === '#' && x > 2 && x < 13 ? `M${1 + x} ${4 + er}h1v1h-1z` : '').join('');
   const fx = (FX[mood] || []).map(([a, x, y]) => path(a, x, y)).join(''), poo = Array.from({ length: Math.min(poops, 2) }, (_, i) => path(POOP, 20, 14 - i * 5)).join('');
   const mot = (MOTION[mood] || 'walk').split(' '), walk = mot.includes('walk') ? `petwalk${poops ? ' short' : ''}${mot.includes('slow') ? ' slow' : ''}` : '';
-  return `<svg class="petlcd" viewBox="0 -1 26 19.5" shape-rendering="crispEdges" aria-hidden="true">
+  return `<svg class="petlcd" viewBox="0 -2 26 20.5" shape-rendering="crispEdges" aria-hidden="true">
     <g class="${walk}"><g class="pm-${mot.filter(m => m !== 'walk' && m !== 'slow').join(' pm-') || 'bob'}">
       <path fill="${ink}" d="${path(sprite, 1, 4)}"/>
       ${eyes ? `<path class="blink" fill="${lcd}" d="${eyes}"/>` : ''}
-      ${sp ? `<path class="sway1" fill="${ink}" d="${path(sp[0], 6, 1)}"/><path class="sway2" fill="${ink}" d="${path(sp[1], 6, 1)}"/>` : ''}
+      ${sp ? `<path class="sway1" fill="${leafc}" d="${path(sp[0], 4, -1)}"/><path class="sway2" fill="${leafc}" d="${path(sp[1], 4, -1)}"/>` : ''}
     </g></g>
     ${fx ? `<path class="fx fx-${mood}" fill="${ink}" d="${fx}"/>` : ''}${poo ? `<path fill="${ink}" d="${poo}"/>` : ''}</svg>`;
 }
