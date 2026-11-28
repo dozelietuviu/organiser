@@ -1,6 +1,6 @@
 // Offline support: keeps the app files on the phone. Bump VERSION when files change.
-const VERSION = 'v118';
-const FILES = ['./', 'index.html', 'style.css', 'tasks.js', 'cardfix.js', 'pantry-tidy.js', 'quicklog.js', 'sleep.js', 'beauty.js', 'modes.js', 'energy.js', 'theme.js', 'goalpush.js', 'pixicons.js', 'train2.js', 'prep.js', 'theme.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'data/foods.json', 'data/train.json'];
+const VERSION = 'v119';
+const FILES = ['./', 'index.html', 'style.css', 'tasks.js', 'cardfix.js', 'pantry-tidy.js', 'quicklog.js', 'sleep.js', 'beauty.js', 'modes.js', 'energy.js', 'theme.js', 'goalpush.js', 'pixicons.js', 'train2.js', 'prep.js', 'holiday.js', 'theme.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'data/foods.json', 'data/train.json'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))));

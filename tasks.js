@@ -154,6 +154,7 @@ function choreRow(c, withBtns = true) {
 // one-off chore on its prep day (Sunday by default) before the first planned day of that week. Done taps are
 // kept in S.prepLog (date, card, prep day) so it can show later how often prep happened on time.
 function prepJobs() {
+  if (onHoliday()) return [];
   const t = today(), out = new Map(), slots = [...new Set([...PLAN_SLOTS, ...Object.keys(S.settings.fixed || {})])];
   for (let i = 0; i <= 8; i++) { const d = addDays(t, i);
     for (const sl of slots) for (const c of myCards(d, sl)) { if (!c || !c.ahead) continue;
@@ -175,7 +176,7 @@ const freezerRow = fz => `<li class="chore"><div class="row"><div class="grow">ð
   <div class="chips"><button class="chip sm on" data-fzout>Done</button></div></li>`;
 // top of Today: only what's due (nothing shows when nothing is due), so the morning plan is one glance
 function choresToday(d) {
-  if (d !== today() || !dayStarted()) return ''; const l = dueNow(), fz = freezerChore(), pj = prepJobs(); if (!l.length && !fz && !pj.length) return '';
+  if (d !== today() || !dayStarted() || onHoliday()) return ''; const l = dueNow(), fz = freezerChore(), pj = prepJobs(); if (!l.length && !fz && !pj.length) return '';
   const shown = l.slice(0, 6);
   return `<div class="card"><div class="row"><h2 class="grow">Chores today</h2><button class="mini ghost" data-gochores>All</button></div>
     <ul class="list">${pj.map(prepRow).join('')}${fz ? freezerRow(fz) : ''}${shown.map(c => choreRow(c)).join('')}</ul>${l.length > shown.length ? `<p class="muted small">+${l.length - shown.length} more in Household â€º Chores</p>` : ''}</div>`;

@@ -262,7 +262,7 @@ function lastAte() {
 // no chores, beauty reminders or Today warnings just because the clock passed midnight.
 const dayStarted = () => today() !== calToday() || new Date().getHours() >= (S.settings.dayStartH ?? 9) || !!((S.body || {}).wake || {})[today()];
 function warnings(day, where = 'today') {
-  if (day !== today()) return [];
+  if (day !== today() || onHoliday(day)) return [];
   const s = S.settings, out = [], h = new Date().getHours(), push = out.push.bind(out);
   out.push = (x, place = 'log') => push(Object.assign(x, { place }));
   const last = lastAte();
@@ -740,7 +740,7 @@ function burnedOn(d) {
   return Math.max(w, cardio);
 }
 const mealsOn = d => (S.log[d] || []);
-const loggedDay = d => mealsOn(d).filter(e => e.slot !== UNPL).length >= 2;
+const loggedDay = d => !onHoliday(d) && mealsOn(d).filter(e => e.slot !== UNPL).length >= 2;
 // real burn from food logs + weight trend, over the 21 days ending on `end`
 function realBurn(end) {
   const start = addDays(end, -20), days = Array.from({ length: 21 }, (_, i) => addDays(start, i)).filter(loggedDay);
@@ -1231,13 +1231,14 @@ function scoopState(d) {
   const sc = ((S.day[d] || {}).scoop) || {}, h = d !== today() ? 24 : new Date().getHours() + (today() !== calToday() ? 24 : 0); // still 'yesterday' after midnight
   return SCOOP.map(([k, l, a]) => ({ k, l, a, at: sc[k], started: h >= a }));
 }
-const scoopsMissed = d => scoopState(d).filter(x => x.started && !x.at).length; // poops lying around (also shown on the pet)
+const scoopsMissed = d => onHoliday(d) ? 0 : scoopState(d).filter(x => x.started && !x.at).length; // poops lying around (also shown on the pet)
 function scoopRow(d) {
   const st = scoopState(d), todo = st.find(x => x.started && !x.at);
   const slot = x => `<span class="scoop ${x.at ? 'done' : x.started ? 'poop' : 'later'}" title="${x.l}${x.at ? ' scooped ' + x.at : ''}">${x.at ? pxSvg(PX_TABS.bag, 'pxi') : x.started ? pxSvg(PX_ICONS['💩'], 'pxi') : '<span class="muted small">' + String(x.a).padStart(2, '0') + ':00</span>'}</span>`;
   return `<div class="row scooprow"><div class="grow small"><span class="muted">Litter</span> ${st.map(slot).join('')}</div>${todo ? `<button class="mini primary" data-scoop="${todo.k}">Poop was scooped</button>` : ''}</div>`;
 }
 function catCard(d) {
+  if (onHoliday(d)) return catHotelCard(d);
   const f = catFood(), fed = (S.day[d] || {}).catFed || 0, left = f && S.pantry[f.id] ? pantryQty(f.id) : null;
   const low = left != null && left <= CAT_LOW;
   return `<div class="card cat ${fed ? 'fed' : ''}"><div class="row"><span class="cathead">${fed ? pxSvg(PX_TABS.catface, 'pxcathead') : `<span class="catcry">${pxSvg(PX_TABS.catcry1, 'pxcathead f1')}${pxSvg(PX_TABS.catcry2, 'pxcathead f2')}</span>`}</span>
@@ -1259,16 +1260,18 @@ function bindCat(v, d) {
   const cs = $('#catShop', v); if (cs) cs.onclick = () => { const f = catFood(); S.extras ||= []; if (!S.extras.some(x => x.key === f.key)) S.extras.push({ id: uid(), key: f.key, name: sn(f), qty: 1, cat: f.cat || 'Cat', price: f.price || 0 }); save(); toast('On the shopping list ✓'); render(); };
 }
 VIEWS.today = () => {
-  const d = UI.day, tot = sumM(S.log[d] || []), nm = d === today() ? nextMeal() : null;
+  holidayCheck();
+  const d = UI.day, hol = onHoliday(d), tot = sumM(S.log[d] || []), nm = d === today() && !hol ? nextMeal() : null;
   const ws = warnings(d, 'today');
   return `${dayBar()}
   ${pixelStatus(d)}
+  ${holidayCard(d)}
   ${choresToday(d)}
   ${beautyToday(d)}
   ${ws.map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${sleepCard(d)}
-  <div class="card compact" data-gofood>${barsLine(tot)}</div>
-  ${d === today() ? '<div class="row" style="margin:-4px 0 12px"><button class="mini" id="ateSmth">🍓 Ate something</button></div>' : ''}
+  ${hol ? '' : `<div class="card compact" data-gofood>${barsLine(tot)}</div>`}
+  ${d === today() && !hol ? '<div class="row" style="margin:-4px 0 12px"><button class="mini" id="ateSmth">🍓 Ate something</button></div>' : ''}
   ${nm ? `<div class="card"><div class="row"><div class="grow"><div class="muted small">Next · ${nm.slot} ${SLOTS.find(s => s.id === nm.slot).time}</div><div class="h">${nm.card ? esc(nm.card.name) : 'Nothing planned'}</div>
     ${nm.card ? `<div class="muted small">${r0(cardTotals(nm.card).kcal)} kcal · P ${r0(cardTotals(nm.card).p)} g · ${r0(cardGrams(nm.card))} g</div>` : ''}</div>
     <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">${nm.card ? `<button class="primary mini" data-lognext="${nm.slot}">Log it</button>` : `<button class="mini" data-gofood>Add</button>`}<button class="mini ghost" data-skip="${nm.slot}">Skipped</button></div></div></div>` : ''}
@@ -1278,7 +1281,7 @@ VIEWS.today = () => {
   <div class="card"><h2>Habits</h2>${habitRows(d)}</div>`;
 };
 BIND.today = v => {
-  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindWake(v, UI.day); bindSleep(v); bindChores(v); bindBeautyToday(v); bindPixelStatus(v);
+  bindDayBar(v); bindWater(v); bindCat(v, UI.day); bindHoliday(v); bindWake(v, UI.day); bindSleep(v); bindChores(v); bindBeautyToday(v); bindPixelStatus(v);
   const gt = $('#goTrain', v); if (gt) gt.onclick = () => go('train');
   bindHabits(v, UI.day);
   const at = $('#ateSmth', v); if (at) at.onclick = () => quickUnpl();
@@ -1292,6 +1295,7 @@ VIEWS.log = () => {
   const d = UI.day, es = S.log[d] || [], dd = S.day[d] || {}, pl = portionLimit();
   const recent = S.recent.map(foodById).filter(Boolean).slice(0, 8);
   return `${dayBar()}
+  ${onHoliday(d) ? holidayCard(d) : ''}
   <div class="card compact">${bars(sumM(es))}</div>
   ${warnings(d, 'log').map(([k, t]) => `<div class="note ${k}">${t}</div>`).join('')}
   ${d === today() ? (() => { const last = lastAte(); return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Last ate</div><div>${last ? hm(last) + (iso(new Date(last)) !== today() ? ' yesterday' : '') : '—'}</div></div>
@@ -1424,6 +1428,7 @@ const bindPick = (v, slot) => {
   $$('[data-card]', v).forEach(b => b.onclick = () => logCardDialog(cardById(b.dataset.card), slot));
 };
 BIND.log = v => {
+  bindHoliday(v);
   bindDayBar(v); bindWater(v);
   const res = $('#results', v), q = $('#q', v);
   const run = () => { UI.search = q.value; res.innerHTML = searchLocal(q.value); bindPick(res); };
@@ -2158,7 +2163,7 @@ function planNeed(days, emergency = false) {
     if (isBatch(c)) { const st = stock[c.id] ?? (c.batch.left || 0), n = batchesFor(c, mult, st); stock[c.id] = st + n * c.batch.serv - mult;
       for (const i of c.items) need[i.foodId] = (need[i.foodId] || 0) + i.g * n; return; }
     for (const i of c.items) need[i.foodId] = (need[i.foodId] || 0) + i.g * mult; };
-  for (const d of days) {
+  for (const d of days.filter(x => !onHoliday(x))) { // away: nothing planned is eaten at home
     const p = S.plan[d] || {};
     for (const slot of PLAN_SLOTS) {
       if (isCooked(d, slot) || (emergency && slot === 'Lunch' && (p.left || {}).Lunch)) continue;
@@ -2421,6 +2426,7 @@ function openSettings() {
     <p class="muted small">Auto: pastel by day, night look after sunset.</p>
     <label>Day starts at <span class="muted small">(chores and reminders appear then, or when you tap I'm up)</span></label><input name="dayStartH" type="number" min="4" max="14" value="${s.dayStartH ?? 9}">
     ${modesBlock(s)}
+    <h3>Holiday</h3><button class="mini" id="holSet">✈️ ${S.holiday ? `Holiday ${fmtDay(S.holiday.from)}${S.holiday.to ? ' – ' + fmtDay(S.holiday.to) : ''} · edit` : 'Going away'}</button>
     <h3>Daily targets</h3>
     <div class="grid4"><div><label>kcal</label><input name="kcal" inputmode="decimal" value="${s.kcal}"></div><div><label>Protein</label><input name="p" inputmode="decimal" value="${s.p}"></div><div><label>Carbs</label><input name="c" inputmode="decimal" value="${s.c}"></div><div><label>Fat</label><input name="f" inputmode="decimal" value="${s.f}"></div></div>
     <div class="grid4"><div><label>Fibre</label><input name="fib" inputmode="decimal" value="${s.fib}"></div><div><label>Water L</label><input name="waterL" inputmode="decimal" value="${(s.waterMl || s.water * 250) / 1000}"></div><div><label>Min protein/meal</label><input name="minP" inputmode="numeric" value="${s.minP}"></div><div><label>Gap warn (h)</label><input name="gapH" inputmode="numeric" value="${s.gapH}"></div></div>
@@ -2444,6 +2450,7 @@ function openSettings() {
     if (b.sheetUrl.value.trim() !== s.sheetUrl) { s.sheetUrl = b.sheetUrl.value.trim(); s.sheetSeen = ''; setTimeout(sheetWatch, 100); }
   });
   bindModes(body, s);
+  $('#holSet', body).onclick = e => { e.preventDefault(); closeDlg(); setTimeout(holidayDialog, 50); };
   $$('[data-look]', body).forEach(x => x.onclick = e => { e.preventDefault(); s.theme = x.dataset.look; save(); applyTheme(); $$('[data-look]', body).forEach(y => y.classList.toggle('on', y === x)); render(); });
   $('#split', body).onclick = async e => { e.preventDefault(); s.kcal = num(body.kcal.value) || s.kcal; s.sheetUrl = body.sheetUrl.value.trim();
     try { const t = await checkSheet(); if (!t || !t.p) throw 0; applySplit(t); S.settings.sheetSeen = JSON.stringify(t); save(); closeDlg(); render(); toast(`P ${s.p} · C ${s.c} · F ${s.f} ✓`); } catch { toast('Couldn\'t read the Sheet. Is it shared by link?'); } };

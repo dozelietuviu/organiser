@@ -62,11 +62,13 @@ const FX = {
 // where its eyes are (row in the sprite), so it can blink
 const EYE_ROW = { ok: 5, hungry: 5, sad: 5, angry: 6, happy: 5 };
 // how it moves: walkers stroll across the screen, everyone else has their own little motion
-const MOTION = { happy: 'walk hop', glow: 'walk hop', ok: 'walk', hungry: 'walk', thirsty: 'walk slow', angry: 'walk shake', sad: 'sink', sleepy: 'breathe', asleep: 'breathe', sick: 'shiver', dead: 'float' };
+const MOTION = { holiday: 'walk hop', happy: 'walk hop', glow: 'walk hop', ok: 'walk', hungry: 'walk', thirsty: 'walk slow', angry: 'walk shake', sad: 'sink', sleepy: 'breathe', asleep: 'breathe', sick: 'shiver', dead: 'float' };
+// holiday: little flowers on the ground [x, petal colour]
+const HOL_FLOWERS = [[0, '#ff6fae'], [21, '#ff9f43'], [23.5, '#b388ff']];
 function petLcd(mood, poops, leaf) {
   const path = (art, ox, oy) => { const d = []; art.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') d.push(`M${ox + x} ${oy + y}h1v1h-1z`); })); return d.join(''); };
-  const base = { glow: 'happy', asleep: 'sleepy', thirsty: 'hungry' }[mood] || mood, sprite = PET[base] || PET.ok, ink = '#2e3a2a', lcd = '#c9dcae', leafc = mood === 'sick' || mood === 'sad' ? '#6b7a3a' : '#2f8a26';
-  const sp = mood === 'dead' ? null : SPROUT[mood === 'glow' ? 'bloom' : mood === 'asleep' ? 'bud' : mood === 'sick' ? 'limp' : mood === 'angry' ? 'spiky' : leaf ? 'up' : 'wilt'];
+  const base = { glow: 'happy', holiday: 'happy', asleep: 'sleepy', thirsty: 'hungry' }[mood] || mood, sprite = PET[base] || PET.ok, ink = '#2e3a2a', lcd = '#c9dcae', leafc = mood === 'sick' || mood === 'sad' ? '#6b7a3a' : '#2f8a26';
+  const sp = mood === 'dead' ? null : SPROUT[mood === 'glow' || mood === 'holiday' ? 'bloom' : mood === 'asleep' ? 'bud' : mood === 'sick' ? 'limp' : mood === 'angry' ? 'spiky' : leaf ? 'up' : 'wilt'];
   const er = EYE_ROW[base], eyes = er == null ? '' : [...sprite[er]].map((c, x) => c === '#' && x > 2 && x < 13 ? `M${1 + x} ${4 + er}h1v1h-1z` : '').join('');
   const fx = (FX[mood] || []).map(([a, x, y]) => path(a, x, y)).join(''), poo = Array.from({ length: Math.min(poops, 2) }, (_, i) => path(POOP, 20, 14 - i * 5)).join('');
   const mot = (MOTION[mood] || 'walk').split(' '), walk = mot.includes('walk') ? `petwalk${poops ? ' short' : ''}${mot.includes('slow') ? ' slow' : ''}` : '';
@@ -76,10 +78,12 @@ function petLcd(mood, poops, leaf) {
       ${eyes ? `<path class="blink" fill="${lcd}" d="${eyes}"/>` : ''}
       ${sp ? `<path class="sway1" fill="${leafc}" d="${path(sp[0], 4, -1)}"/><path class="sway2" fill="${leafc}" d="${path(sp[1], 4, -1)}"/>` : ''}
     </g></g>
+    ${mood === 'holiday' ? HOL_FLOWERS.map(([x, c]) => `<path fill="#2f8a26" d="${path(['.', '#', '#'], x + 1, 15)}"/><path fill="${c}" d="${path(['.#.', '#.#', '.#.'], x, 12)}"/><path fill="#f4c46a" d="${path(['#'], x + 1, 13)}"/>`).join('') : ''}
     ${fx ? `<path class="fx fx-${mood}" fill="${ink}" d="${fx}"/>` : ''}${poo ? `<path fill="${ink}" d="${poo}"/>` : ''}</svg>`;
 }
 const petEgg = (mood, poops, leaf = true) => `<div class="petegg"><div class="petscreen">${petLcd(mood, poops, leaf)}</div><div class="petbtns"><i></i><i></i><i></i></div></div>`;
 const PET_SAY = {
+  holiday: ['out of office ✿', 'sun. snacks. naps.', 'no chores today ✿', 'postcard sent.', 'holiday mode.'],
   happy: ['you looked after us today ♥', 'thriving. look at us.', 'best owner ever', 'we are SO back'],
   ok: ['doing alright', 'mrrp?', 'steady', 'more water and we\'re golden'],
   hungry: ['feed meeee', 'my bowl is EMPTY', 'is that a protein shake? for me?'],
@@ -103,14 +107,14 @@ function statusBars(d = today()) {
   const habOk = Object.keys(HAB_DEF).filter(k => !habCfg(k).paused);
   const habGood = habOk.filter(k => k === 'smoke' ? !((B().smoked || {})[d]) : !(habCfg(k).limit != null && habCount(k, d) > habCfg(k).limit)).length;
   const health = vs.length ? (Math.min(1, vd / vs.length) + (habOk.length ? habGood / habOk.length : 1)) / 2 : habOk.length ? habGood / habOk.length : 1;
-  const due = typeof dueNow === 'function' ? dueNow().length : 0;
+  const due = typeof dueNow === 'function' ? dueNow().length : 0, hol = onHoliday(d), ate = (S.log[d] || []).filter(e => e.hol).length;
   return [
     ['energy', 'Energy', sleep == null ? null : Math.min(1, sleep / 8), 'body', sleep == null ? 'tap Good night / I\'m up' : `${fmtH(sleep)} sleep`],
     ['thirsty', 'Thirsty', Math.min(1, (dd.water || 0) / (s.water || 8)), 'today', `${dd.water || 0}/${s.water} glasses`],
-    ['hungry', 'Fed', Math.min(1, tot.kcal / kcalFor(d)), 'log', `${r0(tot.kcal)}/${kcalFor(d)} kcal · P ${r0(tot.p)}`],
+    hol ? ['hungry', 'Fed', Math.min(1, ate / 3), 'log', `ate ${ate}× today (holiday)`] : ['hungry', 'Fed', Math.min(1, tot.kcal / kcalFor(d)), 'log', `${r0(tot.kcal)}/${kcalFor(d)} kcal · P ${r0(tot.p)}`],
     ['happy', 'Happy', happy, 'body', mood ? MOODS.find(m => m[0] === mood)?.[1] || mood : fc ? (fc.k === 'glow' ? 'glow forecast' : 'storm forecast') : 'no mood logged'],
     ['health', 'Health', health, 'body', `${vd}/${vs.length || 0} vitamins · ${habGood}/${habOk.length} habits`],
-    ['home', 'Home', Math.max(0, 1 - due / 6), 'tasks', due ? `${due} chore${due > 1 ? 's' : ''} due` : 'all done'],
+    ['home', 'Home', hol ? 1 : Math.max(0, 1 - due / 6), 'tasks', hol ? 'resting while you\'re away' : due ? `${due} chore${due > 1 ? 's' : ''} due` : 'all done'],
   ];
 }
 // how well today went: average of the bars that have data, minus goals in trouble
@@ -123,6 +127,7 @@ function petMood(bars) {
   const leaf = !(dayStarted() && h >= 11 && v('thirsty') != null && v('thirsty') < .4);
   const sym = ((S.body || {}).sym || {})[d] || {}, mood = typeof moodOf === 'function' ? moodOf(sym) : '', fc = S.body ? (moodForecast(d) || []).map(m => m.k) : [];
   const r = (m, say) => [m, say || pick(m), poops, leaf];
+  if (onHoliday()) return [dayStarted() ? 'holiday' : 'asleep', dayStarted() ? pick('holiday') : pick('asleep'), 0, true];
   if (!dayStarted()) return r('asleep');                                  // after Good night, until I'm up
   if ((h >= 18 && score < .3) || (h >= 21 && score < .38)) return r('dead');
   if (h >= 13 && score < .42) return r('sick');

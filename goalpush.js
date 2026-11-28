@@ -32,7 +32,7 @@ function paceGap(g) {
 // 0 = fine, 1 = wobbling, 2 = danger. Deadline windows and skip limits scale with the cadence.
 const DANGER = { day: { near: 21, mid: 45, hard: 3, soft: 4 }, week: { near: 56, mid: 90, hard: 2, soft: 3 }, month: { near: 120, mid: 240, hard: 2, soft: 3 } };
 function goalDanger(g) {
-  if (g.done || g.arch || g.later || !g.due) return 0;
+  if (g.done || g.arch || g.later || !g.due || onHoliday()) return 0;
   const c = cadence(g), T = DANGER[c], left = daysBetween(today(), g.due), sk = skippedDays(g), behind = paceGap(g);
   if (g.recommit && daysBetween(g.recommit, today()) < 2 && sk < T.soft + 1) return 0;
   if (left < 0) return sk >= 1 ? 2 : 1;
