@@ -828,22 +828,33 @@ const WAKE_GRACE = 10;
 const wakeBy = () => S.settings.wakeBy || '07:00';
 const mins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const onTime = d => { const t = (B().wake || {})[d]; return !!t && mins(t) <= mins(wakeBy()) + WAKE_GRACE; };
+// the 7:00 goal is for weekdays at home; weekends and holidays don't count and don't break the streak
+// (the I'm up button stays: it starts the day and measures sleep, goal there is 8 h+)
+const wakeGoalDay = d => { const w = parseDay(d).getDay(); return w > 0 && w < 6 && !onHoliday(d); };
+const SLEEP_GOAL = 8;
 function wakeStreak(to = today()) {
   let d = to, n = 0;
   if (!(B().wake || {})[d]) d = addDays(d, -1);
-  while (onTime(d)) { n++; d = addDays(d, -1); }
+  for (let i = 0; i < 400; i++, d = addDays(d, -1)) { if (!wakeGoalDay(d)) continue; if (!onTime(d)) break; n++; }
   return n;
 }
 function ensureWakeGoal() {
-  const L = G().list; if (L.some(g => g.track === 'wake')) return;
+  const L = G().list, old = L.find(g => g.id === 'wake7' && g.s === 'Up by 7:00 every day'); if (old) { old.s = 'Up by 7:00 on weekdays (weekends and holidays: 8 h+ sleep)'; save(); }
+  if (L.some(g => g.track === 'wake')) return;
   L.push({ id: 'wake7', icon: '🌅', title: 'Wake up at 7:00', track: 'wake', start: 0, target: 21, unit: 'days', log: [],
-    s: 'Up by 7:00 every day', m: '21 days in a row, logged on Today', a: 'Phone across the room, bed by 23:00', r: 'Calm mornings, time for the gym and breakfast' });
+    s: 'Up by 7:00 on weekdays (weekends and holidays: 8 h+ sleep)', m: '21 days in a row, logged on Today', a: 'Phone across the room, bed by 23:00', r: 'Calm mornings, time for the gym and breakfast' });
   save();
 }
 function wakeCard(d) {
   const wt = (B().wake || {})[d], dd = S.day[d] ||= {};
   if (wt && dd.wakeSkipFor !== wt) { wakeSkips(d); dd.wakeSkipFor = wt; save(); }
   const t = (B().wake || {})[d], st = wakeStreak(d), by = wakeBy();
+  if (!wakeGoalDay(d)) { // weekend / holiday: no alarm goal, just 8 h+ sleep
+    const why = onHoliday(d) ? 'holiday' : 'weekend', h = typeof sleepHours === 'function' ? sleepHours(addDays(d, -1)) : null;
+    const streak = st ? ` · <span class="fire">🔥</span> ${st}/21 paused` : '';
+    if (!t) return d === today() ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · ${why}, no alarm · goal ${SLEEP_GOAL} h+ sleep${streak}</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNow">I'm up</button><button class="mini ghost" id="wakeSet">Set time</button></div></div>` : '';
+    return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · ${why}, no alarm${streak}</div><div>🌅 ${t}${h != null ? ` · 😴 ${fmtH(h)} ${h >= SLEEP_GOAL ? '✓' : `<span class="muted small">under ${SLEEP_GOAL} h</span>`}` : ''}</div></div><button class="mini ghost" id="wakeSet">Edit</button></div></div>`;
+  }
   if (!t) return d === today() ? `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}${st ? ` · <span class="fire">🔥</span> ${st} day streak` : ''}</div><div>🌅 Good morning</div></div><button class="primary mini" id="wakeNow">I'm up</button><button class="mini ghost" id="wakeSet">Set time</button></div></div>` : '';
   const ok = onTime(d);
   return `<div class="card compact"><div class="row"><div class="grow"><div class="muted small">Woke up · goal ${by}</div><div>🌅 ${t} ${ok ? '✓' : '<span class="muted small">late</span>'} · ${st >= 21 ? '🏆 21 days!' : `<span class="fire">🔥</span> ${st}/21`}</div></div><button class="mini ghost" id="wakeSet">Edit</button></div></div>`;
@@ -862,7 +873,7 @@ function wakeSkips(d) {
 }
 function bindWake(v, d) {
   const w = () => (B().wake ||= {});
-  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); const sk = wakeSkips(d); save(); render(); if (d === today() && S.affDay !== today()) { S.affDay = today(); save(); setTimeout(() => affirmations(true), 700); } toast(onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : `Logged${sk.length ? '. Skipped ' + sk.join(', ') : ''}. Tomorrow is a new start`); };
+  const n = $('#wakeNow', v); if (n) n.onclick = () => { w()[d] = new Date().toTimeString().slice(0, 5); ensureWakeGoal(); const sk = wakeSkips(d); save(); render(); if (d === today() && S.affDay !== today()) { S.affDay = today(); save(); setTimeout(() => affirmations(true), 700); } toast(!wakeGoalDay(d) ? 'Good morning 🌅 No alarm today' : onTime(d) ? `On time 🌅 ${wakeStreak(d)} in a row` : `Logged${sk.length ? '. Skipped ' + sk.join(', ') : ''}. Tomorrow is a new start`); };
   const e = $('#wakeSet', v); if (e) e.onclick = () => dialog(`<h2>Woke up</h2><label>Time</label><input type="time" name="t" value="${w()[d] || wakeBy()}"><label>Goal time</label><input type="time" name="by" value="${wakeBy()}">${w()[d] ? '<p><button class="mini del" id="wakeDel">Remove</button></p>' : ''}`, f => {
     if (f.t.value) w()[d] = f.t.value; if (f.by.value) S.settings.wakeBy = f.by.value; ensureWakeGoal(); const sk = wakeSkips(d); if (sk.length) toast('Skipped ' + sk.join(', ') + ' (asleep)'); });
   const del = $('#wakeDel'); if (del) del.onclick = ev => { ev.preventDefault(); delete w()[d]; const sk = (S.day[d] || {}).skip || {}; for (const k of Object.keys(sk)) if (sk[k] === 'asleep') delete sk[k]; save(); closeDlg(); render(); };
