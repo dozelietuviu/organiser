@@ -87,3 +87,31 @@ function pantryGenericV1() {
   for (const f of S.foods) if (f.buyAs && !/cooked/i.test(sn(f))) f.gname = `${genericName(f)}, cooked`;
   save();
 }
+
+// ---- how long things last ----
+// Each pantry line keeps the days you restocked it (p.buys) and the days you tapped Low or Out (p.outs).
+// From those it learns how long it usually lasts, and the shopping list suggests it a few days before it
+// probably runs out. Taps on the suggestion itself (add / not now) teach it nothing.
+function logStock(id, kind) {
+  const p = S.pantry[pid(id)]; if (!p) return; const a = (p[kind] ||= []), t = today();
+  if (a[a.length - 1] !== t) a.push(t); if (a.length > 12) a.splice(0, a.length - 12);
+}
+const med = a => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
+function lastsFor(p) {
+  const buys = p.buys || [], outs = p.outs || [];
+  const cyc = outs.map(o => { const b = buys.filter(x => x < o).pop(); return b ? daysBetween(b, o) : 0; }).filter(n => n > 0);
+  if (cyc.length >= 2) return { days: med(cyc.slice(-5)), n: cyc.length };
+  const gaps = buys.slice(1).map((b, i) => daysBetween(buys[i], b)).filter(n => n > 0);
+  return gaps.length >= 2 ? { days: med(gaps.slice(-5)), n: gaps.length } : null;
+}
+const lastsTxt = p => { const L = lastsFor(p), b = (p.buys || []).slice(-1)[0];
+  return L ? `Usually lasts about ${L.days} days${b ? `, so it may run out around ${fmtDay(addDays(b, L.days))}` : ''}.` : 'Tap Low or Out when it runs low, and Bought on the list: after 2 rounds it learns how long it lasts.'; };
+function runOutSoon(ahead = 4) {
+  const t = today(), lim = addDays(t, ahead), out = [];
+  for (const id of Object.keys(S.pantry)) {
+    const p = S.pantry[id], f = foodById(id); if (!f || f.hidden || f.stockAs || p.mark || p.have === false || (p.snooze && p.snooze > t) || stockLevel(f)) continue;
+    const L = lastsFor(p), b = (p.buys || []).slice(-1)[0]; if (!L || !b) continue;
+    const when = addDays(b, L.days); if (when <= lim) out.push({ f, when });
+  }
+  return out.sort((a, b) => a.when.localeCompare(b.when));
+}
