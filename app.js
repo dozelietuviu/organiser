@@ -165,7 +165,7 @@ async function syncFoodData() {
     // cards Claude adds for you: added once by key, never overwrite a card with the same name
     S.cardsAdded ||= {};
     for (const c of j.cards || []) { if (S.cardsAdded[c.key]) continue; S.cardsAdded[c.key] = 1; if (!S.cards.some(x => x.name.toLowerCase() === c.name.toLowerCase())) importCards([c]); }
-    cardsIntoPantry(); save();
+    prepCards(); cardsIntoPantry(); save();
     render();
   } catch {}
 }
@@ -1741,13 +1741,13 @@ function upcomingCard() {
 }
 VIEWS.cards = () => {
   const groups = CARD_TYPES.map(t => [t, S.cards.filter(c => c.slot === t).sort((a, b) => (b.stars || 0) - (a.stars || 0) || a.name.localeCompare(b.name))]);
-  const recipes = S.foods.filter(f => f.kind === 'recipe');
+  const recipes = S.foods.filter(f => f.kind === 'recipe' || isPrepped(f)).sort((a, b) => !!b.prep - !!a.prep || a.name.localeCompare(b.name));
   return `${upcomingCard()}
   ${reviewCard()}
   ${groups.map(([t, list]) => `<div class="card"><h2>${t === 'Extra' ? 'Extras (Jonas only)' : t === 'Dessert' ? 'Desserts <span class="muted small">· Jonas</span>' : t === 'Meal' ? 'Meals <span class="muted small">· lunch or dinner</span>' : t}${S.settings.fixed[t] ? ' <span class="muted small">· set</span>' : ''}</h2>
     ${list.length ? `<ul class="list">${list.map(c => { const x = cardTotals(c); return `<li data-edit="${c.id}"><div class="grow">${esc(c.name)} ${stars(c.stars)}${S.settings.fixed[t] === c.id ? ' <span class="chip sm on">fixed</span>' : ''}<div class="muted small">${r0(x.kcal)} kcal · P ${r0(x.p)} · Fib ${r0(x.fib)} · ${isBatch(c) ? `🍲 ${c.batch.serv} servings${c.batch.cookedG ? ` of ${r0(cardGrams(c))} g` : ''}${c.batch.left ? ` · 🧊 ${r1(c.batch.left)} in stock` : ''}` : r0(cardGrams(c)) + ' g'}${c.jonas ? ' · + Jonas' : ''}${c.prep ? ` · ⏱ ${c.prep} min` : c.long ? ' · ⏱ 60+ min' : ''} · ${haveText(c)}</div>${looksWhole(c) ? `<button class="note warn sm wholebtn" data-whole="${c.id}">⚠️ Looks like a whole recipe. Tap to set servings</button>` : ''}</div><button class="mini ghost" data-view="${c.id}">📖</button><span>✎</span></li>`; }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</div>`).join('')}
-  <div class="card"><div class="row"><h2 class="grow">Recipes</h2><button class="mini" id="newRec">+ Recipe</button></div><p class="muted small">Sauces and batches: add ingredients once, then use by weight or spoon in any card.</p>
-    ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">🥣 ${esc(f.name)}<div class="muted small">${r0(f.kcal)} kcal · P ${r1(f.p)} /100 g${f.unit ? ` · 1 ${esc(f.unit)} = ${f.unitG} g` : ''}</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
+  <div class="card"><div class="row"><h2 class="grow">Prepped foods</h2><button class="mini" id="newRec">+ New</button></div><p class="muted small">Things you make in bulk and use inside meal cards: marinated eggs, cooked buckwheat, kimchi, sauces. Prep chores and fridge stock come from these.</p>
+    ${recipes.length ? `<ul class="list">${recipes.map(f => `<li data-rec="${f.id}"><div class="grow">${esc(f.name)}<div class="muted small">${f.prep ? `${DOWS[f.prep.day]} · keeps ${f.prep.keeps || '?'} days · ${pantryQty(f.id) > 0 && pantryQty(f.id) < 1e9 ? esc(stockText(f, pantryQty(f.id))) + ' left' : 'none left'}` : 'sauce / recipe'} · ${r0(f.kcal)} kcal /100 g</div></div><span>✎</span></li>`).join('')}</ul>` : ''}</div>
   <div class="card"><div class="row"><h2 class="grow">All foods</h2><button class="mini" id="foods">Open</button></div></div>`;
 };
 BIND.cards = v => {
@@ -1757,7 +1757,7 @@ BIND.cards = v => {
   $('#newCard', v).onclick = () => cardDialog({ items: [], stars: 3, slot: 'Meal' });
   $$('[data-edit]', v).forEach(li => li.onclick = () => cardDialog(cardById(li.dataset.edit)));
   $$('[data-view]', v).forEach(b => b.onclick = e => { e.stopPropagation(); recipeView(cardById(b.dataset.view)); });
-  $('#newRec', v).onclick = () => recipeDialog({ items: [] });
+  $('#newRec', v).onclick = () => newPrepped();
   $$('[data-rec]', v).forEach(li => li.onclick = () => recipeDialog(foodById(li.dataset.rec)));
   $('#foods', v).onclick = foodsList;
 };
@@ -1793,10 +1793,10 @@ function cardDialog(c) {
     <div id="jbox"><label class="row tick"><input type="checkbox" name="jonas" ${c.jonas ? 'checked' : ''}> Also cook a Jonas portion</label>
       <div id="jkbox"><label>Jonas portion kcal (empty = ${S.settings.jonasDinner} at dinner, ${S.settings.jonasLunch} at lunch)</label><input name="jk" inputmode="numeric" value="${c.jonasKcal || ''}"><p class="muted small" id="jsum"></p></div><div id="jcook"></div></div>
     <label class="row tick" id="fixbox"><input type="checkbox" name="fixed" ${S.settings.fixed[c.slot] === c.id && c.id ? 'checked' : ''}> Use as the set ${esc(c.slot || '')} every day</label>
-    <h3>Make ahead</h3>
-    <div class="row"><div class="grow"><label>Prep job <span class="muted small">(optional)</span></label><input name="ahead" value="${esc(c.ahead || '')}" placeholder="e.g. Korean marinated eggs (bulk)"></div>
+    <h3>Make ahead</h3><div id="prepd"></div>
+    <div class="row"><div class="grow"><label>Other prep step <span class="muted small">(optional)</span></label><input name="ahead" value="${esc(c.ahead || '')}" placeholder="e.g. Make 4 yoghurt jars"></div>
       <div><label>Prep day</label><select name="aheadDay">${DOWS.map((d, i) => `<option value="${i}" ${(c.aheadDay ?? 6) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></div></div>
-    <p class="muted small">When this card is planned, the prep job shows up as a chore on the prep day before it (Sunday unless you change it).</p>
+    <p class="muted small">For something that isn't a prepped food, like packing jars. When this card is planned, it shows up as a chore on the prep day before it. Empty it to remove it.</p>
     <h3>Recipe</h3>
     <div class="row"><div class="grow"><label>Prep time, min</label><input name="prep" inputmode="numeric" value="${c.prep || ''}" placeholder="e.g. 25"></div></div>
     <label class="row tick"><input type="checkbox" name="long" ${c.long ? 'checked' : ''}> ⏱ Takes 60+ min (shuffle only puts it on Tue or Thu)</label>
@@ -1822,6 +1822,8 @@ function cardDialog(c) {
     $('#jkbox', body).classList.toggle('hidden', !body.jonas.checked);
     $('#jcook', body).innerHTML = k && !bt ? `<h3>Cooking for you + Jonas</h3><ul class="list">${items.map(i => { const f = foodById(i.foodId); return f ? `<li><div class="grow small">${esc(sn(f))}</div><span class="small">${amountText(f, r0(i.g * (1 + k)))}</span></li>` : ''; }).join('')}</ul>` : '';
     $('#jsum', body).textContent = k && bt ? `Jonas gets about ${r1(k)} servings (${r0(t.kcal * k)} kcal).` : k ? `Jonas gets about ${r0(t.kcal * k)} kcal (${r1(k)}× your portion, about ${r0(items.reduce((a, i) => a + i.g, 0) * k)} g). In Plan, set For: Jonas or Both to cook it and add it to the shopping list.` : '';
+    const pf = [...new Set(all.map(i => foodById(i.foodId)).filter(isPrepped))];
+    $('#prepd', body).innerHTML = pf.length ? `<p class="small">Prepped: ${pf.map(f => `<b>${esc(f.name)}</b> (${DOWS[f.prep.day]})`).join(', ')}</p><p class="muted small">Their prep chores come by themselves when this card is planned. Change them under Meal cards › Prepped foods.</p>` : '<p class="muted small">Using a prepped food (Korean eggs, cooked buckwheat…) as an ingredient brings its prep chore by itself.</p>';
     $('#jbox', body).classList.toggle('hidden', body.slot.value !== 'Meal'); $('#fixbox', body).classList.toggle('hidden', ['Meal', ...JONAS_ONLY].includes(body.slot.value));
   };
   bindItems(body, null, upd); body.slot.onchange = upd; body.jonas.onchange = upd; body.jk.oninput = upd; body.ckg.oninput = upd;
@@ -1836,30 +1838,46 @@ function cardDialog(c) {
   const dup = $('#dupCard', body);
   if (dup) dup.onclick = e => { e.preventDefault(); const n = JSON.parse(JSON.stringify(c)); n.id = uid(); n.name += ' (copy)'; S.cards.push(n); save(); closeDlg(); cardDialog(n); };
 }
-function recipeDialog(r) {
+function recipeDialog(r, asPrep) {
   const isNew = !r.id;
-  const body = dialog(`<h2>${isNew ? 'New recipe' : 'Edit recipe'}</h2>
-    <label>Name</label><input name="name" value="${esc(r.name || '')}" placeholder="e.g. Peanut chilli sauce">
-    <h3>Ingredients (raw)</h3>${itemsEditor(r.items || [], r.id)}
+  const base = !isNew && r.kind !== 'recipe', pr = r.prep || {}; // base = a normal food (kimchi) you also make yourself
+  const body = dialog(`<h2>${isNew ? 'New prepped food' : esc(r.name)}</h2>
+    <label>Name</label><input name="name" value="${esc(r.name || '')}" placeholder="e.g. Korean marinated eggs">
+    <label class="row tick"><input type="checkbox" name="isprep" ${r.prep || isNew || asPrep ? 'checked' : ''}> I make this in bulk</label>
+    <div id="pbox"><div class="grid3"><div><label>Prep day</label><select name="pday">${DOWS.map((d, i) => `<option value="${i}" ${(pr.day ?? 6) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></div>
+      <div><label>Keeps, days</label><input name="keeps" inputmode="numeric" value="${pr.keeps || ''}" placeholder="4"></div>
+      <div><label>One batch, g</label><input name="makes" inputmode="decimal" value="${pr.makes || ''}" placeholder="${r.cookedG || 'weigh'}"></div></div>
+      <p class="muted small">The chore shows on the prep day only if your planned meals need more than the fridge has.</p></div>
+    <h3>Ingredients for one batch${base ? ' <span class="muted small">(optional)</span>' : ''}</h3>${base ? '<p class="muted small">Add them to put them on the shopping list before a prep. Empty = keep the food\'s own nutrition.</p>' : ''}${itemsEditor(r.items || [], r.id)}
     <label>Weight after cooking, g (empty = ingredients' total)</label><input name="cooked" inputmode="decimal" value="${r.cookedG || ''}">
     <div class="row"><div class="grow"><label>Unit</label><input name="unit" value="${esc(r.unit || '')}" placeholder="tbsp"></div><div class="grow"><label>g per unit</label><input name="unitG" inputmode="decimal" value="${r.unitG || ''}"></div></div>
-    <p class="muted" id="sum"></p>${isNew ? '' : '<p><button class="del mini" id="delRec">Delete recipe</button></p>'}`, b => {
-    const items = readItems(b); if (!b.name.value.trim() || !items.length) { toast('Add a name and ingredients'); return false; }
+    <p class="muted" id="sum"></p>${isNew || base ? '' : '<p><button class="del mini" id="delRec">Delete</button></p>'}`, b => {
+    const items = readItems(b); if (!b.name.value.trim() || (!items.length && !base)) { toast('Add a name and ingredients'); return false; }
     const o = isNew ? { id: uid(), kind: 'recipe', place: 'Fridge', shop: 'Other' } : r;
-    const t = itemsTotals(items), w = num(b.cooked.value) || items.reduce((a, i) => a + i.g, 0);
-    Object.assign(o, { name: b.name.value.trim(), items, cookedG: num(b.cooked.value), unit: b.unit.value.trim(), unitG: num(b.unitG.value), kcal: r1(t.kcal / w * 100), p: r1(t.p / w * 100), c: r1(t.c / w * 100), f: r1(t.f / w * 100), fib: r1(t.fib / w * 100) });
+    Object.assign(o, { name: b.name.value.trim(), items, cookedG: num(b.cooked.value), unit: b.unit.value.trim(), unitG: num(b.unitG.value) });
+    if (items.length) { const t = itemsTotals(items), w = num(b.cooked.value) || items.reduce((a, i) => a + i.g, 0);
+      Object.assign(o, { kcal: r1(t.kcal / w * 100), p: r1(t.p / w * 100), c: r1(t.c / w * 100), f: r1(t.f / w * 100), fib: r1(t.fib / w * 100) }); }
+    o.prep = b.isprep.checked ? { day: +b.pday.value, keeps: num(b.keeps.value) || 0, makes: num(b.makes.value) || 0 } : undefined;
     if (isNew) S.foods.push(o);
+    if (o.prep && !S.pantry[o.id]) S.pantry[o.id] = { place: 'Fridge', qty: 0, have: false };
   });
-  const upd = () => { const items = readItems(body), t = itemsTotals(items), w = num(body.cooked.value) || items.reduce((a, i) => a + i.g, 0); $('#sum', body).textContent = items.length ? `Batch ${r0(t.kcal)} kcal · P ${r0(t.p)} g. Per 100 g: ${r0(t.kcal / w * 100)} kcal · P ${r1(t.p / w * 100)} g` : ''; };
-  bindItems(body, r.id, upd); body.cooked.oninput = upd;
+  const upd = () => { const items = readItems(body), t = itemsTotals(items), w = num(body.cooked.value) || items.reduce((a, i) => a + i.g, 0); $('#sum', body).textContent = items.length ? `Batch ${r0(t.kcal)} kcal · P ${r0(t.p)} g. Per 100 g: ${r0(t.kcal / w * 100)} kcal · P ${r1(t.p / w * 100)} g` : ''; $('#pbox', body).hidden = !body.isprep.checked; };
+  bindItems(body, r.id, upd); body.cooked.oninput = upd; body.isprep.onchange = upd;
   const del = $('#delRec', body);
   if (del) del.onclick = e => { e.preventDefault(); if (confirmInline(del)) { S.foods = S.foods.filter(x => x.id !== r.id); save(); closeDlg(); render(); } };
+}
+// + New: make one from scratch, or mark a food you already have (kimchi, nut mix) as one you make
+function newPrepped() {
+  const list = S.foods.filter(f => f.kind !== 'item' && f.kind !== 'recipe' && !f.prep && !f.hidden).sort((a, b) => a.name.localeCompare(b.name));
+  const body = dialog(`<h2>New prepped food</h2><p><button class="primary" id="npNew">Start from scratch</button></p><label>…or a food you already have</label><select name="npf"><option value="">Choose food…</option>${list.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select>`, null);
+  $('#npNew', body).onclick = e => { e.preventDefault(); closeDlg(); recipeDialog({ items: [] }); };
+  body.npf.onchange = () => { const f = foodById(body.npf.value); if (f) { closeDlg(); recipeDialog(f, true); } };
 }
 
 // ---------- PANTRY ----------
 // S.pantry[foodId] = {place, qty, have}. qty is in grams for food (so cooking can use it up) and in units for household items.
 // Each food has a stock unit (su) and its size (suG): eggs, loaves, litres, bags, pieces, or plain grams for meat.
-const suOf = f => f.su ? { su: f.su, g: f.suG || 1 } : f.unit && f.unitG ? { su: f.unit, g: f.unitG } : f.packG ? { su: 'pack', g: f.packG } : { su: 'g', g: 1 };
+const suOf = f => f.prep ? (f.unit && f.unitG ? { su: f.unit, g: f.unitG } : { su: 'g', g: 1 }) : f.su ? { su: f.su, g: f.suG || 1 } : f.unit && f.unitG ? { su: f.unit, g: f.unitG } : f.packG ? { su: 'pack', g: f.packG } : { su: 'g', g: 1 };
 const NOPLURAL = ['g', 'kg', 'L'];
 const plural = (u, n) => NOPLURAL.includes(u) || n === 1 ? u : /(ch|sh|x)$/.test(u) ? u + 'es' : u === 'loaf' ? 'loaves' : u + 's';
 function stockText(f, qty) {
@@ -1870,7 +1888,7 @@ function stockText(f, qty) {
 const stepOf = f => { const { su, g } = suOf(f); return su === 'g' ? 100 : g; };
 const defaultQty = f => { const { su, g } = suOf(f); return su === 'g' ? (f.packG || 500) : (f.packG > g ? Math.max(1, Math.round(f.packG / g)) * g : g); };
 const pantryHas = id => { const p = S.pantry[id]; return !!p && p.have !== false && (p.qty == null || p.qty > 0); };
-const pantryQty = id => { const p = S.pantry[id]; if (!p || p.have === false) return 0; return p.qty == null ? Infinity : p.qty; };
+const pantryQty = id => { const p = S.pantry[id]; if (!p || p.have === false || (p.made && prepStale(foodById(id) || {}))) return 0; return p.qty == null ? Infinity : p.qty; };
 function fixPantryAmounts() { for (const [id, p] of Object.entries(S.pantry)) { const f = foodById(id); if (f && p.qty == null) p.qty = p.have === false ? 0 : defaultQty(f); } }
 function haveText(c) {
   const ings = c.items.map(i => foodById(i.foodId)).filter(Boolean);
@@ -1884,7 +1902,7 @@ VIEWS.pantry = () => {
   ${PLACES.map(pl => { const list = ids.filter(id => (S.pantry[id].place || foodById(id).place) === pl).map(foodById).sort((a, b) => sn(a).localeCompare(sn(b)));
     return `<div class="card"><h2>${pl === 'Freezer' ? '❄︎ ' : ''}${pl}</h2>${list.length ? `<ul class="list">${list.map(f => { const p = S.pantry[f.id], has = pantryHas(f.id);
       const lv = stockLevel(f);
-      return `<li class="${lv}"><div class="grow" data-pe="${f.id}">${esc(sn(f))}${isAlways(f) ? ' <span class="alw" title="Always in the house">★</span>' : ''}${lv === 'low' ? ' <span class="lvl">low</span>' : ''}</div><button class="mini" data-q="${f.id}|-1">−</button><span class="qty">${has ? stockText(f, p.qty) : 'out'}</span><button class="mini" data-q="${f.id}|1">+</button></li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
+      return `<li class="${lv}"><div class="grow" data-pe="${f.id}">${esc(sn(f))}${isAlways(f) ? ' <span class="alw" title="Always in the house">★</span>' : ''}${lv === 'low' ? ' <span class="lvl">low</span>' : ''}${isPrepped(f) && keepsTill(f) && has ? prepStale(f) ? ' <span class="lvl">past its date</span>' : ` <span class="muted small">keeps till ${DOW(keepsTill(f))}</span>` : ''}</div><button class="mini" data-q="${f.id}|-1">−</button><span class="qty">${has ? stockText(f, p.qty) : 'out'}</span><button class="mini" data-q="${f.id}|1">+</button></li>`; }).join('')}</ul>` : '<p class="muted small">Empty.</p>'}</div>`; }).join('')}`;
 };
 BIND.pantry = v => {
   $('#addP', v).onclick = () => pantryAdd();
@@ -2098,6 +2116,12 @@ const shopDays = () => UI.week === monday(today()) ? Array.from({ length: 7 }, (
 // emergency = only what one day needs: its breakfast, a lunch that isn't leftovers, its dinner
 // (plus tomorrow's lunch if that's tonight's leftovers), and the set snacks
 function shoppingNeeds(days = shopDays(), emergency = false) {
+  const need = planNeed(days, emergency);
+  prepExpand(need); // prepped foods: fridge stock first, then a batch's ingredients (prep.js)
+  return needsToList(need);
+}
+// grams of each food the planned meals on these days use
+function planNeed(days, emergency = false) {
   const need = {}; // foodId -> grams
   const stock = {};
   const add = (c, mult) => {
@@ -2115,6 +2139,9 @@ function shoppingNeeds(days = shopDays(), emergency = false) {
     }
     for (const slot of ['Pre-workout', 'Snack']) { const c = cardById(S.settings.fixed[slot]); if (c) add(c, 1); }
   }
+  return need;
+}
+function needsToList(need) {
   // cooked foods (e.g. cooked buckwheat) are bought dry: convert, after using what's already cooked in the pantry
   for (const [id, g] of Object.entries({ ...need })) {
     const f = foodById(id); if (!f || !f.buyAs) continue;
@@ -2390,7 +2417,7 @@ function openSettings() {
 
 // ---------- start ----------
 VIEWS.tasks = choresView; BIND.tasks = v => { bindChores(v); bindChoresPage(v); };
-seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs(); fixCardsV1();
+seedChores(); cardsIntoPantry(); seedBeauty(); beautyWeather(); pxTabs(); fixCardsV1(); prepSetupV1();
 // goals made before 'did nothing' existed start counting from today, so their past isn't held against them
 if ((G().list || []).some(g => !g.created)) { G().list.forEach(g => { g.created ||= today(); }); save(); }
 VIEWS.beauty = beautyView; BIND.beauty = bindBeauty;

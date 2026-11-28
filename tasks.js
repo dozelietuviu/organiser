@@ -129,9 +129,10 @@ function prepJobs() {
     for (const sl of slots) for (const c of myCards(d, sl)) { if (!c || !c.ahead) continue;
       const wd = c.aheadDay ?? 6; let pd = d; for (let k = 0; k < 7; k++) { if (dowIdx(pd) === wd && pd <= d) break; pd = addDays(pd, -1); }
       const key = `${c.id}:${pd}`; if (!out.has(key)) out.set(key, { key, c, pd, first: d }); } }
-  return [...out.values()].filter(j => j.pd <= t && !(S.prepDone || {})[j.key]).sort((a, b) => a.first.localeCompare(b.first));
+  const cardJobs = [...out.values()].filter(j => j.pd <= t && !(S.prepDone || {})[j.key]).sort((a, b) => a.first.localeCompare(b.first));
+  return [...foodPrepJobs(), ...cardJobs]; // prepped foods (prep.js) first
 }
-const prepRow = j => { const late = j.pd < today(), when = j.first === today() ? 'today' : DOW(j.first);
+const prepRow = j => { if (j.food) return prepFoodRow(j); const late = j.pd < today(), when = j.first === today() ? 'today' : DOW(j.first);
   return `<li class="chore ${late ? 'putoff' : ''}"><div class="row"><div class="grow">🍳 Prep: ${esc(j.c.ahead)}<div class="muted small">for ${esc(j.c.name)} · ${when}${late ? ' · <span class="warnc">late</span>' : ''}</div></div></div>
   <div class="chips"><button class="chip sm on" data-prepdone="${j.key}">Done</button></div></li>`; };
 // freezer: meals planned for tomorrow that need something from the freezer become a one-off chore today
@@ -165,8 +166,10 @@ function bindChores(v) {
   $$('[data-ctap]', v).forEach(b => b.onclick = () => { const [id, k] = b.dataset.ctap.split('|'), c = choreById(id); if (c) tapChore(c, k); });
   $$('[data-ch]', v).forEach(b => b.onclick = () => choreDialog(choreById(b.dataset.ch)));
   const g = $('[data-gochores]', v); if (g) g.onclick = () => go('tasks');
-  $$('[data-prepdone]', v).forEach(b => b.onclick = () => { const k = b.dataset.prepdone, [cid, pd] = k.split(':'); (S.prepDone ||= {})[k] = today();
-    (S.prepLog ||= []).push({ d: today(), card: cid, due: pd }); if (S.prepLog.length > 200) S.prepLog = S.prepLog.slice(-200); save(); render(); toast('Prepped ✓ Future you says thanks'); });
+  bindPrepJobs(v);
+  $$('[data-prepdone]', v).forEach(b => b.onclick = () => { const k = b.dataset.prepdone, fp = k.startsWith('f:'), [cid, pd] = fp ? k.slice(2).split(':') : k.split(':'); (S.prepDone ||= {})[k] = today();
+    if (fp) { delete S.prepDone[k]; const f = foodById(cid), j = foodPrepJobs().find(x => x.key === k); const n = f ? prepFoodDone(f, j) : 0; S.prepDone[k] = today(); if (n > 1) toast(`${n} batches into the fridge ✓`); }
+    (S.prepLog ||= []).push({ d: today(), [fp ? 'food' : 'card']: cid, due: pd }); if (S.prepLog.length > 200) S.prepLog = S.prepLog.slice(-200); save(); render(); toast('Prepped ✓ Future you says thanks'); });
   const fz = $('[data-fzout]', v); if (fz) fz.onclick = () => { (S.day[today()] ||= {}).fzOut = 1; save(); render(); toast('Thawing ✓'); };
 }
 function bindChoresPage(v) { $('#chAdd', v).onclick = () => choreEdit({}); }
